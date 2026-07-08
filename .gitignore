@@ -1,0 +1,29 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Vite / build output
+dist/
+dist-electron/
+release/
+
+# Backend runtime data
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/data.db
+backend/data.db-*
+
+# Env / secrets
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~
