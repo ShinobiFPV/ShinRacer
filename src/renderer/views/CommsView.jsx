@@ -174,6 +174,41 @@ function VoicePanel({ identity, socket, users, selfId }) {
 
   const peers = users.filter(p => p.id !== selfId)
 
+  // The Cluster Fucker's ptt.start/ptt.stop/mute.toggle/volume.up/down
+  // appFunctions — only actionable while this panel is mounted (Comms tab
+  // open), since mic/mute/volume state lives here, not in a global store.
+  // See App.jsx's cluster:invoke dispatcher for the other half of this wiring.
+  useEffect(() => {
+    const onPttStart = () => { if (!openMic) setPttActive(true) }
+    const onPttStop = () => { if (!openMic) setPttActive(false) }
+    const onMuteToggle = () => setSelfMuted(m => !m)
+    // "Active peer" has no single well-defined meaning yet (no per-peer
+    // focus/selection UI exists) — applied to every connected peer at once,
+    // like a physical master volume knob, rather than picking one arbitrarily.
+    const onVolumeUp = () => setPeerVolumes(prev => {
+      const next = Object.fromEntries(peers.map(p => [p.handle, Math.min(1, (prev[p.handle] ?? 1) + 0.1)]))
+      window.api.store.set('peerVolumes', { ...prev, ...next })
+      return { ...prev, ...next }
+    })
+    const onVolumeDown = () => setPeerVolumes(prev => {
+      const next = Object.fromEntries(peers.map(p => [p.handle, Math.max(0, (prev[p.handle] ?? 1) - 0.1)]))
+      window.api.store.set('peerVolumes', { ...prev, ...next })
+      return { ...prev, ...next }
+    })
+    window.addEventListener('cluster:ptt.start', onPttStart)
+    window.addEventListener('cluster:ptt.stop', onPttStop)
+    window.addEventListener('cluster:mute.toggle', onMuteToggle)
+    window.addEventListener('cluster:volume.up', onVolumeUp)
+    window.addEventListener('cluster:volume.down', onVolumeDown)
+    return () => {
+      window.removeEventListener('cluster:ptt.start', onPttStart)
+      window.removeEventListener('cluster:ptt.stop', onPttStop)
+      window.removeEventListener('cluster:mute.toggle', onMuteToggle)
+      window.removeEventListener('cluster:volume.up', onVolumeUp)
+      window.removeEventListener('cluster:volume.down', onVolumeDown)
+    }
+  }, [openMic, peers])
+
   return (
     <div style={{ width: 340, borderRight: `1px solid ${C.border}`, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 14, flexShrink: 0 }}>
       <Card style={pttActive ? { border: `1px solid ${C.blue}`, boxShadow: `0 0 12px ${C.blue}44, inset 2px 2px 0 0 ${C.borderHi}` } : {}}>
@@ -281,6 +316,17 @@ function ChatPanel({ identity, socket, quickPhrases }) {
     socket.emit('chat:message', { handle: identity.handle, color: identity.color, text: trimmed })
     setInput('')
   }, [input, socket, identity])
+
+  // The Cluster Fucker's chat.sendPhrase { index } appFunction — see
+  // App.jsx's cluster:invoke dispatcher and VoicePanel's matching listener above.
+  useEffect(() => {
+    const onSendPhrase = (e) => {
+      const phrase = quickPhrases[e.detail?.index]
+      if (phrase) send(phrase)
+    }
+    window.addEventListener('cluster:chat.sendPhrase', onSendPhrase)
+    return () => window.removeEventListener('cluster:chat.sendPhrase', onSendPhrase)
+  }, [quickPhrases, send])
 
   const fmtTime = (ts) => {
     const d = new Date(ts)

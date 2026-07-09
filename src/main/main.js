@@ -29,6 +29,73 @@ let shmActive = false
 // ── Telemetry overlay window ──────────────────────────────────────────────────
 let overlayWindow = null
 
+// ── Cluster Fucker overlay window ─────────────────────────────────────────────
+let clusterOverlayWindow = null
+
+// ── The Cluster Fucker: keystroke dispatch ────────────────────────────────────
+// Verified in this environment: `npm install robotjs` succeeds (a prebuilt
+// binary exists for this Node/win32 combo), and — critically — it also
+// `require()`s successfully from *inside a real Electron 28 main process*
+// (tested with a throwaway `npx electron` script that called
+// `robot.getScreenSize()` and got a real result back), not just from plain
+// Node. That's the actual question the spec asked to check, since Electron
+// bundles its own Node ABI that's usually a different version than the
+// system's — a module built against the wrong ABI normally fails to load
+// with a NODE_MODULE_VERSION mismatch, and it didn't. robotjs is the primary
+// path. The PowerShell SendKeys fallback below still exists and engages
+// automatically if `require('robotjs')` ever throws (e.g. a crew member's
+// machine without a matching prebuilt binary) — same defensive posture as
+// every other native-dependency decision in this codebase.
+let robot = null
+try {
+  robot = require('robotjs')
+} catch (e) {
+  log(`robotjs unavailable, falling back to PowerShell SendKeys for cluster keystrokes: ${e.message}`)
+}
+
+// Splits 'ctrl+shift+p' into robotjs's { key, modifiers } shape.
+function parseKeyBinding(keyStr) {
+  const modifierMap = { ctrl: 'control', control: 'control', shift: 'shift', alt: 'alt', cmd: 'command', command: 'command' }
+  const keyAliases = { esc: 'escape', spacebar: 'space', return: 'enter', del: 'delete' }
+  const parts = keyStr.toLowerCase().split('+').map(p => p.trim())
+  const modifiers = []
+  let key = null
+  for (const p of parts) {
+    if (modifierMap[p]) modifiers.push(modifierMap[p])
+    else key = p
+  }
+  return { key: keyAliases[key] || key, modifiers }
+}
+
+// PowerShell's SendKeys mini-language is unrelated to robotjs's — ^/+/% are
+// modifier prefixes (ctrl/shift/alt) and function/special keys need brace
+// wrapping ({F1}, {ENTER}, ...); everything else sends literally.
+function toSendKeysFormat(keyStr) {
+  const special = { space: '{SPACE}', enter: '{ENTER}', esc: '{ESC}', escape: '{ESC}', tab: '{TAB}',
+    up: '{UP}', down: '{DOWN}', left: '{LEFT}', right: '{RIGHT}', backspace: '{BACKSPACE}', delete: '{DEL}' }
+  const parts = keyStr.toLowerCase().split('+').map(p => p.trim())
+  let prefix = ''
+  let key = null
+  for (const p of parts) {
+    if (p === 'ctrl' || p === 'control') prefix += '^'
+    else if (p === 'shift') prefix += '+'
+    else if (p === 'alt') prefix += '%'
+    else key = p
+  }
+  let keyPart
+  if (/^f([1-9]|1[0-2])$/.test(key)) keyPart = `{${key.toUpperCase()}}`
+  else if (special[key]) keyPart = special[key]
+  else keyPart = key
+  return prefix + keyPart
+}
+
+function sendKeyViaSendKeys(keyStr) {
+  const sendKeysStr = toSendKeysFormat(keyStr).replace(/'/g, "''")
+  const script = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${sendKeysStr}')`
+  const encoded = Buffer.from(script, 'utf16le').toString('base64')
+  execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded])
+}
+
 // ── Reminder notifications: event ids we've already notified for this run ────
 const notifiedEventIds = new Set()
 
@@ -123,6 +190,10 @@ function createWindow() {
       try { overlayWindow.close() } catch (e) {}
       overlayWindow = null
     }
+    if (clusterOverlayWindow) {
+      try { clusterOverlayWindow.close() } catch (e) {}
+      clusterOverlayWindow = null
+    }
   })
 }
 
@@ -166,6 +237,14 @@ function handleAccompUrl(url) {
       win?.webContents.send('oauth:callback', decodeURIComponent(match[1]))
       return
     }
+  }
+  // Cluster Fucker QR/share deep link: accomp://cluster/{presetId} — the
+  // renderer owns opening ClusterView and fetching the preset from the
+  // backend, same division of labor as the OAuth branch above.
+  const clusterMatch = url.match(/^accomp:\/\/cluster\/([^/?]+)/i)
+  if (clusterMatch) {
+    win?.webContents.send('cluster:loadPreset', { presetId: clusterMatch[1] })
+    return
   }
   win?.webContents.send('accomp:open', url)
 }
@@ -327,7 +406,10 @@ ipcMain.handle('server:launch', async (_, config) => {
   }
 })
 
-ipcMain.handle('server:stop', (_, id) => {
+// Extracted so the Cluster Fucker's 'server.stop' appFunction (fully
+// self-contained main-process state — runningServers never leaves here) can
+// call it directly instead of round-tripping through the renderer.
+function stopServerProcess(id) {
   const entry = runningServers.get(id)
   if (!entry) return { ok: false, error: 'Server not found' }
   try {
@@ -339,7 +421,9 @@ ipcMain.handle('server:stop', (_, id) => {
     log(`Server stopped: ${id}`)
     return { ok: true }
   } catch (e) { return { ok: false, error: e.message } }
-})
+}
+
+ipcMain.handle('server:stop', (_, id) => stopServerProcess(id))
 
 ipcMain.handle('server:list', () => {
   const list = []
@@ -620,7 +704,13 @@ function buildTelemetryFrame(p, g, s) {
   }
 }
 
-ipcMain.handle('telemetry:shmStart', async () => {
+// Extracted so the Cluster Fucker's 'telemetry.start'/'telemetry.stop'
+// appFunctions can call these directly (fully self-contained main-process
+// state) instead of round-tripping through the renderer. Calling shmStart
+// while useTelemetryShm's own hook already has it running is a safe no-op
+// (shmActive guard below), so a cluster button and the Telemetry tab can't
+// end up racing to spawn two reader processes.
+function startShmTelemetry() {
   if (shmActive) return { ok: true, alreadyRunning: true }
   try {
     const encoded = Buffer.from(SHM_READER_SCRIPT, 'utf16le').toString('base64')
@@ -640,6 +730,7 @@ ipcMain.handle('telemetry:shmStart', async () => {
         const frame = buildTelemetryFrame(physics, graphics, staticInfo)
         win?.webContents.send('telemetry:frame', frame)
         overlayWindow?.webContents.send('telemetry:frame', frame)
+        clusterOverlayWindow?.webContents.send('telemetry:frame', frame)
       } catch (e) {
         // Malformed/partial frame this tick — skip it, next one arrives in 60ms
       }
@@ -658,16 +749,19 @@ ipcMain.handle('telemetry:shmStart', async () => {
     shmProcess = null
     return { ok: false, error: e.message }
   }
-})
+}
 
-ipcMain.handle('telemetry:shmStop', () => {
+function stopShmTelemetry() {
   if (shmProcess) {
     try { shmProcess.kill() } catch (e) {}
     shmProcess = null
   }
   shmActive = false
   return { ok: true }
-})
+}
+
+ipcMain.handle('telemetry:shmStart', async () => startShmTelemetry())
+ipcMain.handle('telemetry:shmStop', () => stopShmTelemetry())
 
 // ── IPC: Telemetry overlay window ─────────────────────────────────────────────
 ipcMain.handle('telemetry:openOverlay', async (_, config = {}) => {
@@ -754,6 +848,113 @@ ipcMain.handle('telemetry:showOverlayContextMenu', () => {
   ]
   Menu.buildFromTemplate(template).popup({ window: overlayWindow })
   return { ok: true }
+})
+
+// ── IPC: The Cluster Fucker ────────────────────────────────────────────────────
+ipcMain.handle('cluster:sendKey', async (_, { key }) => {
+  try {
+    if (robot) {
+      const { key: k, modifiers } = parseKeyBinding(key)
+      robot.keyTap(k, modifiers)
+    } else {
+      sendKeyViaSendKeys(key)
+    }
+    return { ok: true }
+  } catch (e) {
+    log(`cluster:sendKey failed for "${key}": ${e.message}`)
+    return { ok: false, error: e.message }
+  }
+})
+
+ipcMain.handle('cluster:openOverlay', async (_, config) => {
+  if (clusterOverlayWindow) { clusterOverlayWindow.focus(); return { ok: true, alreadyOpen: true } }
+  try {
+    clusterOverlayWindow = new BrowserWindow({
+      width: config.layout.canvasWidth + 16,
+      height: config.layout.canvasHeight + 16,
+      x: config.x ?? 100,
+      y: config.y ?? 100,
+      alwaysOnTop: config.alwaysOnTop ?? true,
+      transparent: true,
+      frame: false,
+      skipTaskbar: false,
+      resizable: false,
+      hasShadow: false,
+      backgroundColor: '#00000000',
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    })
+    if (isDev) {
+      clusterOverlayWindow.loadURL('http://localhost:5173/#cluster-overlay')
+    } else {
+      clusterOverlayWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: 'cluster-overlay' })
+    }
+    clusterOverlayWindow.setOpacity(config.opacity ?? 1.0)
+    // The overlay window loads a fresh renderer instance with no props to pass
+    // it directly — electron-store is how it recovers which layout to render.
+    store.set('activeClusterOverlay', config.layout)
+    clusterOverlayWindow.on('closed', () => {
+      clusterOverlayWindow = null
+      win?.webContents.send('cluster:overlayClosed')
+    })
+    log('Cluster overlay opened')
+    return { ok: true }
+  } catch (e) {
+    clusterOverlayWindow = null
+    return { ok: false, error: e.message }
+  }
+})
+
+ipcMain.handle('cluster:closeOverlay', () => {
+  clusterOverlayWindow?.close()
+  clusterOverlayWindow = null
+  return { ok: true }
+})
+
+ipcMain.handle('cluster:overlayStatus', () => ({ open: !!clusterOverlayWindow }))
+
+ipcMain.handle('cluster:showOverlayContextMenu', () => {
+  if (!clusterOverlayWindow) return { ok: false }
+  const template = [
+    { label: 'Close overlay', click: () => { clusterOverlayWindow?.close(); clusterOverlayWindow = null } },
+    { label: 'Toggle always on top', click: () => { clusterOverlayWindow?.setAlwaysOnTop(!clusterOverlayWindow.isAlwaysOnTop()) } },
+  ]
+  Menu.buildFromTemplate(template).popup({ window: clusterOverlayWindow })
+  return { ok: true }
+})
+
+// Functions with all the state they need already in this process (server
+// tracking, the SHM reader) are handled directly; everything else needs
+// renderer-side app state (settings/profiles/WebRTC mic state/current view)
+// that only exists in the renderer, so it's forwarded as a single 'cluster:invoke'
+// event for App.jsx (and whichever view is mounted) to act on.
+ipcMain.handle('cluster:callFn', async (_, { fn, param }) => {
+  switch (fn) {
+    case 'telemetry.start': return startShmTelemetry()
+    case 'telemetry.stop':  return stopShmTelemetry()
+    case 'server.stop':     return stopServerProcess(param?.id)
+    default:
+      win?.webContents.send('cluster:invoke', { fn, param })
+      return { ok: true, forwarded: true }
+  }
+})
+
+// ── IPC: Launch Assetto Corsa directly (no replay) ────────────────────────────
+ipcMain.handle('ac:launch', () => {
+  const settings = store.get('settings') || {}
+  if (!settings.acPath) return { ok: false, error: 'AC path not set' }
+  const exePath = path.join(settings.acPath, 'AssettoCorsa.exe')
+  if (!fs.existsSync(exePath)) return { ok: false, error: 'AssettoCorsa.exe not found — check AC path in Settings' }
+  try {
+    spawn(exePath, [], { detached: true, cwd: settings.acPath, windowsHide: false })
+    log('Launched Assetto Corsa')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e.message }
+  }
 })
 
 // ── IPC: Local network ────────────────────────────────────────────────────────

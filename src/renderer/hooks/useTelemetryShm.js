@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { generateMockFrame } from '../lib/telemetryMock'
+import api from '../lib/api'
 
 const TICK_MS = 60
 const STALE_MS = 500 // no real frame within this window => demo mode
+const BACKEND_POST_MS = 500 // Phase 11: mirrors live frames to the backend for the PWA's Cluster page
 
 // Live telemetry from AC's Shared Memory API (physics/graphics/static),
 // bridged from main.js's persistent PowerShell reader. Falls back to a local
@@ -15,6 +17,7 @@ export function useTelemetryShm() {
   const [isDemo, setIsDemo] = useState(false)
   const [error, setError] = useState(null)
   const lastRealFrameAt = useRef(0)
+  const lastPostedAt = useRef(0)
 
   useEffect(() => {
     let cancelled = false
@@ -32,6 +35,16 @@ export function useTelemetryShm() {
       lastRealFrameAt.current = Date.now()
       setFrame(data)
       setIsDemo(false)
+      // Mirrors real (never demo/mock) frames to the backend at a throttled
+      // rate — this is what lets the PWA's Cluster page show live telemetry
+      // via GET /api/telemetry/latest without needing its own SHM access
+      // (which a browser can't have). Best-effort: a slow/offline backend
+      // should never affect the local live display.
+      const now = Date.now()
+      if (now - lastPostedAt.current >= BACKEND_POST_MS) {
+        lastPostedAt.current = now
+        api.post('/api/telemetry/frame', { frame: data }).catch(() => {})
+      }
     })
 
     const tick = setInterval(() => {

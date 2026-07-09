@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AppStoreProvider, useStore } from './store/AppStore'
 import { C, GLOBAL_CSS, StatusDot, Toast } from './components/primitives'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -6,6 +6,7 @@ import Tooltip, { TooltipProvider } from './components/Tooltip'
 import Wizard from './components/Wizard'
 import ServerWizard from './components/ServerWizard'
 import { deployConfig, presetFromConfig } from './lib/deploy'
+import api from './lib/api'
 import DeployView  from './views/DeployView'
 import BuildView   from './views/BuildView'
 import GarageView  from './views/GarageView'
@@ -14,11 +15,13 @@ import EventsView  from './views/EventsView'
 import CommsView   from './views/CommsView'
 import StatsView   from './views/StatsView'
 import TelemetryView from './views/TelemetryView'
+import ClusterView from './views/ClusterView'
 import ReplayView  from './views/ReplayView'
 import ModsView    from './views/ModsView'
 import LinksView   from './views/LinksView'
 import SettingsView from './views/SettingsView'
 import OverlayApp  from './OverlayApp'
+import ClusterOverlay from './ClusterOverlay'
 
 // ── Sidebar nav ───────────────────────────────────────────────────────────────
 const NAV = [
@@ -30,6 +33,7 @@ const NAV = [
   { id:'comms',   icon:'🎙️', label:'Comms' },
   { id:'stats',   icon:'📊', label:'Stats' },
   { id:'telemetry', icon:'📡', label:'Telemetry' },
+  { id:'cluster', icon:'🎛️', label:'Cluster' },
   { id:'replays', icon:'🎬', label:'Replays' },
   { id:'mods',    icon:'📦', label:'Mods' },
   { id:'links',   icon:'🔗', label:'Links' },
@@ -111,6 +115,7 @@ function Inner() {
   const [view, setView]   = useState('deploy')
   const [buildCfg, setBuildCfg] = useState(null)
   const [wizardOpen, setWizardOpen] = useState(false)
+  const [clusterPresetId, setClusterPresetId] = useState(null)
 
   const goToBuild = (cfg) => { setBuildCfg(cfg || null); setView('build') }
 
@@ -138,6 +143,74 @@ function Inner() {
     await saveProfiles([...profiles, presetFromConfig(cfg)])
     showToast('✓ Saved to Garage')
   }
+
+  // accomp://cluster/{id} deep link — hand off to ClusterView, which does
+  // the actual backend fetch (see main.js's handleAccompUrl).
+  useEffect(() => {
+    const unsub = window.api.cluster.onLoadPreset(({ presetId }) => {
+      setClusterPresetId(presetId)
+      setView('cluster')
+    })
+    return unsub
+  }, [])
+
+  // The Cluster Fucker: appFunctions main.js can't handle itself (it needs
+  // renderer-side app state — settings/profiles/current view/WebRTC mic
+  // state) arrive here as a single 'cluster:invoke' event. Functions that
+  // only need *this* top-level state (server.launch, ac.openReplay,
+  // ac.launchGame, the two overlay toggles) are handled directly; anything
+  // that needs a specific view's own local state (ptt/mute/volume/quick-phrase/
+  // lap marker) is re-broadcast as a window CustomEvent for that view to pick
+  // up *if it happens to be mounted* — a disclosed limitation, not a bug,
+  // documented in CLAUDE.md's Phase 11 notes (lifting WebRTC state out of
+  // CommsView into a global store would be a much larger refactor).
+  useEffect(() => {
+    const unsub = window.api.cluster.onInvoke(async ({ fn, param }) => {
+      switch (fn) {
+        case 'server.launch': {
+          const preset = profiles.find(p => p.id === param?.presetId)
+          if (preset) await wizardDeploy(preset)
+          else showToast(`No saved server preset with id "${param?.presetId}"`, C.red)
+          break
+        }
+        case 'ac.openReplay':
+          setView('replays')
+          break
+        case 'ac.launchGame': {
+          const res = await window.api.ac.launch()
+          if (!res.ok) showToast(`✕ ${res.error}`, C.red)
+          break
+        }
+        case 'overlay.toggle': {
+          const status = await window.api.telemetry.overlayStatus()
+          if (status.open) await window.api.telemetry.closeOverlay()
+          else await window.api.telemetry.openOverlay({})
+          break
+        }
+        case 'cluster.toggle': {
+          const status = await window.api.cluster.overlayStatus()
+          if (status.open) { await window.api.cluster.closeOverlay(); break }
+          const presetId = param?.presetId
+          if (!presetId) { showToast('cluster.toggle needs a preset ID', C.red); break }
+          const localPresets = (await window.api.store.get('clusterPresets')) || []
+          const local = localPresets.find(p => p.layout.id === presetId || p.backendId === presetId)
+          if (local) { await window.api.cluster.openOverlay({ layout: local.layout, alwaysOnTop: true, opacity: 1 }); break }
+          try {
+            const { data } = await api.get(`/api/cluster/presets/${presetId}`)
+            if (data.ok) await window.api.cluster.openOverlay({ layout: data.data.layout, alwaysOnTop: true, opacity: 1 })
+            else showToast(data.error, C.red)
+          } catch (e) {
+            showToast('Could not load that cluster preset', C.red)
+          }
+          break
+        }
+        default:
+          window.dispatchEvent(new CustomEvent(`cluster:${fn}`, { detail: param }))
+      }
+    })
+    return unsub
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profiles])
 
   return (
     <>
@@ -184,6 +257,7 @@ function Inner() {
                 {view==='comms'   && <CommsView />}
                 {view==='stats'   && <StatsView />}
                 {view==='telemetry' && <TelemetryView />}
+                {view==='cluster' && <ClusterView initialPresetId={clusterPresetId} />}
                 {view==='replays' && <ReplayView onGoSettings={() => setView('settings')} showToast={showToast} />}
                 {view==='mods'    && <ModsView />}
                 {view==='links'   && <LinksView />}
@@ -209,6 +283,8 @@ export default function App() {
   // of a fresh route — it renders standalone, with no Sidebar/store/wizard,
   // since it only needs the telemetry IPC bridge and electron-store directly.
   if (window.location.hash === '#overlay') return <OverlayApp />
+  // Same pattern for the Cluster Fucker's runtime overlay window.
+  if (window.location.hash === '#cluster-overlay') return <ClusterOverlay />
 
   return (
     <AppStoreProvider>

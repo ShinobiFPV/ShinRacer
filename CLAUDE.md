@@ -1160,3 +1160,333 @@ verified: every new backend file passes `node --check`; both deploy scripts
 parse as valid PowerShell; all three generated PNG icons decode back to
 valid, correctly-sized image data; see the next task's notes for the
 `pwa/` build/install verification.
+
+## Phase 11: The Cluster Fucker
+
+Phase 11 added a custom button-box/dashboard builder — a full drag-and-drop
+editor in the Electron app, a runtime overlay window, and a runtime-only
+version on the PWA — plus the keystroke-dispatch and backend plumbing all
+three needed. The feature's name is "The Cluster Fucker" everywhere in the
+UI, uncensored, per explicit instruction.
+
+### Track 0 — robotjs verification (the actual open question this phase had)
+The brief asked to check whether `robotjs` works with Electron 28 on Windows
+before committing to it, with PowerShell `SendKeys` as the documented
+fallback if not. This was genuinely tested, not assumed:
+- `npm install robotjs` succeeds in this environment (a prebuilt binary
+  exists via `prebuild-install` for this Node/win32 combination) — confirmed
+  loadable and functional from plain Node (`robot.getScreenSize()` returned
+  a real result).
+- The harder, actually-relevant question — does a binary resolved against
+  the *system* Node's ABI also load inside *Electron's* bundled Node (a
+  different, usually older, ABI)? — was tested directly: a throwaway
+  `_robotjs_test.js`, run via `npx electron _robotjs_test.js` from inside
+  this project (so `require('robotjs')` could resolve against the project's
+  real `node_modules`), called `require('robotjs')` from inside a real
+  Electron 28 `app.whenReady()` main-process context. It loaded
+  successfully and `robot.getScreenSize()` returned a real value; `keyTap`
+  and `keyToggle` were confirmed present as functions (not invoked, to avoid
+  actually injecting a keystroke into whatever had focus in this sandbox).
+  The test file was deleted after use, not checked in.
+- **Conclusion: robotjs is the primary keystroke path**, added as a real
+  dependency (`^0.7.1`, pinned to the version actually verified). The
+  PowerShell `SendKeys` fallback (`src/main/main.js`'s `sendKeyViaSendKeys`)
+  still exists and engages automatically if `require('robotjs')` throws —
+  e.g. a crew member's machine without a matching prebuilt binary — same
+  defensive posture the codebase already uses for every other
+  native-dependency decision (better-sqlite3 in Phases 4/6, the SHM reader
+  in Phase 9).
+- `package.json` also gained `"asarUnpack": ["node_modules/robotjs/**/*"]` —
+  a native `.node` addon can't be `dlopen`'d from inside an ASAR archive, so
+  without this a packaged (`electron-builder`) release would work in `npm
+  run dev` but silently fail to load robotjs the moment it's actually
+  installed from a built installer. This wasn't tested against a real
+  `electron-builder` packaging run (no phase has run one yet), but it's the
+  standard, well-documented fix for exactly this class of problem.
+
+### Track 1 — Backend
+- `backend/db.js`: `cluster_presets` table + a `cluster` module
+  (`list`/`listPublic`/`get`/`create`/`update`/`delete`/`countPublic`/
+  `incrementLaunch`), following the existing table/module shape. List views
+  parse `layout_json` just to report `widgetCount` and never ship the full
+  JSON blob in a list response (can be large with embedded base64 images).
+- `backend/routes/cluster.js`: full CRUD exactly per spec, plus the 5-public
+  limit enforced on both `POST` (new) and `PATCH` (going from private to
+  public) — checked with a real HTTP smoke test (see Verified this pass).
+  `DELETE`/`PATCH` both validate `body.author === stored.author` — this is
+  the same "no real auth, friends-only app" trust model every other route
+  in this backend already uses (events, invites), not a new pattern.
+- `backend/routes/telemetry.js`: `POST /frame` (stores the latest frame in a
+  plain module-level variable, not SQLite — it's a ~500ms-latency mirror of
+  "what's on screen right now," not a historical record, so nothing here
+  belongs in a table) and `GET /latest`. Also emits `'telemetry:frame'` over
+  Socket.io on every POST, since a slow client can listen for the push
+  instead of only polling.
+- `backend/socket.js`: `presence:join` gained an optional `clientType`
+  (`'electron' | 'pwa'`), and a new `cluster:action` handler relays an
+  appFunction call to the *same handle's* own connected Electron session.
+  **Deviation from the brief's literal wording:** the spec described this as
+  relaying "to the host," but there's no single well-defined "the host" in
+  a crew where more than one person might run the Electron app on their own
+  rig — routing by handle instead means your phone controls *your own*
+  desktop session, never someone else's PC, which is both the only
+  unambiguous interpretation and the only safe one (arbitrary
+  cross-identity remote control wasn't asked for and would be a real
+  overreach for a friends app with no auth).
+- `backend/routes/auth.js`/`push.js`/etc. from Phase 10 are untouched.
+- `backend/package.json`: added `qrcode-generator@^2.0.4` (same version
+  already verified working in the Electron app since Phase 4's invite QR
+  codes) for the backend's own `:id/qr` route.
+- `scripts/deploy-backend.ps1`: added `scp` lines for `routes/cluster.js`
+  and `routes/telemetry.js`, parse-checked with `[scriptblock]::Create()`.
+
+### Track 2 — Widget catalogue
+All 11 widgets exist in `src/renderer/components/cluster/widgets/`, each
+with `edit`/`runtime` modes, plus `widgets/index.js` as the single source of
+truth (`CLUSTER_WIDGET_CATALOG`) — same pattern as Phase 9's telemetry
+`WIDGET_CATALOG`. `GaugeWidget` re-uses the Phase 9 telemetry gauge
+components directly rather than reimplementing them, exactly as specced.
+`ColorPicker.jsx` is a from-scratch hex-input + 40-swatch grid + glow
+preview, no external library, per the constraint.
+- **Runtime state map, not in the documented prop list:** the spec's
+  per-widget prop contract (`{ id, type, x, y, width, height, config,
+  telemetryFrame, mode, onPress, onRelease, onValueChange, isSelected,
+  onSelect }`) doesn't include anything for "what is this toggle/encoder/
+  slider/XY-pad's *current* value" — but `ToggleButton`'s own spec text says
+  state is "stored in cluster runtime state, not config," which requires
+  *some* prop to carry that state down and read it back up. `ClusterRuntime`
+  owns a `runtimeState` map keyed by widget id and passes each stateful
+  widget a pragmatic `value`/`onValueChange` pair to fill this real gap in
+  the documented contract — not a deviation from intent, just naming the
+  mechanism the spec's own widget descriptions require but didn't spell out.
+- **Positioning/selection ownership split:** individual widget components
+  render only their own visual appearance and input handling; absolute
+  positioning (`x`/`y`/`width`/`height`), the edit-mode selection outline,
+  and the resize handles are owned by the canvas (`ClusterView.jsx`'s
+  `Canvas` component), not duplicated into all 11 widget files. Implementing
+  drag/resize/selection chrome 11 times over would have been both far more
+  code and a real correctness risk (11 places to get grid-snap math right
+  instead of one) — the same reasoning Phase 9 used to justify a single
+  `WIDGET_CATALOG` over one-off per-widget wiring.
+- **`ImagePanel`'s `onConfigChange` prop** is likewise a pragmatic addition
+  beyond the documented list — the spec explicitly wants clicking the widget
+  *itself* in the editor to open a file picker and persist the result, and
+  nothing in the documented prop set lets a widget write back to its own
+  config. `ClusterView` only passes this prop in edit mode.
+
+### Track 3 — Editor (`ClusterView.jsx`)
+Three sub-tabs (Editor / My Clusters / Public Library) in one file, matching
+this codebase's existing convention of fairly large single-file views
+(`EventsView.jsx`, `TrafficView.jsx`) rather than fragmenting further.
+- Canvas drag-to-move, resize-via-corner-handles, marquee multi-select, grid
+  snap (Alt bypasses it), 20-step undo/redo, zoom (50/75/100/125%), and a
+  Delete/Backspace key handler for multi-widget deletion are all hand-rolled
+  with `onMouseDown`/`onMouseMove`/`onMouseUp` — no drag-and-drop library,
+  per the constraint. Palette items are also real HTML5-draggable
+  (`draggable` + `dragstart`/`drop`) as an added convenience alongside
+  click-to-add, since both cost little once the canvas already tracks drop
+  coordinates.
+- The config panel (`WidgetConfigPanel`) is data-driven off a single
+  `FIELD_META` table mapping config key names to a section
+  (Appearance/Label/Action/Telemetry) and a control type (color/select/
+  number/boolean/text/textarea/image) — chosen over hand-writing 11
+  near-duplicate config forms, since most config keys (`fillColor`,
+  `label`, `fontSize`, ...) are shared across many widget types. The one
+  place this needed a widget-type-specific override is `shape`, whose valid
+  options differ between buttons (`rectangle/circle/hexagon/diamond`) and
+  `IndicatorLight` (`circle/square`).
+- **Action binding editor** stores `fnParam` in its *final* dispatched shape
+  directly (e.g. `{ index: 3 }`, `{ presetId: '...' }`) rather than a raw
+  scalar needing translation at dispatch time — `FN_PARAM_FIELD` maps each
+  parameterized app function to the one field it needs, and dispatch is
+  ever only `api.cluster.sendKey(action.key)` or
+  `api.cluster.callFn(action.fn, action.fnParam)`, no shape-guessing at the
+  point of firing.
+- **QR sharing — a real spec contradiction, resolved as two distinct
+  features:** the brief's backend-route section says `GET
+  /api/cluster/presets/:id/qr` encodes "the full layout JSON" with a
+  2048-byte hard limit, while the separate "QR CODE PRESET SHARING" section
+  says the QR encodes a `accomp://cluster/{id}` deep link, and the editor's
+  own Export-section text says "Warn if preset > 50KB" — three different
+  numbers and two different payloads for what reads like the same button.
+  Implemented as genuinely two features serving two different entry points,
+  rather than picking one and silently dropping the other: the editor's own
+  **Share QR code** button (`LayoutSettingsPanel`) builds a QR **client-side**
+  from `JSON.stringify(layout)` using the already-installed
+  `qrcode-generator`, gated at 50KB exactly as that section's text says, and
+  works on *any* preset whether published or not (a from-scratch local
+  preset has no backend row to point a deep link at, so this had to be
+  local-only anyway). The **backend's** `:id/qr` route is implemented
+  exactly as its own section specifies — full `layout_json`, 2048-byte hard
+  limit, `too_large` error code — and is the mechanism Public
+  Library/My-Clusters cards would use for an *already-published* preset
+  (reachable by id from any client, not just the one that built it).
+- **Stale-closure bug found and fixed during this pass, not shipped:**
+  `publish()` originally read the enclosing `localPresets` React state right
+  after calling `saveLocal()`, which itself calls `setState` — since state
+  updates aren't synchronous, a first-time publish (no existing local
+  record yet) would have seen the *pre-update* array, missed the just-added
+  record, and inserted a second, duplicate one. Fixed by having `saveLocal()`
+  return the freshly-computed `{ nextLayout, nextPresets }` and having
+  `publish()` operate on those directly instead of re-reading component
+  state. Caught by re-reading the diff before moving on, not by a runtime
+  test (no way to click through the actual editor in this environment).
+
+### Track 4 — Runtime + overlay window
+- `ClusterRuntime.jsx` (used by the Electron overlay, the editor's own
+  Preview mode, and `ClusterThumbnail.jsx`) and `ClusterThumbnail.jsx`
+  (CSS-`transform: scale`, computed as `min(width-ratio, height-ratio)`
+  rather than the spec's literal width-only ratio, so a preset with a
+  non-default aspect ratio doesn't overflow or leave dead space — a strict
+  improvement on the letter of the spec, not a deviation from its intent).
+- `main.js`: `cluster:openOverlay`/`closeOverlay`/`overlayStatus`/
+  `showOverlayContextMenu` follow the exact `BrowserWindow` config from the
+  spec (transparent, frameless, always-on-top, `#cluster-overlay` hash
+  route). `telemetry:shmStart`'s frame handler now also forwards to
+  `clusterOverlayWindow` alongside the existing `win`/`overlayWindow`
+  targets, so a cluster overlay showing gauge widgets gets live data too.
+  `cluster:overlayStatus` isn't in the spec's literal handler list but is
+  the obvious missing piece needed for the `cluster.toggle` appFunction to
+  actually *toggle* (open if closed, close if open) rather than always
+  opening a second window — added for the same reason `telemetry:
+  overlayStatus` already existed for the Phase 9 overlay.
+- `main.js`'s `cluster:callFn` handler splits functions by where their state
+  actually lives: `telemetry.start`/`telemetry.stop`/`server.stop` are
+  fully self-contained in the main process (the SHM reader and
+  `runningServers` map never leave here), so they're handled directly —
+  `server:stop`'s and the SHM start/stop handlers' bodies were extracted
+  into named functions (`stopServerProcess`, `startShmTelemetry`,
+  `stopShmTelemetry`) so both the original IPC handler and the new
+  `cluster:callFn` path call the identical logic instead of two copies
+  drifting apart. Everything else forwards to the renderer as a single
+  `cluster:invoke` event.
+- `App.jsx`'s `cluster:invoke` listener handles `server.launch` (looks up
+  the preset in `profiles`, reuses the existing `wizardDeploy` — the same
+  helper `ServerWizard` already calls, not a new deploy path),
+  `ac.openReplay` (switches view), `ac.launchGame` (new `ac:launch` IPC
+  handler — this app had no "just launch AC with no replay" capability
+  before), and both overlay toggles directly; everything else
+  (`ptt.*`, `mute.toggle`, `chat.sendPhrase`, `lap.marker`, `volume.*`) is
+  re-broadcast as a `window.dispatchEvent(new CustomEvent('cluster:${fn}'))`
+  for whichever view owns that state to pick up.
+- **Disclosed limitation, not a bug:** `ptt.start`/`ptt.stop`/
+  `mute.toggle`/`volume.up`/`volume.down`/`chat.sendPhrase` only take effect
+  while the Comms tab happens to be mounted, because the mic-mute/PTT/
+  volume state they need lives in `CommsView`'s own local component state,
+  not a global store — `CommsView`'s `VoicePanel`/`ChatPanel` each added a
+  `window.addEventListener('cluster:...')` block that only exists while
+  those components are alive. Lifting that state into `AppStore` so these
+  became true background hotkeys would be a materially larger refactor of
+  a "Phase 1-10 confirmed working feature," which the constraints explicitly
+  said not to touch — this was a real, considered trade, not an oversight.
+  `lap.marker` has no listener anywhere yet: "mark the current lap" isn't an
+  existing capability of `StatsView` (there's no lap-tagging feature to
+  wire into), and inventing one wasn't in scope for this phase — the event
+  fires and is silently a no-op today, which is honest about the gap rather
+  than fabricating a half-feature to make the dispatch table look complete.
+- `accomp://cluster/{id}` deep link: `main.js`'s `handleAccompUrl` gained a
+  branch alongside the existing OAuth one, forwarding to a new
+  `cluster:loadPreset` IPC event; `ClusterView` fetches that preset from the
+  backend and switches into the editor with it loaded.
+
+### Track 5 — PWA port
+- **The PWA needed its own copy of the entire runtime widget stack** —
+  `pwa/src/components/cluster/widgets/*` (all 11), `ClusterRuntime.jsx`, and
+  a port of Phase 9's `telemetry/widgets.jsx` (needed by the ported
+  `GaugeWidget`) — rather than importing from `src/`, per this phase's own
+  explicit constraint ("do not modify any files in `src/`... they share the
+  backend only") and the established Phase 10 precedent
+  (`colors.js`/`presetLinks.js` are already literal duplicates across this
+  exact boundary for the same reason: the two apps build and deploy on
+  completely independent schedules). This was mechanical, not a
+  reimplementation — the ported files are functionally identical to their
+  Electron counterparts, with only the `{ C }` import path adjusted
+  (`../../primitives` → `../../../lib/colors`, one extra level since the
+  PWA's tokens live in `lib/`, not `components/`) and the editor-only code
+  paths (drag/resize/selection, `ImagePanel`'s click-to-upload) dropped,
+  since `ClusterPage` is runtime-only per spec — no editor exists on mobile
+  at all.
+- `pwa/src/views/ClusterPage.jsx`: preset picker (My presets / Public
+  presets tabs) when nothing's loaded, a full-screen `ClusterRuntime` scaled
+  to fit via `transform: scale` once a preset is active, a collapsible
+  header (shrinks to a 4px blue strip, tap to expand), a Fullscreen button
+  (`requestFullscreen()`), and `GET /api/telemetry/latest` polled every
+  500ms (not a socket subscription) per the spec's explicit battery-saving
+  instruction.
+- **Action dispatch on the PWA is genuinely different from Electron**:
+  keystroke-type actions can't fire at all (a browser has no OS-level key
+  injection) — triggering one shows the exact toast text the spec
+  specified, "Key bindings don't work on mobile — use App Function
+  bindings." appFunction-type actions go out over the existing Socket.io
+  connection as `cluster:action`, landing on the backend's new relay (Track
+  1) which forwards to the same handle's own connected Electron session.
+- **`clientType` added to *both* apps' `useSocket.js`** (`'electron'` /
+  `'pwa'` on `presence:join`) — this is what the backend relay actually
+  keys off of to know which connected socket, if any, belongs to an
+  Electron app it can dispatch through. Without this addition the relay
+  designed in Track 1 would have had no way to distinguish a phone's own
+  socket from a desktop one, even matched by handle.
+- **`useTelemetryShm.js` (Electron)** now POSTs each real (never
+  mock/demo) frame to `/api/telemetry/frame`, throttled to once per 500ms
+  via a `lastPostedAt` ref, fire-and-forget (`.catch(() => {})`) so a
+  slow/offline backend can never affect the local live telemetry display.
+  **Accepted minor inefficiency:** if the main window, the telemetry
+  overlay, and a cluster overlay are all open simultaneously, each is a
+  separate renderer process with its own copy of this hook and its own
+  independent 500ms throttle — meaning up to 3x the POST rate in that
+  specific case. Not coordinated across windows because doing so would need
+  main-process arbitration for a redundancy that's at most a few extra
+  small POSTs per second; disproportionate complexity for the actual cost.
+
+### Constraints honored
+- "THE CLUSTER FUCKER" appears uncensored in `ClusterView.jsx`'s header and
+  `docs/CLUSTER_FUCKER.md`'s title, in Bebas Neue, uppercase, exactly as
+  required.
+- No drag-and-drop library, no color-picker library — both hand-rolled with
+  plain mouse/touch events, per the constraint.
+- Every widget's telemetry access goes through `frame?.field ?? fallback` —
+  `shared.js`'s `getTelemetryValue`/`telemetryIsOn` centralize this so no
+  individual widget can regress it.
+- Base64 image warnings: 500KB soft warning (`ImagePanel`'s own upload and
+  the config panel's image field both surface it via `showToast`), 2MB hard
+  limit enforced in `readImageAsBase64` before the file is ever read into
+  a data URL.
+- Public preset limit (5) enforced in both `backend/routes/cluster.js`
+  (server-side, can't be bypassed) and `ClusterView.jsx`'s Publish button
+  (disabled with an explanatory tooltip at the limit) — verified server-side
+  with a real HTTP test (6 publishes, 6th rejected).
+- Deploy script additions parse-checked against the strict single-line rule.
+- Nothing from Phases 1-10 was modified except the specific, narrow
+  additions this phase's own spec called for (main.js's overlay/telemetry
+  handler extraction, `useSocket.js`'s `clientType`, `useTelemetryShm.js`'s
+  POST, `CommsView.jsx`'s new event listeners) — no unrelated refactoring.
+
+### Verified this pass
+The robotjs load-inside-real-Electron-28 test (Track 0) — the one thing this
+phase most needed to actually check rather than assume. A full HTTP smoke
+test of `routes/cluster.js` and `routes/telemetry.js` against the real
+`server.js` with `db.js` stubbed in-memory (the same `better-sqlite3`-has-no-
+prebuilt-binary-for-Node-24/win32 limitation documented since Phase 4):
+create, get (with `launch_count` incrementing), publish via `PATCH`, list
+dedup with `?author=`, QR success on a small layout, the 6th-public-preset
+limit correctly rejected, wrong-author `DELETE` correctly 403'd,
+correct-author `DELETE` succeeding, the telemetry frame POST/GET round-trip,
+and the QR `too_large` path correctly triggering on a deliberately bloated
+layout — all 11 checks passed against real request/response cycles, not
+just code reading. Every new/touched backend file passes `node --check`.
+`scripts/deploy-backend.ps1`'s additions parse as valid PowerShell.
+
+### Not independently verified
+No real Electron window was driven through the actual editor this pass (no
+throwaway Playwright script, unlike Phases 4-9) — the drag/resize/marquee-
+select canvas interactions, the config panel's per-widget-type field
+rendering, actually publishing/loading a preset through the real UI, and the
+overlay window actually appearing over a real AC session were verified by
+careful code reading (including the stale-closure fix caught this way) and
+the backend HTTP tests above, not by clicking through a running app. The PWA
+side (`ClusterPage.jsx`, the ported widget set) was not run through a real
+build in this pass either — see the next task's verification notes for
+whether `vite build` caught anything this reading missed. Keystroke dispatch
+itself (`robot.keyTap`) was deliberately never invoked in testing, only
+confirmed present as a callable function, to avoid injecting a real
+keystroke into this environment's focused window.

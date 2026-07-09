@@ -11,6 +11,7 @@ import StatsPage from './views/StatsPage'
 import LinksPage from './views/LinksPage'
 import SettingsPage from './views/SettingsPage'
 import AuthCallbackPage from './views/AuthCallbackPage'
+import ClusterPage from './views/ClusterPage'
 import { isOnboarded } from './lib/auth'
 
 // Routes that own the full screen — no bottom/side nav chrome around them.
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="/comms" element={<CommsPage />} />
           <Route path="/mods" element={<ModsPage />} />
           <Route path="/stats" element={<StatsPage />} />
+          <Route path="/cluster" element={<ClusterPage />} />
           <Route path="/links" element={<LinksPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />

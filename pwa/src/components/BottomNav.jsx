@@ -7,6 +7,7 @@ const ITEMS = [
   { path: '/comms', icon: '🎙️', label: 'Comms' },
   { path: '/mods', icon: '📦', label: 'Mods' },
   { path: '/stats', icon: '📊', label: 'Stats' },
+  { path: '/cluster', icon: '🎛️', label: 'Cluster' },
   { path: '/settings', icon: '⚙️', label: 'Settings' },
 ]
 

@@ -53,6 +53,9 @@
       "dist/**/*",
       "src/main/**/*",
       "resources/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/robotjs/**/*"
     ]
   },
   "dependencies": {
@@ -62,6 +65,7 @@
     "qrcode-generator": "^2.0.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "robotjs": "^0.7.1",
     "socket.io-client": "^4.7.5"
   },
   "devDependencies": {

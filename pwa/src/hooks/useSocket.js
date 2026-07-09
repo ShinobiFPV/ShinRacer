@@ -33,7 +33,11 @@ export function useSocket(identity) {
     const attach = (s) => {
       const announce = () => {
         setConnected(true)
-        s.emit('presence:join', { handle: identity.handle, color: identity.color })
+        // clientType: 'pwa' lets the backend's Cluster Fucker relay
+        // (socket.js's 'cluster:action' handler) know this connection is a
+        // browser, not an Electron app it could dispatch keystrokes/app
+        // functions through — see CLAUDE.md's Phase 11 notes.
+        s.emit('presence:join', { handle: identity.handle, color: identity.color, clientType: 'pwa' })
       }
       const onDisconnect = () => setConnected(false)
       const onUsers = (list) => setUsers(list)

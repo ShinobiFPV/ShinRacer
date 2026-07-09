@@ -104,6 +104,17 @@ Live data. Every sensor AC exposes. Tyres, g-force, delta, damage — all of it 
 - AC not running? You still get a full simulated lap so you can poke around the whole screen before you've even launched the sim
 - Nothing here ever touches the backend — it stays on your machine
 
+### 🎛️ The Cluster Fucker
+
+Build your own button box. Design a custom panel of buttons, toggles, gauges, and displays — then run it your way.
+
+- Full drag-and-drop editor — momentary buttons, toggles, rocker switches, rotary encoders, sliders, an XY pad, indicator lights, gauges, text readouts, image panels, labels. No code, no external tools
+- Bind any button to a real keystroke (fires straight into AC) or a ShinRacer function — push-to-talk, quick phrases, launching a server, marking a lap, and more
+- Runs as a real overlay window you can drag anywhere over AC, or full-screen on a phone propped up next to your wheel
+- A proper editor, not a toy: undo/redo, grid snap, multi-select, zoom, precise x/y/w/h entry
+- Unlimited local presets, publish up to 5 to the crew library, share any preset as a QR code or a JSON file
+- Full build-and-share walkthrough: **[docs/CLUSTER_FUCKER.md](docs/CLUSTER_FUCKER.md)**
+
 ### 🎬 Replay Browser
 
 That lap you hit last night? It's in here. Tagged, saved, and one click from reliving it.
@@ -216,6 +227,7 @@ Since you asked:
 | Database | SQLite via better-sqlite3 |
 | Voice | WebRTC (browser APIs, peer-to-peer mesh) |
 | Mod library | Google Drive API + OAuth (googleapis) |
+| Keystroke dispatch | robotjs (PowerShell SendKeys fallback) |
 | Networking | Tailscale (or LAN) |
 | Deployment | Raspberry Pi 5 + systemd |
 | Build | electron-builder, GitHub Actions |

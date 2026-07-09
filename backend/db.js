@@ -59,6 +59,18 @@ try {
       auth TEXT,
       created_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS cluster_presets (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      author TEXT NOT NULL,
+      layout_json TEXT NOT NULL,
+      is_public INTEGER DEFAULT 0,
+      launch_count INTEGER DEFAULT 0,
+      created_at TEXT,
+      updated_at TEXT
+    );
   `)
 } catch (e) {
   console.error('Failed to initialize database schema:', e)
@@ -263,4 +275,62 @@ const pushSubs = {
   },
 }
 
-module.exports = { db, events, stats, chat, invites, modInstalls, pushSubs }
+// ── The Cluster Fucker: preset storage ───────────────────────────────────────
+function parseClusterRow(row) {
+  if (!row) return null
+  return { ...row, is_public: !!row.is_public }
+}
+const cluster = {
+  // List view intentionally omits layout_json (can be large with embedded
+  // base64 images) — callers get widgetCount instead, parsed here once
+  // rather than shipping the full JSON blob to every list request.
+  list(author) {
+    const rows = db.prepare(`SELECT * FROM cluster_presets WHERE author = ? ORDER BY updated_at DESC`).all(author)
+    return rows.map(row => {
+      let widgetCount = 0
+      try { widgetCount = (JSON.parse(row.layout_json).widgets || []).length } catch (e) { /* malformed row — report 0 */ }
+      const { layout_json, ...rest } = parseClusterRow(row)
+      return { ...rest, widgetCount }
+    })
+  },
+  listPublic() {
+    const rows = db.prepare(`SELECT * FROM cluster_presets WHERE is_public = 1 ORDER BY launch_count DESC`).all()
+    return rows.map(row => {
+      let widgetCount = 0
+      try { widgetCount = (JSON.parse(row.layout_json).widgets || []).length } catch (e) { /* malformed row — report 0 */ }
+      const { layout_json, ...rest } = parseClusterRow(row)
+      return { ...rest, widgetCount }
+    })
+  },
+  get(id) {
+    return parseClusterRow(db.prepare(`SELECT * FROM cluster_presets WHERE id = ?`).get(id))
+  },
+  create(preset) {
+    db.prepare(`INSERT INTO cluster_presets
+      (id, name, description, author, layout_json, is_public, launch_count, created_at, updated_at)
+      VALUES (@id, @name, @description, @author, @layout_json, @is_public, 0, @created_at, @updated_at)`
+    ).run(preset)
+    return cluster.get(preset.id)
+  },
+  update(id, patch) {
+    const existing = db.prepare(`SELECT * FROM cluster_presets WHERE id = ?`).get(id)
+    if (!existing) return null
+    const merged = { ...existing, ...patch, id }
+    db.prepare(`UPDATE cluster_presets SET
+      name=@name, description=@description, layout_json=@layout_json,
+      is_public=@is_public, updated_at=@updated_at
+      WHERE id=@id`).run(merged)
+    return cluster.get(id)
+  },
+  delete(id) {
+    db.prepare(`DELETE FROM cluster_presets WHERE id = ?`).run(id)
+  },
+  countPublic(author) {
+    return db.prepare(`SELECT COUNT(*) as n FROM cluster_presets WHERE author = ? AND is_public = 1`).get(author).n
+  },
+  incrementLaunch(id) {
+    db.prepare(`UPDATE cluster_presets SET launch_count = launch_count + 1 WHERE id = ?`).run(id)
+  },
+}
+
+module.exports = { db, events, stats, chat, invites, modInstalls, pushSubs, cluster }

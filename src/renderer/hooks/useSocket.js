@@ -35,7 +35,11 @@ export function useSocket(identity) {
     const attach = (s) => {
       const announce = () => {
         setConnected(true)
-        s.emit('presence:join', { handle: identity.handle, color: identity.color })
+        // clientType: 'electron' lets the backend's Cluster Fucker relay
+        // (socket.js's 'cluster:action' handler) target this specific
+        // connection when a PWA phone triggers an appFunction — see
+        // CLAUDE.md's Phase 11 notes.
+        s.emit('presence:join', { handle: identity.handle, color: identity.color, clientType: 'electron' })
       }
       const onDisconnect = () => setConnected(false)
       const onUsers = (list) => setUsers(list)

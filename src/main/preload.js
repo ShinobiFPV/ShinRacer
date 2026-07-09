@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld('api', {
   ac: {
     detect:    ()        => ipcRenderer.invoke('ac:detect'),
     scanTracks: (p)      => ipcRenderer.invoke('ac:scanTracks', p),
+    launch:    ()        => ipcRenderer.invoke('ac:launch'),
   },
 
   // UDP lap telemetry + AC Shared Memory live telemetry + overlay window
@@ -146,6 +147,32 @@ contextBridge.exposeInMainWorld('api', {
     onCallback: (cb) => {
       ipcRenderer.on('oauth:callback', (_, code) => cb(code))
       return () => ipcRenderer.removeAllListeners('oauth:callback')
+    },
+  },
+
+  // The Cluster Fucker — keystroke dispatch, overlay window, app-function calls
+  cluster: {
+    sendKey:      (key)    => ipcRenderer.invoke('cluster:sendKey', { key }),
+    callFn:       (fn, param) => ipcRenderer.invoke('cluster:callFn', { fn, param }),
+    openOverlay:  (config) => ipcRenderer.invoke('cluster:openOverlay', config),
+    closeOverlay: ()       => ipcRenderer.invoke('cluster:closeOverlay'),
+    overlayStatus: ()      => ipcRenderer.invoke('cluster:overlayStatus'),
+    showOverlayContextMenu: () => ipcRenderer.invoke('cluster:showOverlayContextMenu'),
+    onOverlayClosed: (cb) => {
+      ipcRenderer.on('cluster:overlayClosed', () => cb())
+      return () => ipcRenderer.removeAllListeners('cluster:overlayClosed')
+    },
+    // Fired for appFunctions main.js can't handle itself (needs renderer-side
+    // app state — settings/profiles/WebRTC mic state/current view). App.jsx
+    // owns dispatching these; see its cluster:invoke listener.
+    onInvoke: (cb) => {
+      ipcRenderer.on('cluster:invoke', (_, data) => cb(data))
+      return () => ipcRenderer.removeAllListeners('cluster:invoke')
+    },
+    // accomp://cluster/{id} deep link — see main.js's handleAccompUrl.
+    onLoadPreset: (cb) => {
+      ipcRenderer.on('cluster:loadPreset', (_, data) => cb(data))
+      return () => ipcRenderer.removeAllListeners('cluster:loadPreset')
     },
   },
 })
