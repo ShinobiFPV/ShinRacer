@@ -9,7 +9,7 @@
 
 ## Overview
 
-ShinRacer is a full desktop companion app for Assetto Corsa 1, built to run alongside Content Manager on Windows. It handles the parts of running a private racing crew that Content Manager doesn't: standing up dedicated servers without hand-editing INI files, configuring CSP AI traffic and sol WeatherFX for open-world maps, coordinating race nights, running voice comms, tracking lap times, and browsing replays — all from one app, one design system, one running process.
+ShinRacer is a full desktop companion app for Assetto Corsa 1, built to run alongside Content Manager on Windows. It handles the parts of running a private racing crew that Content Manager doesn't: standing up dedicated servers without hand-editing INI files, configuring CSP AI traffic and sol WeatherFX for open-world maps, coordinating race nights, running voice comms, tracking lap times, showing a live telemetry dash (with a draggable always-on-top overlay), and browsing replays — all from one app, one design system, one running process.
 
 It's built for a specific crew, not the general public. William (callsign `shinobi`) and a small group of racing and drifting friends run this on a private Tailscale network, with a Raspberry Pi 5 at the center acting as the shared backend for events, chat, and stats. There's no login system because there doesn't need to be one — everyone on the network is already someone who's supposed to be there.
 
@@ -96,6 +96,17 @@ Real telemetry straight from AC's own UDP broadcast — captured, stored, and co
 - Export to CSV or JSON per session
 - Recording indicator with a live lap counter
 
+### 📡 Live Telemetry
+
+Real-time dash and a standalone always-on-top overlay, both fed straight from AC's own Shared Memory API — no third-party dashboard app required.
+
+- 15 widgets across 5 categories: Motion (speed gauge, RPM/gear bar, big gear display, G-force circle, input trace), Controls (throttle/brake bars, steering angle), Tyres (tyre map with temps/wear, tyre pressures, suspension travel), Session (lap timing panel, fuel bar, status bar, damage panel), and a compact Minimal speed+gear readout
+- LIVE tab: a 12-column responsive grid of your active widgets
+- CONFIGURE tab: check widgets on/off by category, drag-to-reorder, size per widget (sm/md/lg), 5 built-in presets (Full Dash, Tyre Map, Corner, Timing, Minimal) or fully custom layouts
+- OVERLAY tab: launches a second, frameless, transparent, always-on-top window you can drag anywhere (even over AC itself), with its own preset, opacity slider, snap-to-corner, and a right-click context menu
+- DEMO MODE: if AC isn't running (or hasn't been open for >500ms), every widget falls back to a simulated 90-second lap automatically, so the whole screen is explorable without ever launching the sim
+- Telemetry never leaves your machine — nothing here touches the backend
+
 ### 🎬 Replay Browser
 
 Browse, tag, and launch AC replays without digging through File Explorer.
@@ -157,6 +168,7 @@ Zero-friction setup for new crew members — no README required to get running.
 │  │   Main Process (Node.js)  │  │
 │  │   acServer.exe spawner    │  │
 │  │   UDP telemetry (9996)    │  │
+│  │   AC Shared Memory reader │  │
 │  │   accomp:// URL handler   │  │
 │  └───────────────────────────┘  │
 └──────────────┬──────────────────┘
@@ -173,11 +185,11 @@ Zero-friction setup for new crew members — no README required to get running.
 └─────────────────────────────────┘
 ```
 
-**The Electron app** is the whole client experience — React renderer for UI, a Node.js main process for everything that needs real OS access: spawning and monitoring `acServer.exe`, listening for AC's UDP telemetry broadcast, reading/writing AC's own config files, and handling `accomp://` protocol links for invite round-trips. The renderer never touches Node directly — it talks to the main process over Electron's IPC through a `contextBridge`-exposed API.
+**The Electron app** is the whole client experience — React renderer for UI, a Node.js main process for everything that needs real OS access: spawning and monitoring `acServer.exe`, listening for AC's UDP telemetry broadcast, reading AC's Shared Memory blocks for the Live Telemetry screen (via a persistent PowerShell child process — no native compiled dependency required), reading/writing AC's own config files, and handling `accomp://` protocol links for invite round-trips. The renderer never touches Node directly — it talks to the main process over Electron's IPC through a `contextBridge`-exposed API.
 
 **The backend** is a small always-on Node service that every client points at, over Tailscale or LAN. It's the one thing that has to be shared: it holds the events calendar, chat history, WebRTC signaling, lap stats, and invite codes in a single SQLite database, and relays realtime events over Socket.io. It runs on a Raspberry Pi 5 (`shinobi`) as a systemd service, but there's nothing Pi-specific about it — any always-on Linux box (or Windows machine) on the network works.
 
-Server Manager, Traffic Manager, and the Replay Browser work entirely offline — they only touch your local AC install and filesystem. Events, Comms, and Stats need the backend, since those are the genuinely shared, multiplayer parts of the app. Mod Manager downloads/browsing need the backend too (it proxies Google Drive), but only uploading needs a Google sign-in.
+Server Manager, Traffic Manager, Live Telemetry, and the Replay Browser work entirely offline — they only touch your local AC install and filesystem (and in Telemetry's case, AC's shared memory). Events, Comms, and Stats need the backend, since those are the genuinely shared, multiplayer parts of the app. Mod Manager downloads/browsing need the backend too (it proxies Google Drive), but only uploading needs a Google sign-in.
 
 ## Tech Stack
 
@@ -256,7 +268,9 @@ Health check endpoint: `GET /api/health`
 
 ## AC Telemetry setup
 
-Lap Stats reads AC's own UDP telemetry broadcast — no plugin needed. Enable it in `cfg.ini`:
+ShinRacer reads telemetry from AC two different ways, for two different screens:
+
+**Lap Stats** (session history, leaderboards, exports) reads AC's UDP telemetry broadcast and needs one-time setup. Enable it in `cfg.ini`:
 
 ```ini
 [LIVE_TELEMETRY]
@@ -274,6 +288,8 @@ or
 ```
 Documents\Assetto Corsa\cfg\cfg.ini
 ```
+
+**Live Telemetry** (the LIVE/CONFIGURE/OVERLAY dash) needs no setup at all — it reads AC's Shared Memory blocks directly the moment AC is running, no `cfg.ini` change required. Just open the Telemetry tab; if AC isn't running yet, it shows a simulated demo lap until it is.
 
 ## Traffic Manager setup (SRP example)
 
@@ -299,7 +315,7 @@ Architecture, feature design, UX direction, QA, and deployment.
 **Built with Claude**
 This project was designed in collaboration with [Claude](https://claude.ai) (Anthropic's AI assistant) and built using [Claude Code](https://claude.ai/code) (Anthropic's agentic coding tool).
 
-The development process: William directed all product decisions — what to build, how it should work, and how it should feel. Claude handled code generation across eight iterative phases, from initial scaffold through production hardening, the Mod Manager, an app-wide tooltip system with the Server Builder Wizard and Useful Links page, and a full visual redesign to the current cold, high-contrast look. Claude Code executed each phase given a detailed prompt, with William reviewing, testing, and course-correcting between phases.
+The development process: William directed all product decisions — what to build, how it should work, and how it should feel. Claude handled code generation across nine iterative phases, from initial scaffold through production hardening, the Mod Manager, an app-wide tooltip system with the Server Builder Wizard and Useful Links page, a full visual redesign to the current cold, high-contrast look, and finally the Live Telemetry screen with its always-on-top overlay. Claude Code executed each phase given a detailed prompt, with William reviewing, testing, and course-correcting between phases.
 
 This is an example of what's possible when a technically-minded builder uses AI as a force multiplier — not to replace judgment, but to ship faster.
 
