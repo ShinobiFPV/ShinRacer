@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { io } from 'socket.io-client'
 import { getBackendUrl, onBackendUrlChange } from '../lib/api'
+import { getIdToken } from '../lib/auth'
 
 // One socket connection per app session (module-level singleton) — same
 // pattern as the Electron app's hook, so switching tabs/pages doesn't tear
@@ -16,6 +17,9 @@ function getSharedSocket() {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
+      // Called fresh on every (re)connection attempt, so a token refreshed
+      // after the socket was first created still gets picked up.
+      auth: (cb) => cb({ token: getIdToken() }),
     })
     singletonUrl = url
   }

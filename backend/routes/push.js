@@ -2,8 +2,10 @@ const express = require('express')
 const { v4: uuidv4 } = require('uuid')
 const { pushSubs } = require('../db')
 const { sendToHandle } = require('../lib/push')
+const { requireAuth } = require('../middleware/auth')
 
 const router = express.Router()
+router.use(requireAuth)
 
 // Not in the original spec's route list, but pushManager.subscribe() on the
 // client needs the VAPID *public* key as its applicationServerKey — there's

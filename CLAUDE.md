@@ -1490,3 +1490,261 @@ whether `vite build` caught anything this reading missed. Keystroke dispatch
 itself (`robot.keyTap`) was deliberately never invoked in testing, only
 confirmed present as a callable function, to avoid injecting a real
 keystroke into this environment's focused window.
+
+## Phase 12: Single Installer, Google Auth, Role System, and Host Selection
+
+Phase 12 retrofitted the whole app with mandatory Google sign-in and a
+three-tier role system (Admin/Host/Crew), added host registration and
+event-level host selection, rewrote the installer as a single NSIS package,
+and updated the Electron app, the PWA, and the docs to match. This is the
+largest cross-cutting change since Phase 8's visual redesign — it touches
+every backend route, both frontends' auth/socket wiring, and the first-run
+experience of every app in the repo.
+
+### Backend — auth, roles, hosts (Phase 0/Track 0)
+- `backend/config/roles.json.example` (committed) documents the shape;
+  the real `backend/config/roles.json` is gitignored and lives only on
+  shinobi — `{admins:[], hosts:[], crew:[]}`, anyone unlisted defaults to crew.
+- `backend/lib/roles.js` (new, not in the original spec's file list) —
+  `server.js` owning roles-loading the way the spec described would create a
+  circular require (`middleware/auth.js` needs roles, `server.js` needs the
+  middleware), so this got its own module. Watches the **directory**, not
+  the file, filtered by filename — more robust against editors that save via
+  temp-file-rename (vim/nano) than watching the file handle directly.
+- `backend/middleware/auth.js` — `verifyGoogleToken` via Google's
+  `tokeninfo` endpoint (no JWT library), `getRole`/`requireAuth`/`requireRole`.
+- `backend/routes/auth.js` extended: `POST /google` (accepts `idToken` OR
+  `refreshToken`), `GET /me`, `GET`/`PATCH /roles-config` (admin-only).
+- `backend/routes/admin.js` (new): `GET /users`, `PATCH /users/:uid/role`
+  (rewrites `roles.json` and the cached `users.role` column together),
+  plus `GET /hosts`, `DELETE /hosts/:uid`, `GET /system/health`,
+  `POST /system/restart` — the latter two weren't in the original spec's
+  admin-route list but are required by the Admin panel's "Server Overview"
+  and "System Health" sections, which the spec did ask for.
+- `backend/routes/hosts.js` (new): `POST /register`, `GET /available`,
+  `GET /:uid/status`.
+- `backend/db.js`: `users` and `hosts` tables; `events` gained
+  `host_type`/`host_uid`/`host_name` via guarded `ALTER TABLE` (each its own
+  try/catch, since the columns may already exist on re-run).
+- `backend/socket.js`: `io.use()` verifies a Google ID token on every
+  handshake (`socket.handshake.auth.token`) before any event handler runs;
+  presence tracks `{uid, role, clientType}` and flips a host's `is_online`
+  row on join/disconnect.
+- **Every existing route retrofitted** with `requireAuth` (`events`, `stats`,
+  `chat`, `cluster`, `telemetry`, `push`, `invites`) — no unauthenticated API
+  access anywhere except the sign-in bootstrap itself (`/api/auth/config`,
+  `/api/auth/google`, `/api/mods/auth/url`, `/api/mods/auth/callback` — these
+  can't require a token that doesn't exist yet).
+- **Dual-token header split** (`routes/mods.js`): the pre-Phase-12 upload
+  route read a Google *Drive* access token from `Authorization: Bearer`, but
+  that header slot is now reserved app-wide for the app's own ID token. The
+  Drive access token moved to a new `X-Drive-Access-Token` header — two
+  conceptually different Google tokens (ID token: who are you; access token:
+  can you write to Drive) that used to share one header by coincidence.
+- **Server-side-only token refresh**: the spec described refreshing an
+  expired ID token "via Google's OAuth token endpoint" directly from the
+  client using a stored refresh token — but that grant requires the OAuth
+  client secret, which has never left the backend (a confidential/Desktop
+  client type, not a public one). `lib/oauth.js` gained `refreshIdToken()`
+  server-side; `POST /api/auth/google` accepts `refreshToken` as an
+  alternative to `idToken` so the client only ever holds the refresh token,
+  never does the exchange itself.
+- Smoke-tested end-to-end twice (once for the Phase 0-4 surface, once after
+  adding the admin/hosts additions) by stubbing `db.js` in the require cache
+  with an in-memory equivalent and `global.fetch` to fake Google's
+  `tokeninfo` responses, then loading the real `server.js`/routes/middleware
+  unmodified and hitting real HTTP + a real `socket.io-client` connection —
+  role resolution for all three roles, 401/403 gating on every new route,
+  host registration/availability across a real socket
+  connect→presence:join→disconnect lifecycle, `roles.json` actually
+  rewritten on disk by a role-promotion PATCH, and socket
+  connect_error/connect with/without a valid token all verified against real
+  responses, not just code reading. Test files deleted after use, never
+  committed.
+
+### Electron — auth state, wizard, nav, host selection (Phase 1-4)
+- `src/renderer/store/AppStore.jsx`: `googleAuth` is the single source of
+  truth for sign-in state; `identity = {handle, color}` is *derived* from it
+  so the shape every pre-Phase-12 view already consumes via
+  `useStore().identity` (Comms/Events/Stats/Mods/Cluster/Links) never had to
+  change — Phase 12 changes *where* handle/color come from, not what they
+  look like to six views that already worked. `signInStatus` exposes
+  `idle|exchanging|fetching-role|error|offline-available` for the Wizard's
+  Connecting step.
+- **"Continue offline" scope narrowed, on purpose.** The spec imagined the
+  code exchange succeeding independently of the backend, with only the role
+  lookup able to fail offline. In this architecture both calls need the
+  backend (the exchange needs the client secret), so if the backend is
+  genuinely unreachable, the exchange itself fails and there's no Google
+  profile to build even a degraded identity from. "Continue offline" is only
+  real, and only offered, when the exchange succeeded but the *subsequent*
+  role lookup specifically failed on a network error — documented in
+  `AppStore.jsx` at length since it's a deliberate, honest narrowing of the
+  spec's more idealized assumption, not a missed case.
+- `src/main/main.js`/`preload.js`: removed the old standalone
+  `identity:get`/`identity:set` IPC (superseded by `googleAuth`); added
+  `system:hostname` (host registration's machine name — the spec's own
+  suggestion of reusing the invite Share modal's LAN-IP helper was actually
+  wrong, an IP isn't a hostname) and `net:checkPortAvailable` (Host Status's
+  port-9600 readiness check).
+- `src/renderer/lib/api.js` / `hooks/useSocket.js`: axios request
+  interceptor attaches `Authorization: Bearer <idToken>` to every request;
+  socket `auth` option changed from a static object to a callback so a
+  reconnect always sends the current token, not whatever was true at the
+  first connect.
+- `src/renderer/App.jsx`: `NAV` items gained a `role` field, `canAccess()`
+  implements the admin⊇host⊇crew hierarchy, sidebar filters accordingly
+  (hidden items are absent from the DOM, not disabled-and-visible),
+  `AccessRestricted` full-page gate for direct navigation to a hidden route,
+  Google avatar/handle/role badge in the sidebar footer.
+- `src/renderer/components/Wizard.jsx`: full rewrite — Welcome (Google
+  button) → Connecting (auto, Retry/Continue-Offline on failure) → Identity
+  (Google-confirmed name/email, editable handle+color) → Backend →
+  *(Host/Admin only)* AC Setup + Host Readiness Check → Done
+  (role-specific copy).
+- `src/renderer/views/EventsView.jsx`: `HostSelector` component — **the
+  "I'll host" card only renders in the DOM when `isHost` is true**, matching
+  the spec's explicit "not just disabled, not present in the DOM"
+  constraint, verified by reading the conditional (`{isHost && <div>...}`),
+  not a CSS `display:none`. Event proposal/detail panel carry
+  `host_type`/`host_uid`/`host_name` through create/update/display.
+- `src/renderer/views/SettingsView.jsx`: Profile section (Google
+  avatar/name/email/role badge, handle, color swatches, Sign Out), Host
+  Status section (readiness checklist + Register/Update Host Info button,
+  Host/Admin-only), Connection section retained in place.
+- `src/renderer/views/AdminView.jsx` (new): Crew Management (role dropdown
+  per user, live counts), Host Status (remove button), Server Overview
+  (**this machine's live servers only** — there's no cross-machine server
+  registry, disclosed directly in the panel's own subtitle text, not just
+  this doc), System Health (uptime/memory + confirm-gated Restart Backend).
+- **ModsView.jsx OAuth consolidation**: this view used to run its own
+  separate Google OAuth exchange for Drive access, writing to the *same*
+  `googleAuth` electron-store key `AppStore.jsx` now owns for app-wide
+  identity — a real collision the two features would otherwise have fought
+  over. Removed ModsView's own `onCallback` listener, local `googleAuth`
+  state, and sign-in/out handlers entirely; it now reads
+  `googleAuth`/`user`/`signOut` from `useStore()` (the Wizard already
+  guarantees sign-in before any view can render) and sends the Drive access
+  token via the new `X-Drive-Access-Token` header instead of `Authorization`.
+
+### PWA — mandatory sign-in, no guest mode (not in the original spec's scope)
+The Phase 12 spec never mentions the PWA, but the PWA shares the same
+backend, and the backend-wide `requireAuth` retrofit breaks the PWA's
+existing "Continue as guest" browse-only mode outright — every route it
+calls, including plain event/mod browsing, now needs a valid ID token. This
+was a necessary, disclosed deviation, not an optional nice-to-have:
+- `pwa/src/lib/auth.js`: added `'openid'` to the PWA's own PKCE scope list
+  (it builds its own Google auth URL client-side, separately from the
+  backend's `getAuthUrl`, and was missing the one scope that makes Google
+  return an `id_token` at all — without it, sign-in would have "succeeded"
+  with no token to actually authenticate anything). `exchangeCode()` now
+  also calls `POST /api/auth/google` after the token exchange to register
+  the user and resolve a role, mirroring the Electron flow. Added
+  `getIdToken()`.
+- `pwa/src/lib/api.js`: request interceptor attaches the ID token from
+  localStorage (reads the key directly rather than importing
+  `lib/auth.js`, which already imports this module for its own exchange
+  call — importing back would be circular); response interceptor clears a
+  dead session and redirects to onboarding on a real 401.
+- `pwa/src/hooks/useSocket.js`: socket `auth` callback now sends the stored
+  ID token, matching the backend's `io.use()` requirement.
+- `pwa/src/views/OnboardingPage.jsx`: removed "Continue as guest" and the
+  guest capability checklist entirely — Google sign-in is now the only path
+  through onboarding, consistent with the Electron Wizard.
+- `pwa/src/App.jsx`: the route guard now checks `getStoredAuth()` (a real
+  session) instead of the old `isOnboarded()` flag, since being onboarded no
+  longer means anything if there's no valid Google session behind it (e.g.
+  after a sign-out).
+
+### Installer — single NSIS package
+- `package.json`'s `build.win.target` was already NSIS-only with no
+  portable/zip target (pre-existing, not a Phase 12 change) — added
+  `nsis.license`/`nsis.include` pointing at two new files, and
+  `version:patch`/`version:minor`/`version:major` scripts (`npm version` +
+  push + push --tags in one command).
+- `resources/installer.nsh` (new): `customHeader` (branding text),
+  `customInit` (force-closes a running `ShinRacer.exe` before installing
+  over it — otherwise a locked exe fails the install partway through with a
+  confusing error), `customInstall` (no-op — nothing needs creating at
+  install time), `customUnInstall` (asks Yes/No before deleting
+  `%APPDATA%\ShinRacer`, rather than always keeping or always wiping it
+  silently). Verified by actually compiling it with `makensis.exe` (found
+  pre-cached at `%LOCALAPPDATA%\electron-builder\Cache\nsis\...\Bin\`) inside
+  a minimal wrapper `.nsi` that includes the four macros — compiled clean,
+  only pre-existing MUI2-scaffolding warnings unrelated to this file's own
+  code, not just eyeballed for syntax.
+- `resources/license.txt` — copied from the repo root's `LICENSE` (MIT).
+- `.github/workflows/release.yml`: added npm cache; added a follow-up step
+  that overwrites electron-builder's auto-generated release notes (just the
+  tag name) with `.github/release-template.md`, substituting the version in.
+- `.github/release-template.md` rewritten — it still said "AC Companion" /
+  `AC-Companion-Setup-{version}.exe` from before the ShinRacer rename, and
+  now also mentions the mandatory Google sign-in requirement.
+- **Known pre-existing gap, not fixed**: `resources/icon.ico` is referenced
+  by `package.json` (`build.win.icon`, `nsis.installerIcon`) but doesn't
+  exist anywhere in the repo — predates Phase 12, wasn't part of its scope,
+  and there's no source image to convert. A real `electron-builder` run will
+  fail on this until an icon is added; `npx vite build`/`node --check`
+  (which don't invoke electron-builder) both still pass. Documented in the
+  new `docs/RELEASING.md` so it isn't a surprise at release time.
+
+### Docs
+- `docs/ADMIN_SETUP.md` (new): `roles.json` shape, bootstrapping the first
+  admin by hand (there's no one with permission to promote them yet), the
+  Admin panel's four sections, becoming a Host (role vs. machine
+  registration are different things — a role says "allowed to host," a
+  registration says "this PC is available for crew to pick").
+- `docs/RELEASING.md` (new): the tag → GitHub Actions → published-release
+  pipeline, `npm run release:dry` for local sanity checks, what's actually
+  inside the installer, the `installer.nsh` macros explained, and the
+  icon.ico gap flagged explicitly.
+- `docs/FRIEND_SETUP.md` rewritten around mandatory Google sign-in for both
+  the desktop app and the PWA's "Option B" — the old copy explicitly said
+  browsing worked without signing in, which is no longer true.
+- `docs/GOOGLE_DRIVE_SETUP.md`: one clarifying paragraph added — "no login
+  required for downloads" was, and still is, true about the *Drive* API call
+  specifically (service-account read access), but is easily misread now that
+  signing in to ShinRacer itself is mandatory app-wide; both facts are now
+  stated side by side instead of just the first one.
+- `README.md`: tagline/intro paragraph's "no accounts"/"no login screen"
+  claims fixed (Google sign-in is now mandatory), new "🔐 Roles & Admin
+  Panel" feature section, First-Run Wizard section rewritten for the
+  Google-first flow, new **Roles** table (Admin/Host/Crew → what each gets),
+  "If you're joining the crew" steps updated, a Google Cloud prerequisite
+  added to the hosting section, Under the Hood table gained an Auth row.
+
+### Verified this pass
+Every backend file (new and touched) passes `node --check`. Both the
+Electron renderer (`npx vite build`, 161 modules) and the PWA
+(`npx vite build`, 152 modules) compile clean with no new errors —
+confirms `AdminView.jsx`, the `ModsView.jsx` consolidation, the
+`SettingsView.jsx`/`EventsView.jsx` rewrites, and every PWA auth file change
+are all syntactically and import-correctly wired, not just individually
+read. The backend's full auth/role/host surface was smoke-tested twice
+against real HTTP + a real socket connection (see above), not just read.
+`resources/installer.nsh` was compiled with a real `makensis.exe` inside a
+minimal wrapper script, not just eyeballed. `package.json` and the new
+`release.yml` were both parsed (`JSON.parse` / Python's `yaml.safe_load`) to
+confirm they're syntactically valid, not just visually plausible. Ran
+`npm run dev` for real: Vite served on 5173, Electron came up, and
+`%APPDATA%\ShinRacer\logs\main-*.log` shows a clean `App started` →
+`AC detected at D:\SteamLibrary\...` sequence with no errors — since AC
+detection fires from a `useEffect` inside `AppStoreProvider` after the
+renderer mounts, this confirms the renderer bundle (including the rewritten
+`AppStore.jsx`/`Wizard.jsx`/`App.jsx` and the new `AdminView.jsx`) loaded and
+rendered without a top-level crash. The dev instance was then stopped
+cleanly.
+
+### Not independently verified
+No real Google Cloud OAuth credentials exist in this environment, so an
+actual end-to-end sign-in (real consent screen, real token exchange, a real
+role landing on a real signed-in session) was never exercised in either app
+— only the code on both sides of that boundary, independently, the same
+caveat every earlier Google-auth-touching phase (6, 10) already carried. No
+interactive click-through of the Wizard's new steps, the Admin panel's four
+sections, or the PWA's rewritten onboarding was done this pass (no
+throwaway Playwright script, unlike Phases 4-9) — verified by careful
+reading plus the clean builds/boot log above, not by clicking through a
+running app. A real `electron-builder`/NSIS packaging run was not attempted
+(blocked by the pre-existing missing `icon.ico`, see above) — only the
+`.nsh` macros were compiled standalone.

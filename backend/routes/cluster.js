@@ -2,6 +2,7 @@ const express = require('express')
 const { v4: uuidv4 } = require('uuid')
 const qrcode = require('qrcode-generator')
 const { cluster } = require('../db')
+const { requireAuth } = require('../middleware/auth')
 
 const PUBLIC_LIMIT = 5
 
@@ -9,6 +10,7 @@ const PUBLIC_LIMIT = 5
 // same pattern as routes/invites.js and routes/mods.js.
 module.exports = function createClusterRouter(io) {
   const router = express.Router()
+  router.use(requireAuth)
 
   // Public presets, plus the querying author's own (including private ones)
   // merged in and de-duplicated by id — a preset that's both public and

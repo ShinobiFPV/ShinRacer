@@ -71,6 +71,22 @@ try {
       created_at TEXT,
       updated_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS users (
+      uid TEXT PRIMARY KEY,
+      email TEXT, name TEXT, picture TEXT,
+      role TEXT, last_seen TEXT, first_seen TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS hosts (
+      uid TEXT PRIMARY KEY,
+      name TEXT,
+      machine_name TEXT,
+      last_seen TEXT,
+      is_online INTEGER DEFAULT 0,
+      ac_path TEXT,
+      can_host INTEGER DEFAULT 1
+    );
   `)
 } catch (e) {
   console.error('Failed to initialize database schema:', e)
@@ -82,6 +98,14 @@ try {
 try {
   db.exec(`ALTER TABLE sessions ADD COLUMN created_at TEXT`)
 } catch (e) { /* column already exists */ }
+
+// Migration: events.host_type/host_uid/host_name (Phase 12 — event proposal
+// host selector). Each ALTER is its own try/catch since a partial failure
+// (e.g. host_type already added from a previous run) shouldn't block the
+// remaining columns from being added.
+try { db.exec(`ALTER TABLE events ADD COLUMN host_type TEXT DEFAULT 'designated'`) } catch (e) { /* column already exists */ }
+try { db.exec(`ALTER TABLE events ADD COLUMN host_uid TEXT`) } catch (e) { /* column already exists */ }
+try { db.exec(`ALTER TABLE events ADD COLUMN host_name TEXT`) } catch (e) { /* column already exists */ }
 
 // ── Events ────────────────────────────────────────────────────────────────────
 const events = {
@@ -102,8 +126,8 @@ const events = {
   },
   create(event) {
     db.prepare(`INSERT INTO events
-      (id, name, type, date, time, track, car_restriction, notes, poster_path, proposed_by, status, created_at, required_mods)
-      VALUES (@id, @name, @type, @date, @time, @track, @car_restriction, @notes, @poster_path, @proposed_by, @status, @created_at, @required_mods)`
+      (id, name, type, date, time, track, car_restriction, notes, poster_path, proposed_by, status, created_at, required_mods, host_type, host_uid, host_name)
+      VALUES (@id, @name, @type, @date, @time, @track, @car_restriction, @notes, @poster_path, @proposed_by, @status, @created_at, @required_mods, @host_type, @host_uid, @host_name)`
     ).run(event)
     return events.get(event.id)
   },
@@ -118,7 +142,8 @@ const events = {
     db.prepare(`UPDATE events SET
       name=@name, type=@type, date=@date, time=@time, track=@track,
       car_restriction=@car_restriction, notes=@notes, poster_path=@poster_path,
-      status=@status, required_mods=@required_mods
+      status=@status, required_mods=@required_mods,
+      host_type=@host_type, host_uid=@host_uid, host_name=@host_name
       WHERE id=@id`).run(merged)
     if (changed) db.prepare(`DELETE FROM event_acceptances WHERE event_id = ?`).run(id)
     return events.get(id)
@@ -333,4 +358,70 @@ const cluster = {
   },
 }
 
-module.exports = { db, events, stats, chat, invites, modInstalls, pushSubs, cluster }
+// ── Users (every Google account that has ever signed in) ─────────────────────
+const users = {
+  // Called on every successful POST /api/auth/google — `role` is passed in
+  // rather than recomputed here so this stays a pure data-access function;
+  // the caller (routes/auth.js) already has it from middleware/auth.js's
+  // getRole().
+  upsert({ uid, email, name, picture, role }) {
+    const now = new Date().toISOString()
+    const existing = db.prepare(`SELECT * FROM users WHERE uid = ?`).get(uid)
+    if (existing) {
+      db.prepare(`UPDATE users SET email=?, name=?, picture=?, role=?, last_seen=? WHERE uid=?`)
+        .run(email, name, picture, role, now, uid)
+    } else {
+      db.prepare(`INSERT INTO users (uid, email, name, picture, role, last_seen, first_seen) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+        .run(uid, email, name, picture, role, now, now)
+    }
+  },
+  list() {
+    return db.prepare(`SELECT * FROM users ORDER BY last_seen DESC`).all()
+  },
+  get(uid) {
+    return db.prepare(`SELECT * FROM users WHERE uid = ?`).get(uid)
+  },
+  setRole(uid, role) {
+    db.prepare(`UPDATE users SET role = ? WHERE uid = ?`).run(role, uid)
+  },
+}
+
+// ── Hosts (Electron machines available to run AC servers) ────────────────────
+function parseHostRow(row) {
+  if (!row) return null
+  return { ...row, is_online: !!row.is_online, can_host: !!row.can_host }
+}
+const hosts = {
+  register({ uid, name, machineName, acPath }) {
+    const now = new Date().toISOString()
+    const existing = db.prepare(`SELECT * FROM hosts WHERE uid = ?`).get(uid)
+    if (existing) {
+      db.prepare(`UPDATE hosts SET name=?, machine_name=?, ac_path=?, last_seen=? WHERE uid=?`)
+        .run(name, machineName, acPath, now, uid)
+    } else {
+      db.prepare(`INSERT INTO hosts (uid, name, machine_name, last_seen, is_online, ac_path, can_host) VALUES (?, ?, ?, ?, 0, ?, 1)`)
+        .run(uid, name, machineName, now, acPath)
+    }
+    return parseHostRow(db.prepare(`SELECT * FROM hosts WHERE uid = ?`).get(uid))
+  },
+  setOnline(uid, isOnline) {
+    db.prepare(`UPDATE hosts SET is_online = ?, last_seen = ? WHERE uid = ?`).run(isOnline ? 1 : 0, new Date().toISOString(), uid)
+  },
+  setCanHost(uid, canHost) {
+    db.prepare(`UPDATE hosts SET can_host = ? WHERE uid = ?`).run(canHost ? 1 : 0, uid)
+  },
+  available() {
+    return db.prepare(`SELECT * FROM hosts WHERE is_online = 1 AND can_host = 1`).all().map(parseHostRow)
+  },
+  get(uid) {
+    return parseHostRow(db.prepare(`SELECT * FROM hosts WHERE uid = ?`).get(uid))
+  },
+  list() {
+    return db.prepare(`SELECT * FROM hosts`).all().map(parseHostRow)
+  },
+  remove(uid) {
+    db.prepare(`DELETE FROM hosts WHERE uid = ?`).run(uid)
+  },
+}
+
+module.exports = { db, events, stats, chat, invites, modInstalls, pushSubs, cluster, users, hosts }

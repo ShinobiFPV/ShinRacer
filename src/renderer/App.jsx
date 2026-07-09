@@ -20,27 +20,40 @@ import ReplayView  from './views/ReplayView'
 import ModsView    from './views/ModsView'
 import LinksView   from './views/LinksView'
 import SettingsView from './views/SettingsView'
+import AdminView   from './views/AdminView'
 import OverlayApp  from './OverlayApp'
 import ClusterOverlay from './ClusterOverlay'
 
 // ── Sidebar nav ───────────────────────────────────────────────────────────────
+// Role hierarchy: admin sees everything; host sees host+crew; crew sees
+// crew only. See canAccess() below for the exact rule.
 const NAV = [
-  { id:'deploy',  icon:'🏁', label:'Live Servers' },
-  { id:'build',   icon:'⚙️', label:'Build' },
-  { id:'garage',  icon:'🚗', label:'Garage' },
-  { id:'traffic', icon:'🌆', label:'Traffic Manager' },
-  { id:'events',  icon:'📅', label:'Events' },
-  { id:'comms',   icon:'🎙️', label:'Comms' },
-  { id:'stats',   icon:'📊', label:'Stats' },
-  { id:'telemetry', icon:'📡', label:'Telemetry' },
-  { id:'cluster', icon:'🎛️', label:'Cluster' },
-  { id:'replays', icon:'🎬', label:'Replays' },
-  { id:'mods',    icon:'📦', label:'Mods' },
-  { id:'links',   icon:'🔗', label:'Links' },
-  { id:'settings',icon:'⚙',  label:'Settings' },
+  { id:'deploy',   icon:'🏁', label:'Live Servers',   role:'host'  },
+  { id:'build',    icon:'⚙️', label:'Build',           role:'host'  },
+  { id:'garage',   icon:'🚗', label:'Garage',          role:'host'  },
+  { id:'traffic',  icon:'🌆', label:'Traffic Manager', role:'admin' },
+  { id:'events',   icon:'📅', label:'Events',          role:'crew'  },
+  { id:'comms',    icon:'🎙️', label:'Comms',           role:'crew'  },
+  { id:'stats',    icon:'📊', label:'Stats',           role:'crew'  },
+  { id:'telemetry',icon:'📡', label:'Telemetry',       role:'host'  },
+  { id:'cluster',  icon:'🎛️', label:'Cluster',         role:'crew'  },
+  { id:'replays',  icon:'🎬', label:'Replays',         role:'crew'  },
+  { id:'mods',     icon:'📦', label:'Mods',            role:'crew'  },
+  { id:'links',    icon:'🔗', label:'Links',           role:'crew'  },
+  { id:'settings', icon:'⚙',  label:'Settings',        role:'crew'  },
+  { id:'admin',    icon:'🔐', label:'Admin',           role:'admin' },
 ]
 
-function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backendOnline }) {
+function canAccess(requiredRole, userRole) {
+  if (userRole === 'admin') return true
+  if (userRole === 'host') return requiredRole !== 'admin'
+  return requiredRole === 'crew'
+}
+
+const ROLE_COLOR = { admin: C.red, host: C.blue, crew: C.muted }
+
+function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backendOnline, user, role }) {
+  const visibleNav = NAV.filter(n => canAccess(n.role, role))
   return (
     <div style={{ width:180, background:C.bg, borderRight:`1px solid ${C.border}`,
       display:'flex', flexDirection:'column', flexShrink:0, userSelect:'none' }}>
@@ -57,6 +70,26 @@ function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backend
         </span>
       </div>
 
+      {/* Current user + role badge */}
+      {user && (
+        <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', borderBottom:`1px solid ${C.border}` }}>
+          {user.picture ? (
+            <img src={user.picture} alt="" style={{ width:24, height:24, borderRadius:'50%', border:`2px solid ${C.blue}`, flexShrink:0 }} />
+          ) : (
+            <div style={{ width:24, height:24, borderRadius:'50%', border:`2px solid ${C.blue}`, background:C.raised, flexShrink:0 }} />
+          )}
+          <div style={{ minWidth:0, flex:1 }}>
+            <div style={{ fontFamily:C.body, fontWeight:600, fontSize:12, color:C.textPrimary, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              {user.name}
+            </div>
+          </div>
+          <span style={{ fontFamily:C.head, fontSize:10, letterSpacing:1, color:ROLE_COLOR[role] || C.muted,
+            border:`1px solid ${ROLE_COLOR[role] || C.muted}`, padding:'1px 6px', flexShrink:0, textTransform:'uppercase' }}>
+            {role}
+          </span>
+        </div>
+      )}
+
       {/* Live indicator */}
       {liveCount > 0 && (
         <div style={{ background:C.bg, borderBottom:`1px solid ${C.border}`, borderLeft:`3px solid ${C.green}`,
@@ -69,8 +102,8 @@ function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backend
       )}
 
       {/* Nav items */}
-      <nav style={{ flex:1, padding:'8px 0' }}>
-        {NAV.map(n => {
+      <nav style={{ flex:1, padding:'8px 0', overflowY:'auto' }}>
+        {visibleNav.map(n => {
           const active = view === n.id
           const warn = n.id==='settings' && !setupComplete
           return (
@@ -108,10 +141,25 @@ function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backend
   )
 }
 
+// Shown instead of a view when the current `view` state somehow points at a
+// route the signed-in role can't reach (nav filtering already prevents
+// clicking into one — this is the defensive fallback for the other, rarer
+// paths into `setView`, e.g. a deep link). Not an error state, just a clean gate.
+function AccessRestricted() {
+  return (
+    <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, textAlign:'center', padding:24 }}>
+      <div style={{ fontFamily:C.head, fontSize:48, letterSpacing:1, color:C.red }}>ACCESS RESTRICTED</div>
+      <div style={{ fontSize:14, color:C.textSec }}>This feature requires Host or Admin access.</div>
+      <div style={{ fontSize:13, color:C.muted }}>Contact William to request elevated access.</div>
+    </div>
+  )
+}
+
 // ── Inner app (has store access) ──────────────────────────────────────────────
 function Inner() {
   const { liveServers, settings, profiles, saveProfiles, addLiveServer, toast, backendUrl, backendOnline, hydrated, showToast,
-    saveSettings, saveIdentity, saveBackendUrl, saveQuickPhrases } = useStore()
+    saveSettings, saveBackendUrl, saveQuickPhrases,
+    user, role, isSignedIn, authLoading } = useStore()
   const [view, setView]   = useState('deploy')
   const [buildCfg, setBuildCfg] = useState(null)
   const [wizardOpen, setWizardOpen] = useState(false)
@@ -119,9 +167,13 @@ function Inner() {
 
   const goToBuild = (cfg) => { setBuildCfg(cfg || null); setView('build') }
 
-  const finishSetup = async ({ settings: s, identity, backendUrl: bUrl, quickPhrases }) => {
+  // The wizard's Google sign-in itself now happens through AppStore's
+  // accomp://oauth listener — finishSetup only ever needs to persist the
+  // non-auth pieces (AC path, backend URL, quick phrases) once the wizard's
+  // done. Identity (handle/color) lives on googleAuth and is saved via
+  // saveIdentity from within the wizard's own Identity step instead.
+  const finishSetup = async ({ settings: s, backendUrl: bUrl, quickPhrases }) => {
     await saveSettings(s)
-    await saveIdentity(identity)
     await saveBackendUrl(bUrl)
     await saveQuickPhrases(quickPhrases)
   }
@@ -212,15 +264,23 @@ function Inner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profiles])
 
+  const currentNavItem = NAV.find(n => n.id === view)
+  const restricted = currentNavItem && !canAccess(currentNavItem.role, role)
+
+  // Wizard shows on first launch (setupComplete: false) OR whenever there's
+  // no valid Google sign-in — either condition alone is enough to gate the
+  // whole app, per Phase 12.
+  const showWizard = !settings.setupComplete || !isSignedIn
+
   return (
     <>
       <style>{GLOBAL_CSS}</style>
-      {!hydrated ? null : !settings.setupComplete ? (
+      {!hydrated || authLoading ? null : showWizard ? (
         <Wizard onComplete={finishSetup} />
       ) : (
         <div style={{ display:'flex', height:'100vh', overflow:'auto' }}>
           <Sidebar view={view} onChange={setView} liveCount={liveServers.length} setupComplete={settings.setupComplete}
-            backendUrl={backendUrl} backendOnline={backendOnline} />
+            backendUrl={backendUrl} backendOnline={backendOnline} user={user} role={role} />
 
           {/* Main area */}
           <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'auto' }}>
@@ -230,7 +290,7 @@ function Inner() {
               WebkitAppRegion:'drag', background:C.bg }}>
               <span style={{ fontFamily:C.head, fontSize:20, letterSpacing:2, textTransform:'uppercase',
                 color:C.textPrimary, WebkitAppRegion:'no-drag' }}>
-                {NAV.find(n=>n.id===view)?.label}
+                {currentNavItem?.label}
               </span>
               {view==='deploy' && (
                 <span style={{ marginLeft:'auto', WebkitAppRegion:'no-drag' }}>
@@ -249,19 +309,22 @@ function Inner() {
             {/* View */}
             <div style={{ flex:1, overflow:'auto' }}>
               <ErrorBoundary key={view}>
-                {view==='deploy'  && <DeployView onBuild={() => goToBuild()} onOpenWizard={() => setWizardOpen(true)} />}
-                {view==='build'   && <BuildView initialCfg={buildCfg} onDeployed={() => setView('deploy')} onOpenWizard={() => setWizardOpen(true)} />}
-                {view==='garage'  && <GarageView onLoad={cfg => goToBuild(cfg)} onDeploy={cfg => goToBuild(cfg)} />}
-                {view==='traffic' && <TrafficView />}
-                {view==='events'  && <EventsView />}
-                {view==='comms'   && <CommsView />}
-                {view==='stats'   && <StatsView />}
-                {view==='telemetry' && <TelemetryView />}
-                {view==='cluster' && <ClusterView initialPresetId={clusterPresetId} />}
-                {view==='replays' && <ReplayView onGoSettings={() => setView('settings')} showToast={showToast} />}
-                {view==='mods'    && <ModsView />}
-                {view==='links'   && <LinksView />}
-                {view==='settings'&& <SettingsView />}
+                {restricted ? <AccessRestricted /> : <>
+                  {view==='deploy'  && <DeployView onBuild={() => goToBuild()} onOpenWizard={() => setWizardOpen(true)} />}
+                  {view==='build'   && <BuildView initialCfg={buildCfg} onDeployed={() => setView('deploy')} onOpenWizard={() => setWizardOpen(true)} />}
+                  {view==='garage'  && <GarageView onLoad={cfg => goToBuild(cfg)} onDeploy={cfg => goToBuild(cfg)} />}
+                  {view==='traffic' && <TrafficView />}
+                  {view==='events'  && <EventsView />}
+                  {view==='comms'   && <CommsView />}
+                  {view==='stats'   && <StatsView />}
+                  {view==='telemetry' && <TelemetryView />}
+                  {view==='cluster' && <ClusterView initialPresetId={clusterPresetId} />}
+                  {view==='replays' && <ReplayView onGoSettings={() => setView('settings')} showToast={showToast} />}
+                  {view==='mods'    && <ModsView />}
+                  {view==='links'   && <LinksView />}
+                  {view==='settings'&& <SettingsView />}
+                  {view==='admin'   && <AdminView />}
+                </>}
               </ErrorBoundary>
             </div>
           </div>

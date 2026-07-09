@@ -65,8 +65,87 @@ function downloadIcs(event) {
   downloadBlob(ics, 'text/calendar', `${slugify(event.name)}.ics`)
 }
 
+// ── Host selector (propose form) ────────────────────────────────────────────
+// Constraint: "I'll Host" must be completely hidden from Crew — not
+// disabled, not present in the DOM — so `isHost` (host or admin role) gates
+// whether Card 2 renders at all, not just whether it's selectable.
+function HostSelector({ hostSelection, setHostSelection, selectedHostUid, setSelectedHostUid, onResolvedName, user, isHost }) {
+  const [availableHosts, setAvailableHosts] = useState([])
+  const [selfStatus, setSelfStatus] = useState(null) // null | { loading, host }
+
+  useEffect(() => {
+    api.get('/api/hosts/available').then(({ data }) => { if (data.ok) setAvailableHosts(data.data) }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (hostSelection !== 'self' || !isHost || !user) return
+    setSelfStatus({ loading: true })
+    api.get(`/api/hosts/${user.uid}/status`)
+      .then(({ data }) => setSelfStatus({ loading: false, host: data.ok ? data.data : null }))
+      .catch(() => setSelfStatus({ loading: false, host: null }))
+  }, [hostSelection, isHost, user])
+
+  // Keeps the parent's "name to submit" in sync without it needing to
+  // duplicate the available-hosts fetch or the self-host status check.
+  useEffect(() => {
+    if (hostSelection === 'self') onResolvedName(user?.name || null)
+    else onResolvedName(availableHosts.find(h => h.uid === selectedHostUid)?.name || null)
+  }, [hostSelection, selectedHostUid, availableHosts, user, onResolvedName])
+
+  const cardStyle = (active, disabled) => ({
+    flex: 1, padding: 16, border: `2px solid ${active ? C.blue : C.border}`, cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.4 : 1, background: active ? `${C.blue}0C` : 'transparent',
+  })
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <Label>Who's hosting the game server?</Label>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+        <div style={cardStyle(hostSelection === 'designated')} onClick={() => setHostSelection('designated')}>
+          <div style={{ fontSize: 20, marginBottom: 6 }}>🖥️</div>
+          <div style={{ fontFamily: C.head, fontSize: 15, letterSpacing: 0.5 }}>SHINOBI HOSTS</div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>William's machine runs the server. You just show up and drive.</div>
+        </div>
+        {isHost && (
+          <div style={cardStyle(hostSelection === 'self')} onClick={() => setHostSelection('self')}>
+            <div style={{ fontSize: 20, marginBottom: 6 }}>💻</div>
+            <div style={{ fontFamily: C.head, fontSize: 15, letterSpacing: 0.5 }}>I'LL HOST</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>You run the server from your machine. Make sure AC is installed and configured.</div>
+          </div>
+        )}
+      </div>
+
+      {hostSelection === 'designated' && (
+        availableHosts.length === 0 ? (
+          <div style={{ fontSize: 12, color: C.orange, background: `${C.orange}18`, border: `1px solid ${C.orange}60`, padding: '8px 12px' }}>
+            No hosts currently online. The server will be started when the event begins.
+          </div>
+        ) : (
+          <Select value={selectedHostUid || ''} onChange={setSelectedHostUid}
+            options={[{ value: '', label: 'Choose a host…' }, ...availableHosts.map(h => ({ value: h.uid, label: `${h.name} (${h.machineName})` }))]} />
+        )
+      )}
+
+      {hostSelection === 'self' && isHost && (
+        selfStatus?.loading ? (
+          <div style={{ fontSize: 12, color: C.muted }}>Checking your machine…</div>
+        ) : selfStatus?.host ? (
+          <div style={{ fontSize: 12, color: C.green, background: `${C.green}18`, border: `1px solid ${C.green}60`, padding: '8px 12px' }}>
+            ✓ Your machine is ready to host — {selfStatus.host.machine_name} ({selfStatus.host.ac_path || 'no AC path set'})
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: C.orange, background: `${C.orange}18`, border: `1px solid ${C.orange}60`, padding: '8px 12px' }}>
+            Host setup incomplete — check Settings → Host Status
+          </div>
+        )
+      )}
+    </div>
+  )
+}
+
 // ── Propose / Edit Event Form ─────────────────────────────────────────────────
 function ProposeForm({ identity, showToast, onClose, onSaved, initialDate, editingEvent }) {
+  const { user, isHost } = useStore()
   const isEditing = !!editingEvent
   const [form, setForm] = useState(() => editingEvent ? {
     name: editingEvent.name, type: editingEvent.type, date: editingEvent.date, time: editingEvent.time,
@@ -79,6 +158,9 @@ function ProposeForm({ identity, showToast, onClose, onSaved, initialDate, editi
   )
   const [dragOver, setDragOver] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [hostSelection, setHostSelection] = useState(editingEvent?.host_type || 'designated')
+  const [selectedHostUid, setSelectedHostUid] = useState(editingEvent?.host_uid || null)
+  const [selectedHostName, setSelectedHostName] = useState(editingEvent?.host_name || null)
 
   useEffect(() => { if (initialDate && !isEditing) setForm(prev => ({ ...prev, date: initialDate })) }, [initialDate, isEditing])
 
@@ -102,6 +184,9 @@ function ProposeForm({ identity, showToast, onClose, onSaved, initialDate, editi
       Object.entries(form).forEach(([k, v]) => fd.append(k, v))
       if (!isEditing) fd.append('proposed_by', identity.handle)
       fd.append('required_mods', JSON.stringify(mods.map(m => m.trim()).filter(Boolean)))
+      fd.append('host_type', hostSelection)
+      fd.append('host_uid', (hostSelection === 'self' ? user?.uid : selectedHostUid) || '')
+      fd.append('host_name', selectedHostName || '')
       if (poster) fd.append('poster', poster)
       const res = isEditing
         ? await api.put(`/api/events/${editingEvent.id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
@@ -153,6 +238,9 @@ function ProposeForm({ identity, showToast, onClose, onSaved, initialDate, editi
         <Label>Car class / restriction</Label>
         <TextInput value={form.car_restriction} onChange={v => set('car_restriction', v)} placeholder="Free for all / JDM only / GT3 only…" />
       </div>
+      <HostSelector hostSelection={hostSelection} setHostSelection={setHostSelection}
+        selectedHostUid={selectedHostUid} setSelectedHostUid={setSelectedHostUid}
+        onResolvedName={setSelectedHostName} user={user} isHost={isHost} />
       <div style={{ marginBottom: 12 }}>
         <Label>Required mods</Label>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
@@ -204,7 +292,15 @@ function DetailPanel({ event, onClose, onAccept, onEdit, onCancelEvent, onDelete
   const isProposer = event.proposed_by === identity?.handle
   const isCancelled = status === 'cancelled'
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [hostOnline, setHostOnline] = useState(null) // null = unknown/loading
   const matchedServer = status === 'happening' ? liveServers.find(s => s.config?.trackId === event.track) : null
+
+  useEffect(() => {
+    if (!event.host_uid) return
+    api.get(`/api/hosts/${event.host_uid}/status`)
+      .then(({ data }) => setHostOnline(data.ok ? data.data.is_online : null))
+      .catch(() => setHostOnline(null))
+  }, [event.host_uid])
 
   const copyMods = () => {
     navigator.clipboard.writeText(event.required_mods.join('\n'))
@@ -234,6 +330,20 @@ function DetailPanel({ event, onClose, onAccept, onEdit, onCancelEvent, onDelete
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
           <div><Label muted>Track</Label><span style={{ fontFamily: C.mono }}>{event.track}</span></div>
           <div><Label muted>Date & time</Label>{event.date} {event.time}</div>
+          {event.host_name && (
+            <div>
+              <Label muted>Hosted by</Label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>{event.host_type === 'self' ? `${event.host_name}'s machine` : event.host_name}</span>
+                {hostOnline != null && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: hostOnline ? C.green : C.orange }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: hostOnline ? C.green : C.orange }} />
+                    {hostOnline ? 'Online' : 'Currently offline'}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
           {event.car_restriction && <div><Label muted>Cars</Label>{event.car_restriction}</div>}
           {event.required_mods?.length > 0 && (
             <div>
@@ -416,7 +526,10 @@ export default function EventsView() {
 
   const deleteEvent = async (id) => {
     try {
-      const res = await api.delete(`/api/events/${id}`)
+      // The backend's ownership check (proposer-or-admin) reads this from
+      // the request body — axios needs the `data` config key to send a body
+      // on a DELETE request, not a bare second argument.
+      const res = await api.delete(`/api/events/${id}`, { data: { handle: identity?.handle } })
       if (res.data.ok) {
         setSelected(null)
         setEvents(prev => prev.filter(e => e.id !== id))

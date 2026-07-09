@@ -12,22 +12,23 @@ import LinksPage from './views/LinksPage'
 import SettingsPage from './views/SettingsPage'
 import AuthCallbackPage from './views/AuthCallbackPage'
 import ClusterPage from './views/ClusterPage'
-import { isOnboarded } from './lib/auth'
+import { getStoredAuth } from './lib/auth'
 
 // Routes that own the full screen — no bottom/side nav chrome around them.
 const CHROMELESS = ['/onboarding', '/auth/callback']
 
 export default function App() {
   const location = useLocation()
-  const [onboarded, setOnboardedState] = useState(isOnboarded())
+  const [authed, setAuthed] = useState(!!getStoredAuth())
 
-  // Onboarding sets 'shinracer_onboarded' then navigates away — recheck on
-  // every route change so the gate lifts without a full page reload. Guests
-  // complete onboarding with no identity at all, so this checks completion,
-  // not identity presence.
-  useEffect(() => { setOnboardedState(isOnboarded()) }, [location.pathname])
+  // A real Google sign-in is mandatory (the backend requires an id_token on
+  // every route — there's no guest/browse-only mode anymore), so "signed in"
+  // is the gate, checked fresh on every route change so signing out (or a
+  // 401 clearing the stored session — see lib/api.js's response interceptor)
+  // sends the user back through onboarding without a full page reload.
+  useEffect(() => { setAuthed(!!getStoredAuth()) }, [location.pathname])
 
-  if (!onboarded && !CHROMELESS.includes(location.pathname)) {
+  if (!authed && !CHROMELESS.includes(location.pathname)) {
     return <Navigate to="/onboarding" replace />
   }
 

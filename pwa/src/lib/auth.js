@@ -6,7 +6,14 @@ const ONBOARDED_KEY = 'shinracer_onboarded'
 const PKCE_KEY = 'shinracer_pkce' // sessionStorage — only needs to survive the redirect round-trip
 
 const GOOGLE_AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
+// 'openid' is required for Google to include an id_token in the token
+// response — every backend route now verifies that id_token (Phase 12's
+// requireAuth), not just the Drive-scoped access_token this flow originally
+// existed for. Without it, exchangeCode() below would still "succeed" but
+// hand back a session with no id_token, and every subsequent API/socket call
+// would 401.
 const SCOPES = [
+  'openid',
   'https://www.googleapis.com/auth/drive.file',
   'https://www.googleapis.com/auth/userinfo.profile',
   'https://www.googleapis.com/auth/userinfo.email',
@@ -58,8 +65,25 @@ export function consumeStashedPKCE() {
 export async function exchangeCode(code, verifier, redirectUri) {
   const { data } = await api.post('/api/mods/auth/callback', { code, codeVerifier: verifier, redirectUri })
   if (!data.ok) throw new Error(data.error || 'Sign-in failed')
-  setStoredAuth(data.data)
-  return data.data
+  let auth = data.data
+  // Registers this Google account in the users table and resolves its role
+  // (admin/host/crew) — same call the Electron app makes after exchange.
+  // Not strictly required for baseline API access (requireAuth resolves role
+  // from the id_token alone on every request), but without it an admin never
+  // sees PWA-only users in the Admin panel's Crew Management table.
+  try {
+    const { data: roleRes } = await api.post('/api/auth/google', { idToken: auth.tokens.id_token })
+    if (roleRes.ok) auth = { ...auth, role: roleRes.data.role }
+  } catch { /* role registration is best-effort — sign-in itself already succeeded */ }
+  setStoredAuth(auth)
+  return auth
+}
+
+// The one token every authenticated request/socket connection needs —
+// verified server-side on every use via Google's tokeninfo endpoint
+// (backend/middleware/auth.js), never trusted just because it's present here.
+export function getIdToken() {
+  return getStoredAuth()?.tokens?.id_token || null
 }
 
 export function getStoredAuth() {

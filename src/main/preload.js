@@ -101,15 +101,19 @@ contextBridge.exposeInMainWorld('api', {
     },
   },
 
-  // User identity
-  identity: {
-    get: ()     => ipcRenderer.invoke('identity:get'),
-    set: (id)   => ipcRenderer.invoke('identity:set', id),
-  },
-
   // Local network info (invite Share modal host prefill)
   network: {
     getLocalIp: () => ipcRenderer.invoke('network:localIp'),
+  },
+
+  // Machine hostname (Phase 12 host registration — SettingsView + Wizard)
+  system: {
+    hostname: () => ipcRenderer.invoke('system:hostname'),
+  },
+
+  // Port availability check (Host Status readiness checklist)
+  net: {
+    checkPortAvailable: (port) => ipcRenderer.invoke('net:checkPortAvailable', port),
   },
 
   // accomp:// protocol — invite links + "Connect in AC" round-trips

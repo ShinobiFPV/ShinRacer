@@ -1,4 +1,5 @@
-const { chat } = require('./db')
+const { chat, hosts } = require('./db')
+const { verifyGoogleToken, getRole } = require('./middleware/auth')
 
 // ── Socket.io handlers: presence, chat relay, WebRTC signaling ───────────────
 // WebRTC 'to'/'from' addresses are socket ids (already unique per connection and
@@ -7,19 +8,48 @@ const { chat } = require('./db')
 // single handle can have more than one live connection (e.g. two tabs), which a
 // handle-keyed map can't disambiguate — socket id has no such collision.
 module.exports = function attachSocket(io) {
-  const presence = new Map() // socket.id -> { handle, color, clientType }
+  // Every socket must present a valid Google ID token before any event
+  // handler below ever runs — same verification middleware.js's requireAuth
+  // uses for REST, just wired as Socket.io connection middleware instead of
+  // Express middleware. socket.user is then available to every handler.
+  io.use(async (socket, next) => {
+    const token = socket.handshake.auth?.token
+    if (!token) return next(new Error('No token'))
+    try {
+      const user = await verifyGoogleToken(token)
+      user.role = getRole(user.uid)
+      socket.user = user
+      next()
+    } catch (e) {
+      next(new Error('Invalid token'))
+    }
+  })
+
+  const presence = new Map() // socket.id -> { uid, name, picture, role, handle, color, clientType }
 
   const presenceList = () => [...presence.entries()].map(([id, u]) => ({ id, ...u }))
 
   io.on('connection', (socket) => {
     // `clientType` ('electron' | 'pwa') is optional and only used by the
     // Cluster Fucker's cluster:action relay below — everything else about
-    // presence is unchanged from Phase 1.
+    // presence is unchanged from Phase 1, just with the Google profile
+    // (uid/name/picture/role) added from the verified token rather than
+    // trusted from the client the way handle/color still are (those stay
+    // legitimate client-chosen display preferences, not identity).
     socket.on('presence:join', ({ handle, color, clientType }) => {
-      presence.set(socket.id, { handle, color, clientType })
+      const entry = { uid: socket.user.uid, name: socket.user.name, picture: socket.user.picture, role: socket.user.role, handle, color, clientType }
+      presence.set(socket.id, entry)
       socket.emit('chat:history', chat.history(100))
-      socket.broadcast.emit('presence:join', { id: socket.id, handle, color })
+      socket.broadcast.emit('presence:join', { id: socket.id, ...entry })
       io.emit('presence:list', presenceList())
+      // Host/Admin Electron clients double as host machines — see
+      // backend/routes/hosts.js. is_online only ever reflects a live socket
+      // connection, so a crashed app (no clean disconnect) still eventually
+      // reads correctly on the *next* connect, and reads offline to anyone
+      // checking in the meantime, which is the safe direction to be wrong in.
+      if (clientType === 'electron' && (socket.user.role === 'host' || socket.user.role === 'admin')) {
+        hosts.setOnline(socket.user.uid, true)
+      }
     })
 
     socket.on('chat:message', ({ handle, color, text }) => {
@@ -53,6 +83,9 @@ module.exports = function attachSocket(io) {
       if (user) {
         socket.broadcast.emit('presence:leave', { id: socket.id, ...user })
         io.emit('presence:list', presenceList())
+        if (user.clientType === 'electron' && (user.role === 'host' || user.role === 'admin')) {
+          hosts.setOnline(user.uid, false)
+        }
       }
     })
   })

@@ -1,7 +1,9 @@
 const express = require('express')
 const { chat } = require('../db')
+const { requireAuth } = require('../middleware/auth')
 
 const router = express.Router()
+router.use(requireAuth)
 
 router.get('/history', (req, res) => {
   try {

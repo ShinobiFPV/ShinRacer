@@ -38,17 +38,6 @@ function parseUploadCategory(description) {
   return m ? m[1].toLowerCase() : 'tools'
 }
 
-function GoogleIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 18 18">
-      <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
-      <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/>
-      <path fill="#FBBC05" d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"/>
-      <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.59-2.59C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/>
-    </svg>
-  )
-}
-
 function SkeletonCard() {
   return (
     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 0, padding: 14 }}>
@@ -203,8 +192,12 @@ function UploadModal({ onClose, onUploaded, googleAuth, showToast }) {
       fd.append('category', form.category)
       fd.append('description', form.description)
       fd.append('mod', file)
+      // Authorization already carries the app's ID token (added app-wide by
+      // lib/api.js's interceptor) — the Drive access token needed to actually
+      // write the upload rides in its own header instead of fighting over
+      // Authorization with the ID token every other route relies on.
       const res = await api.post('/api/mods/upload', fd, {
-        headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${googleAuth.tokens.access_token}` },
+        headers: { 'Content-Type': 'multipart/form-data', 'X-Drive-Access-Token': googleAuth.accessToken },
       })
       if (res.data.ok) {
         showToast(`${form.name} uploaded — William will review and move it to the library`, C.green)
@@ -269,7 +262,8 @@ const NAV_ITEMS = [
 ]
 
 export default function ModsView() {
-  const { settings, identity, backendUrl, backendOnline, recheckBackend, showToast } = useStore()
+  const { settings, identity, backendUrl, backendOnline, recheckBackend, showToast,
+    googleAuth, user, signOut } = useStore()
   const { socket } = useSocket(identity)
 
   const [category, setCategory] = useState('all')
@@ -280,7 +274,6 @@ export default function ModsView() {
   const [search, setSearch] = useState('')
   const [sortMode, setSortMode] = useState('name')
   const [selected, setSelected] = useState(null) // { mod, category }
-  const [googleAuth, setGoogleAuth] = useState(null)
   const [uploadOpen, setUploadOpen] = useState(false)
 
   const loadMods = useCallback(async () => {
@@ -313,30 +306,12 @@ export default function ModsView() {
 
   useEffect(() => { loadMods() }, [loadMods])
   useEffect(() => { loadInstalls() }, [loadInstalls])
-  useEffect(() => { win.store.get('googleAuth').then(setGoogleAuth) }, [])
 
-  // Google OAuth: user clicks "Sign in with Google" -> opens system browser ->
-  // Google redirects to accomp://oauth?code=... -> main.js extracts the code
-  // and forwards it here as its own IPC event (separate from the generic
-  // accomp:open channel DeployView owns interpreting).
-  useEffect(() => {
-    const unsub = win.auth.onCallback(async (code) => {
-      try {
-        const res = await api.post('/api/mods/auth/callback', { code })
-        if (res.data.ok) {
-          const auth = res.data.data
-          setGoogleAuth(auth)
-          win.store.set('googleAuth', auth)
-          showToast(`✓ Signed in as ${auth.user.name}`, C.green)
-        } else {
-          showToast(`✕ ${res.data.error}`, C.red)
-        }
-      } catch (e) {
-        showToast(`✕ Sign-in failed: ${e.response?.data?.error || e.message}`, C.red)
-      }
-    })
-    return unsub
-  }, [showToast])
+  // Google sign-in is handled once, app-wide, by AppStore.jsx (the Wizard
+  // gates the whole app on it — by the time this view can even render,
+  // googleAuth is already populated). ModsView used to run its own separate
+  // OAuth exchange against the same accomp://oauth callback; that's gone —
+  // see CLAUDE.md's Phase 12 notes on this consolidation.
 
   useEffect(() => {
     if (!socket) return
@@ -348,23 +323,10 @@ export default function ModsView() {
     return () => socket.off('mod:uploaded', onUploaded)
   }, [socket, showToast, loadMods])
 
-  const signIn = async () => {
-    try {
-      const res = await api.get('/api/mods/auth/url')
-      if (res.data.ok) win.shell.openExternal(res.data.data.url)
-    } catch (e) {
-      showToast(`✕ ${e.response?.data?.error || e.message}`, C.red)
-    }
-  }
-
-  const signOut = () => {
-    setGoogleAuth(null)
-    win.store.set('googleAuth', null)
-  }
-
-  // Access tokens don't self-refresh here — if expired, clear and prompt a fresh sign-in.
+  // Drive access token doesn't self-refresh here — if expired, sign the user
+  // out app-wide and let the Wizard prompt a fresh sign-in.
   const ensureAuthValid = () => {
-    if (googleAuth?.tokens?.expiry_date && googleAuth.tokens.expiry_date < Date.now()) {
+    if (googleAuth?.expiryDate && googleAuth.expiryDate < Date.now()) {
       signOut()
       showToast('Session expired, sign in again', C.orange)
       return false
@@ -387,7 +349,7 @@ export default function ModsView() {
       ]
     } else if (category === 'uploads') {
       list = modsData.uploads
-        .filter(m => (parseUploader(m.description) || '').toLowerCase() === (googleAuth?.user?.name || '').toLowerCase())
+        .filter(m => (parseUploader(m.description) || '').toLowerCase() === (user?.name || '').toLowerCase())
         .map(m => ({ mod: m, category: parseUploadCategory(m.description) }))
     } else {
       list = (modsData[category] || []).map(m => ({ mod: m, category }))
@@ -428,28 +390,17 @@ export default function ModsView() {
         </nav>
 
         <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
-          {!googleAuth ? (
-            <>
-              <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>Sign in to upload mods</div>
-              <Tooltip text="Sign in to upload mods to the ShinTech library">
-                <Btn size="sm" variant="ghost" onClick={signIn} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                  <GoogleIcon /> Sign in with Google
-                </Btn>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {user?.picture
+              ? <img src={user.picture} alt="" style={{ width: 28, height: 28, borderRadius: '50%' }} />
+              : <div style={{ width: 28, height: 28, borderRadius: '50%', background: C.raised }} />}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name}</div>
+              <Tooltip text="Sign out of Google — you'll need to sign back in to use ShinRacer">
+                <button onClick={signOut} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 10, cursor: 'pointer', padding: 0 }}>Sign out</button>
               </Tooltip>
-            </>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {googleAuth.user.picture
-                ? <img src={googleAuth.user.picture} alt="" style={{ width: 28, height: 28, borderRadius: '50%' }} />
-                : <div style={{ width: 28, height: 28, borderRadius: '50%', background: C.raised }} />}
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{googleAuth.user.name}</div>
-                <Tooltip text="Sign out of Google — you can still download mods">
-                  <button onClick={signOut} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 10, cursor: 'pointer', padding: 0 }}>Sign out</button>
-                </Tooltip>
-              </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
 

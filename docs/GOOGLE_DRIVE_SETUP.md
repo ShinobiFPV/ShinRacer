@@ -1,9 +1,16 @@
 # Google Drive Setup — Mod Manager
 
 The Mod Manager reads and writes a shared "ShinTech Mods" Google Drive folder
-through the backend running on `shinobi`. Downloads use a service account
-(no login required for friends); uploads use each person's own Google account
-via OAuth. This is a one-time setup William needs to do on the Pi.
+through the backend running on `shinobi`. Downloads use a service account —
+no *Drive* login needed to actually fetch a file, since it's the service
+account's read access doing the work, not the friend's own — while uploads
+use each person's own Google account via OAuth. This is a one-time setup
+William needs to do on the Pi.
+
+Since Phase 12, signing in to ShinRacer itself (Google, same account either
+way) is mandatory app-wide — see [docs/ADMIN_SETUP.md](ADMIN_SETUP.md) — so
+"no login required" here is specifically about the *Drive* API call, not
+about reaching the Mods view in the first place.
 
 ## 1. Google Cloud project
 

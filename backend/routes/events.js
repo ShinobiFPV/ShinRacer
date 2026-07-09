@@ -4,6 +4,7 @@ const path    = require('path')
 const { v4: uuidv4 } = require('uuid')
 const { events } = require('../db')
 const push = require('../lib/push')
+const { requireAuth, requireRole } = require('../middleware/auth')
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, path.join(__dirname, '..', 'uploads')),
@@ -14,6 +15,7 @@ const upload = multer({ storage, limits: { fileSize: 8 * 1024 * 1024 } })
 // Takes `io` so /cancel can broadcast to connected clients.
 module.exports = function createEventsRouter(io) {
   const router = express.Router()
+  router.use(requireAuth)
 
   router.get('/', (req, res) => {
     try {
@@ -43,6 +45,9 @@ module.exports = function createEventsRouter(io) {
         status: 'proposed',
         created_at: new Date().toISOString(),
         required_mods: JSON.stringify(b.required_mods ? JSON.parse(b.required_mods) : []),
+        host_type: b.host_type === 'self' ? 'self' : 'designated',
+        host_uid: b.host_uid || null,
+        host_name: b.host_name || null,
       }
       const created = events.create(event)
       res.json({ ok: true, data: created })
@@ -75,6 +80,9 @@ module.exports = function createEventsRouter(io) {
         notes: b.notes || '',
         poster_path: req.file ? `/uploads/${req.file.filename}` : existing.poster_path,
         required_mods: JSON.stringify(b.required_mods ? JSON.parse(b.required_mods) : []),
+        host_type: b.host_type ? (b.host_type === 'self' ? 'self' : 'designated') : existing.host_type,
+        host_uid: b.host_uid !== undefined ? b.host_uid : existing.host_uid,
+        host_name: b.host_name !== undefined ? b.host_name : existing.host_name,
       }
       const updated = events.update(req.params.id, patch)
       res.json({ ok: true, data: updated })
@@ -107,7 +115,7 @@ module.exports = function createEventsRouter(io) {
   })
 
   // Registered before /:id — otherwise Express would match 'all' as an :id param.
-  router.delete('/all', (req, res) => {
+  router.delete('/all', requireRole('admin'), (req, res) => {
     try {
       events.deleteAll()
       res.json({ ok: true })
@@ -116,8 +124,23 @@ module.exports = function createEventsRouter(io) {
     }
   })
 
+  // Any authenticated user may delete their own proposal; only an admin can
+  // delete someone else's. `events.proposed_by` has always stored the
+  // proposer's display *handle* (a client-side display preference, editable
+  // in Settings), not their Google identity — Phase 12 didn't add a
+  // handle-to-uid mapping anywhere, so the proposer check still compares
+  // handles (same trust level Phase 1-3 already used for this), just now
+  // gated behind requireAuth first. The admin bypass is the part that's
+  // cryptographically real: req.user.role comes from a verified Google
+  // token, not anything the client can spoof.
   router.delete('/:id', (req, res) => {
     try {
+      const existing = events.get(req.params.id)
+      if (!existing) return res.status(404).json({ ok: false, error: 'Event not found' })
+      const isProposer = req.body?.handle && req.body.handle === existing.proposed_by
+      if (!isProposer && req.user.role !== 'admin') {
+        return res.status(403).json({ ok: false, error: 'Only the proposer or an admin can delete this event' })
+      }
       events.deleteOne(req.params.id)
       res.json({ ok: true })
     } catch (e) {

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import axios from 'axios'
 import { C, Card, Label, Btn, TextInput } from './primitives'
 import { DEFAULT_QUICK_PHRASES, DEFAULT_BACKEND_URL } from '../store/AppStore'
+import { useStore } from '../store/AppStore'
+import httpApi from '../lib/api'
 
 const api = window.api
 const IDENTITY_COLORS = [C.yellow, C.blue, C.green, C.red, C.orange, '#8E44AD', C.white, C.mutedHi]
@@ -10,8 +12,9 @@ const GRID_TEXTURE = 'repeating-linear-gradient(0deg, transparent, transparent 4
 
 // ── Progress indicator ──────────────────────────────────────────────────────
 function ProgressBar({ steps, index }) {
-  const visible = steps.filter(s => s !== 'welcome' && s !== 'done')
+  const visible = steps.filter(s => s !== 'welcome' && s !== 'connecting' && s !== 'done')
   const activePos = visible.indexOf(steps[index])
+  if (activePos === -1) return null
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '20px 0 0' }}>
       {visible.map((s, i) => (
@@ -32,21 +35,167 @@ function ProgressBar({ steps, index }) {
   )
 }
 
+// Google's official 4-color "G" mark, inline so the button doesn't depend on
+// an external image URL (which the app's CSP would need to allow separately).
+function GoogleG({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.9-2.26 5.36-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+      <path fill="#FBBC05" d="M10.53 28.59A14.5 14.5 0 0 1 9.5 24c0-1.59.27-3.13.76-4.59l-7.98-6.19A23.94 23.94 0 0 0 0 24c0 3.87.92 7.53 2.56 10.78l7.97-6.19z" />
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.97 6.19C6.51 42.62 14.62 48 24 48z" />
+    </svg>
+  )
+}
+
 // ── Step: Welcome ────────────────────────────────────────────────────────────
-function WelcomeStep({ onNext }) {
+function WelcomeStep({ onSignIn, signingIn }) {
   return (
     <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
       <div style={{ fontFamily: C.head, fontSize: 56, letterSpacing: 2, lineHeight: 1 }}>
         <span style={{ color: C.blue }}>Shin</span>Racer
       </div>
       <div style={{ fontSize: 16, color: C.mutedHi }}>Race. Drift. Coordinate.</div>
-      <Btn size="lg" onClick={onNext} style={{ marginTop: 18 }}>Get started →</Btn>
+      <div style={{ fontSize: 13, color: C.muted }}>Built for the crew by the crew.</div>
+      <button onClick={onSignIn} disabled={signingIn}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10, marginTop: 18,
+          background: '#fff', color: '#3c4043', border: '1px solid #dadce0',
+          padding: '12px 24px', fontFamily: C.body, fontWeight: 600, fontSize: 16,
+          cursor: signingIn ? 'default' : 'pointer', opacity: signingIn ? 0.6 : 1,
+        }}>
+        <GoogleG /> {signingIn ? 'Opening browser…' : 'Sign in with Google'}
+      </button>
+      <div style={{ fontSize: 12, color: C.muted, maxWidth: 320 }}>You need a Google account to use ShinRacer.</div>
       <div style={{ fontSize: 11, color: C.muted, marginTop: 44 }}>ShinTech Electronics</div>
     </div>
   )
 }
 
-// ── Step: AC Path ────────────────────────────────────────────────────────────
+// ── Step: Connecting (automatic) ────────────────────────────────────────────
+function ConnectingStep({ status, pendingProfile, error, onRetry, onContinueOffline }) {
+  return (
+    <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, width: 360 }}>
+      {pendingProfile?.picture && (
+        <img src={pendingProfile.picture} alt="" style={{ width: 64, height: 64, borderRadius: '50%', border: `2px solid ${C.blue}` }} />
+      )}
+      <div style={{ fontFamily: C.head, fontSize: 20, letterSpacing: 1 }}>CONNECTING TO THE CREW</div>
+      {status !== 'error' && status !== 'offline-available' && (
+        <div style={{ width: '100%', height: 4, background: C.border, overflow: 'hidden', position: 'relative' }}>
+          <div style={{
+            position: 'absolute', top: 0, bottom: 0, width: '40%', background: C.blue,
+            animation: 'progressSlide 1.1s ease-in-out infinite',
+          }} />
+          <style>{`@keyframes progressSlide { 0% { left: -40%; } 100% { left: 100%; } }`}</style>
+        </div>
+      )}
+      {(status === 'error' || status === 'offline-available') && (
+        <>
+          <div style={{ color: C.orange, fontSize: 13 }}>
+            {status === 'offline-available' ? 'Backend offline — check Tailscale connection' : `Sign-in failed: ${error}`}
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Btn variant="subtle" onClick={onRetry}>Retry</Btn>
+            {status === 'offline-available' && <Btn variant="ghost" onClick={onContinueOffline}>Continue offline</Btn>}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Step: Identity ───────────────────────────────────────────────────────────
+function IdentityStep({ data, setData, googleUser }) {
+  const tooShort = data.handle.length > 0 && data.handle.trim().length < 2
+  return (
+    <Card style={{ width: 420 }}>
+      {googleUser && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+          {googleUser.picture && <img src={googleUser.picture} alt="" style={{ width: 40, height: 40, borderRadius: '50%', border: `2px solid ${C.blue}` }} />}
+          <div>
+            <div style={{ fontFamily: C.head, fontSize: 16 }}>{googleUser.name}</div>
+            <div style={{ fontSize: 11, color: C.muted }}>{googleUser.email}</div>
+          </div>
+        </div>
+      )}
+      <div style={{ fontFamily: C.head, fontSize: 22, letterSpacing: 1, marginBottom: 6 }}>This is how the crew will see you.</div>
+      <div style={{ fontSize: 13, color: C.muted, marginBottom: 18 }}>
+        Your Google account secures your access. Handle and color are just how you appear in the app.
+      </div>
+
+      <Label>Handle</Label>
+      <div style={{ marginBottom: 16 }}>
+        <TextInput value={data.handle} onChange={v => setData(d => ({ ...d, handle: v }))} placeholder="e.g. shinobi" />
+        {tooShort && <div style={{ fontSize: 11, color: C.orange, marginTop: 4 }}>At least 2 characters</div>}
+      </div>
+
+      <Label>Color</Label>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        {IDENTITY_COLORS.map(c => (
+          <button key={c} onClick={() => setData(d => ({ ...d, color: c }))}
+            style={{ width: 24, height: 24, borderRadius: 0, background: c, cursor: 'pointer',
+              border: data.color === c ? `2px solid ${C.whiteHot}` : '2px solid transparent',
+              boxShadow: data.color === c ? `0 0 0 2px ${c}` : 'none' }} />
+        ))}
+      </div>
+
+      <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, padding: '10px 14px' }}>
+        <span style={{ fontFamily: C.head, color: data.color }}>
+          Hello, {data.handle.trim() || '…'}
+        </span>
+      </div>
+    </Card>
+  )
+}
+
+// ── Step: Backend ────────────────────────────────────────────────────────────
+function BackendStep({ data, setData, onSkip, alreadyOnline }) {
+  const [testing, setTesting] = useState(false)
+  const [result, setResult] = useState(alreadyOnline ? { ok: true } : null)
+
+  const test = useCallback(async () => {
+    setTesting(true)
+    setResult(null)
+    try {
+      const res = await axios.get(`${data.backendUrl}/api/health`, { timeout: 5000 })
+      setResult(res.data?.ok ? { ok: true, uptime: res.data.uptime } : { ok: false, error: 'Unexpected response' })
+    } catch (e) {
+      setResult({ ok: false, error: e.message })
+    }
+    setTesting(false)
+  }, [data.backendUrl])
+
+  useEffect(() => {
+    if (!alreadyOnline) test()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return (
+    <Card style={{ width: 460 }}>
+      <div style={{ fontFamily: C.head, fontSize: 22, letterSpacing: 1, marginBottom: 6 }}>Connect to the crew</div>
+      <div style={{ fontSize: 13, color: C.muted, marginBottom: 18 }}>The backend server keeps everyone's events, chat, and stats in sync.</div>
+
+      <Label>Backend URL</Label>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        <TextInput value={data.backendUrl} mono style={{ flex: 1 }}
+          onChange={v => { setData(d => ({ ...d, backendUrl: v, backendSkipped: false })); setResult(null) }} />
+        <Btn size="sm" variant="subtle" onClick={test} disabled={testing}>{testing ? 'Testing…' : 'Test connection'}</Btn>
+      </div>
+      {result && (
+        result.ok
+          ? <div style={{ fontSize: 12, color: C.green, marginBottom: 10 }}>✓ Reachable</div>
+          : <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>✕ {result.error}</div>
+      )}
+      <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>Your host needs to deploy the backend — see README.md</div>
+      <button onClick={onSkip}
+        style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>
+        Skip for now
+      </button>
+    </Card>
+  )
+}
+
+// ── Step: AC Path (Host/Admin only) ──────────────────────────────────────────
 function AcPathStep({ data, setData, valid }) {
   const browseRoot = async () => {
     const p = await api.dialog.openFolder({ title: 'Select Assetto Corsa root folder' })
@@ -85,88 +234,47 @@ function AcPathStep({ data, setData, valid }) {
         <TextInput value={data.acServerExe} onChange={v => setData(d => ({ ...d, acServerExe: v }))} placeholder="…\server\acServer.exe" mono />
         <Btn size="sm" variant="subtle" onClick={browseExe}>Browse</Btn>
       </div>
+
+      <div style={{ fontSize: 11, color: C.muted, marginTop: 16 }}>
+        You have Host access — you'll be able to run AC servers from this machine. AC must be installed to host.
+      </div>
     </Card>
   )
 }
 
-// ── Step: Identity ───────────────────────────────────────────────────────────
-function IdentityStep({ data, setData }) {
-  const tooShort = data.handle.length > 0 && data.handle.trim().length < 2
+// ── Step: Host Readiness Check (Host/Admin only) ─────────────────────────────
+function HostCheckStep({ data, backendOnline, registered, onRegister }) {
+  const checks = [
+    { label: 'Assetto Corsa found', ok: !!data.acPath },
+    { label: 'acServer.exe found', ok: !!data.acServerExe },
+    { label: 'Backend reachable', ok: backendOnline },
+    { label: 'This machine registered as available host', ok: registered },
+  ]
+  const allGreen = checks.every(c => c.ok)
   return (
-    <Card style={{ width: 420 }}>
-      <div style={{ fontFamily: C.head, fontSize: 22, letterSpacing: 1, marginBottom: 6 }}>Who are you?</div>
-      <div style={{ fontSize: 13, color: C.muted, marginBottom: 18 }}>Your handle and color appear in Events, Comms, and Lap Stats.</div>
-
-      <Label>Handle</Label>
-      <div style={{ marginBottom: 16 }}>
-        <TextInput value={data.handle} onChange={v => setData(d => ({ ...d, handle: v }))} placeholder="e.g. shinobi" />
-        {tooShort && <div style={{ fontSize: 11, color: C.orange, marginTop: 4 }}>At least 2 characters</div>}
-      </div>
-
-      <Label>Color</Label>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        {IDENTITY_COLORS.map(c => (
-          <button key={c} onClick={() => setData(d => ({ ...d, color: c }))}
-            style={{ width: 24, height: 24, borderRadius: 0, background: c, cursor: 'pointer',
-              border: data.color === c ? `2px solid ${C.whiteHot}` : '2px solid transparent',
-              boxShadow: data.color === c ? `0 0 0 2px ${c}` : 'none' }} />
+    <Card style={{ width: 440 }}>
+      <div style={{ fontFamily: C.head, fontSize: 22, letterSpacing: 1, marginBottom: 14 }}>Host readiness check</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+        {checks.map(c => (
+          <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+            <span style={{ color: c.ok ? C.green : C.red, fontFamily: C.mono }}>{c.ok ? '✓' : '✗'}</span>
+            {c.label}
+          </div>
         ))}
       </div>
-
-      <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, padding: '10px 14px' }}>
-        <span style={{ fontFamily: C.head, color: data.color }}>
-          Hello, {data.handle.trim() || '…'}
-        </span>
-      </div>
-    </Card>
-  )
-}
-
-// ── Step: Backend ────────────────────────────────────────────────────────────
-function BackendStep({ data, setData, onSkip }) {
-  const [testing, setTesting] = useState(false)
-  const [result, setResult] = useState(null)
-
-  const test = async () => {
-    setTesting(true)
-    setResult(null)
-    try {
-      const res = await axios.get(`${data.backendUrl}/api/health`, { timeout: 5000 })
-      setResult(res.data?.ok ? { ok: true, uptime: res.data.uptime } : { ok: false, error: 'Unexpected response' })
-    } catch (e) {
-      setResult({ ok: false, error: e.message })
-    }
-    setTesting(false)
-  }
-
-  // Pre-filled from the build's embedded backend URL — auto-test on mount so
-  // crew members on Tailscale/LAN see green immediately with no extra click.
-  useEffect(() => {
-    test()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  return (
-    <Card style={{ width: 460 }}>
-      <div style={{ fontFamily: C.head, fontSize: 22, letterSpacing: 1, marginBottom: 6 }}>Connect to the crew</div>
-      <div style={{ fontSize: 13, color: C.muted, marginBottom: 18 }}>The backend server keeps everyone's events, chat, and stats in sync.</div>
-
-      <Label>Backend URL</Label>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-        <TextInput value={data.backendUrl} mono style={{ flex: 1 }}
-          onChange={v => { setData(d => ({ ...d, backendUrl: v, backendSkipped: false })); setResult(null) }} />
-        <Btn size="sm" variant="subtle" onClick={test} disabled={testing}>{testing ? 'Testing…' : 'Test connection'}</Btn>
-      </div>
-      {result && (
-        result.ok
-          ? <div style={{ fontSize: 12, color: C.green, marginBottom: 10 }}>✓ Reachable</div>
-          : <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>✕ {result.error}</div>
+      {allGreen ? (
+        <div style={{ fontFamily: C.head, fontSize: 16, color: C.green, letterSpacing: 1, textAlign: 'center' }}>
+          THIS MACHINE IS READY TO HOST
+        </div>
+      ) : (
+        <>
+          <div style={{ fontSize: 12, color: C.orange, marginBottom: 10 }}>Some checks failed — you can continue anyway and fix these later in Settings.</div>
+          {!registered && backendOnline && (
+            <Btn size="sm" variant="subtle" onClick={onRegister}>Register this machine</Btn>
+          )}
+        </>
       )}
-      <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>Your host needs to deploy the backend — see README.md</div>
-      <button onClick={onSkip}
-        style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>
-        Skip for now
-      </button>
+      <div style={{ fontSize: 11, color: C.muted, marginTop: 14 }}>You can fix these in Settings later.</div>
     </Card>
   )
 }
@@ -188,35 +296,23 @@ function PhrasesStep({ data, setData }) {
 }
 
 // ── Step: Done ────────────────────────────────────────────────────────────────
-function DoneStep({ data, acFound, onFinish }) {
+const ROLE_COPY = {
+  crew: 'You can join events, talk to the crew, and download mods. Have fun.',
+  host: 'You can host servers, view telemetry, and manage sessions. Get it set up.',
+  admin: "You have full access. Don't break anything.",
+}
+const ROLE_COLOR = { admin: C.red, host: C.blue, crew: C.muted }
+
+function DoneStep({ data, googleUser, role, onFinish }) {
   return (
     <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-      <div style={{ fontSize: 52, color: C.green }}>✓</div>
-      <div style={{ fontFamily: C.head, fontSize: 32, letterSpacing: 1 }}>You're all set, {data.handle.trim() || 'racer'}!</div>
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 0, padding: '16px 22px',
-        textAlign: 'left', minWidth: 340, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
-        <div>
-          <span style={{ color: C.muted }}>AC: </span>
-          {acFound
-            ? <span style={{ fontFamily: C.mono }}>{data.acPath}</span>
-            : <span style={{ color: C.orange }}>Server features disabled</span>}
-        </div>
-        <div>
-          <span style={{ color: C.muted }}>Backend: </span>
-          {data.backendSkipped
-            ? <span style={{ color: C.orange }}>Not connected</span>
-            : <span style={{ fontFamily: C.mono }}>{data.backendUrl}</span>}
-        </div>
-        <div>
-          <span style={{ color: C.muted }}>Identity: </span>
-          <span style={{ color: data.color, fontWeight: 700 }}>{data.handle.trim()}</span>
-        </div>
-      </div>
-      {!acFound && (
-        <div style={{ fontSize: 12, color: C.orange, marginTop: 2, maxWidth: 340 }}>
-          Server features disabled — AC server not found on this machine.
-        </div>
-      )}
+      {googleUser?.picture && <img src={googleUser.picture} alt="" style={{ width: 64, height: 64, borderRadius: '50%', border: `2px solid ${C.blue}` }} />}
+      <div style={{ fontFamily: C.head, fontSize: 36, letterSpacing: 1 }}>YOU'RE IN, {data.handle.trim() || 'RACER'}.</div>
+      <span style={{ fontFamily: C.head, fontSize: 14, letterSpacing: 1, color: ROLE_COLOR[role] || C.muted,
+        border: `1px solid ${ROLE_COLOR[role] || C.muted}`, padding: '3px 10px', textTransform: 'uppercase' }}>
+        {role}
+      </span>
+      <div style={{ fontSize: 13, color: C.mutedHi, maxWidth: 340, marginTop: 4 }}>{ROLE_COPY[role] || ROLE_COPY.crew}</div>
       <Btn size="lg" onClick={onFinish} style={{ marginTop: 18 }}>Open ShinRacer →</Btn>
     </div>
   )
@@ -224,24 +320,23 @@ function DoneStep({ data, acFound, onFinish }) {
 
 // ── Wizard root ───────────────────────────────────────────────────────────────
 export default function Wizard({ onComplete }) {
+  const { signIn, signInStatus, pendingProfile, signInError, continueOffline,
+    user, role, isSignedIn, saveIdentity, backendOnline, backendUrl: storeBackendUrl } = useStore()
   const [detecting, setDetecting] = useState(true)
   const [acFound, setAcFound] = useState(false)
   const [acPathValid, setAcPathValid] = useState(false)
   const [stepIdx, setStepIdx] = useState(0)
   const [finishing, setFinishing] = useState(false)
+  const [signingIn, setSigningIn] = useState(false)
+  const [hostRegistered, setHostRegistered] = useState(false)
   const [data, setData] = useState({
     acPath: '', acServerExe: '',
     handle: '', color: C.blue,
-    backendUrl: DEFAULT_BACKEND_URL, backendSkipped: false,
+    backendUrl: storeBackendUrl || DEFAULT_BACKEND_URL, backendSkipped: false,
     quickPhrases: [...DEFAULT_QUICK_PHRASES],
   })
 
-  // Detection: AC root via api.ac.detect(), then confirm acServer.exe itself exists —
-  // in a standard Steam install the two are found together, so this also decides the
-  // step count ("AC server found" = AC root found; the exe check separately drives the
-  // AC Path step's own badge/validation, since a base install without the dedicated
-  // server component is a real, if rare, case worth surfacing there instead of silently
-  // dropping the whole step).
+  // Detection: AC root via api.ac.detect(), then confirm acServer.exe itself exists.
   useEffect(() => {
     (async () => {
       const detected = await api.ac.detect()
@@ -260,12 +355,29 @@ export default function Wizard({ onComplete }) {
     })()
   }, [])
 
-  const steps = useMemo(() => (
-    acFound
-      ? ['welcome', 'acpath', 'identity', 'backend', 'phrases', 'done']
-      : ['welcome', 'identity', 'backend', 'done']
-  ), [acFound])
-  const stepId = steps[stepIdx]
+  // Pre-fill the Identity step from whatever AppStore already defaulted
+  // (Google first name / C.blue) the moment sign-in completes.
+  useEffect(() => {
+    if (user) setData(d => ({ ...d, handle: d.handle || user.name?.split(' ')[0] || '', color: d.color }))
+  }, [user])
+
+  // Once sign-in actually completes (AppStore's oauth callback resolved),
+  // move off the Connecting step automatically.
+  useEffect(() => {
+    if (isSignedIn && (stepIdx === 0 || stepIdx === 1)) {
+      setStepIdx(steps.indexOf('identity'))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn])
+
+  const isHostOrAdmin = role === 'host' || role === 'admin'
+  const steps = useMemo(() => {
+    const base = ['welcome', 'connecting', 'identity', 'backend']
+    if (isHostOrAdmin) base.push('acpath', 'hostcheck')
+    base.push('phrases', 'done')
+    return base
+  }, [isHostOrAdmin])
+  const stepId = steps[stepIdx] || 'welcome'
 
   // Re-validate the AC paths live as the user edits/browses within the AC Path step.
   useEffect(() => {
@@ -282,6 +394,28 @@ export default function Wizard({ onComplete }) {
   const goNext = useCallback(() => setStepIdx(i => Math.min(i + 1, steps.length - 1)), [steps.length])
   const goBack = useCallback(() => setStepIdx(i => Math.max(i - 1, 0)), [])
 
+  async function handleSignIn() {
+    setSigningIn(true)
+    try {
+      await signIn()
+      setStepIdx(steps.indexOf('connecting'))
+    } catch (e) {
+      // signIn() itself only fails if the backend can't even build an auth
+      // URL (i.e. it's unreachable before the user ever left the app) —
+      // surfaced right on the welcome step rather than advancing to a
+      // Connecting screen that has nothing to show.
+    }
+    setSigningIn(false)
+  }
+
+  async function registerAsHost() {
+    try {
+      const machineName = (await api.system.hostname()) || 'unknown'
+      const { data: res } = await httpApi.post('/api/hosts/register', { machineName, acPath: data.acPath })
+      if (res.ok) setHostRegistered(true)
+    } catch (e) { /* backend unreachable — the checklist already shows this red, nothing more to do here */ }
+  }
+
   const skipBackend = () => {
     setData(d => ({ ...d, backendUrl: DEFAULT_BACKEND_URL, backendSkipped: true }))
     goNext()
@@ -289,27 +423,28 @@ export default function Wizard({ onComplete }) {
 
   const finish = useCallback(async () => {
     setFinishing(true)
+    await saveIdentity({ handle: data.handle.trim(), color: data.color })
     await onComplete({
       settings: { acPath: data.acPath, acServerExe: data.acServerExe, setupComplete: true },
-      identity: { handle: data.handle.trim(), color: data.color },
       backendUrl: data.backendUrl,
       quickPhrases: data.quickPhrases,
     })
-  }, [data, onComplete])
+  }, [data, onComplete, saveIdentity])
 
   const primaryEnabled = {
-    welcome: true, acpath: acPathValid, identity: data.handle.trim().length >= 2,
-    backend: true, phrases: true, done: !finishing,
+    welcome: true, connecting: false, identity: data.handle.trim().length >= 2,
+    backend: true, acpath: acPathValid, hostcheck: true, phrases: true, done: !finishing,
   }[stepId]
   const primaryAction = {
-    welcome: goNext, acpath: goNext, identity: goNext, backend: goNext, phrases: goNext, done: finish,
+    welcome: handleSignIn, connecting: () => {}, identity: goNext, backend: goNext,
+    acpath: goNext, hostcheck: goNext, phrases: goNext, done: finish,
   }[stepId]
 
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Enter' && primaryEnabled) primaryAction() }
+    const onKey = (e) => { if (e.key === 'Enter' && primaryEnabled && stepId !== 'connecting') primaryAction() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [primaryEnabled, primaryAction])
+  }, [primaryEnabled, primaryAction, stepId])
 
   if (detecting) {
     return (
@@ -319,19 +454,26 @@ export default function Wizard({ onComplete }) {
     )
   }
 
-  const isBookend = stepId === 'welcome' || stepId === 'done'
+  const isBookend = stepId === 'welcome' || stepId === 'connecting' || stepId === 'done'
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       {!isBookend && <ProgressBar steps={steps} index={stepIdx} />}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
         backgroundImage: isBookend ? GRID_TEXTURE : 'none' }}>
-        {stepId === 'welcome' && <WelcomeStep onNext={goNext} />}
+        {stepId === 'welcome' && <WelcomeStep onSignIn={handleSignIn} signingIn={signingIn} />}
+        {stepId === 'connecting' && (
+          <ConnectingStep status={signInStatus} pendingProfile={pendingProfile} error={signInError}
+            onRetry={handleSignIn} onContinueOffline={continueOffline} />
+        )}
+        {stepId === 'identity' && <IdentityStep data={data} setData={setData} googleUser={user} />}
+        {stepId === 'backend' && <BackendStep data={data} setData={setData} onSkip={skipBackend} alreadyOnline={backendOnline} />}
         {stepId === 'acpath' && <AcPathStep data={data} setData={setData} valid={acPathValid} />}
-        {stepId === 'identity' && <IdentityStep data={data} setData={setData} />}
-        {stepId === 'backend' && <BackendStep data={data} setData={setData} onSkip={skipBackend} />}
+        {stepId === 'hostcheck' && (
+          <HostCheckStep data={data} backendOnline={backendOnline} registered={hostRegistered} onRegister={registerAsHost} />
+        )}
         {stepId === 'phrases' && <PhrasesStep data={data} setData={setData} />}
-        {stepId === 'done' && <DoneStep data={data} acFound={acFound} onFinish={finish} />}
+        {stepId === 'done' && <DoneStep data={data} googleUser={user} role={role || 'crew'} onFinish={finish} />}
       </div>
       {!isBookend && (
         <div style={{ padding: '18px 32px', display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: `1px solid ${C.border}` }}>

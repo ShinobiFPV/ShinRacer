@@ -1,8 +1,10 @@
 const express = require('express')
 const { v4: uuidv4 } = require('uuid')
 const { stats } = require('../db')
+const { requireAuth } = require('../middleware/auth')
 
 const router = express.Router()
+router.use(requireAuth)
 
 // Body/query field names are camelCase (sessionId, lapTime, sector1..3) to match
 // the renderer's existing StatsView/useTelemetry contract — DB columns stay snake_case.

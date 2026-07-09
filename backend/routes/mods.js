@@ -7,6 +7,7 @@ const drive  = require('../lib/drive')
 const oauth  = require('../lib/oauth')
 const push   = require('../lib/push')
 const { modInstalls } = require('../db')
+const { requireAuth } = require('../middleware/auth')
 
 const upload = multer({ dest: path.join(__dirname, '..', 'uploads') })
 
@@ -25,7 +26,10 @@ const CACHE_TTL_MS = 5 * 60 * 1000
 module.exports = function createModsRouter(io) {
   const router = express.Router()
 
-  router.get('/', async (req, res) => {
+  // /auth/url and /auth/callback are the sign-in bootstrap itself — they
+  // can't require an app token that doesn't exist yet, so requireAuth is
+  // applied per-route below instead of as a blanket router.use().
+  router.get('/', requireAuth, async (req, res) => {
     try {
       if (cache.data && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
         return res.json({ ok: true, data: cache.data })
@@ -48,7 +52,7 @@ module.exports = function createModsRouter(io) {
     }
   })
 
-  router.get('/download/:fileId', async (req, res) => {
+  router.get('/download/:fileId', requireAuth, async (req, res) => {
     try {
       const meta = await drive.getFileMetadata(req.params.fileId)
       const fileStream = await drive.downloadFile(req.params.fileId)
@@ -84,12 +88,19 @@ module.exports = function createModsRouter(io) {
     }
   })
 
-  router.post('/upload', upload.single('mod'), async (req, res) => {
+  // Two different Google tokens are in play here, which is why the Drive
+  // access token moved to its own header instead of sharing Authorization:
+  // `requireAuth` verifies an *ID token* there (proves who you are, checked
+  // against roles.json); this route separately needs a Drive *access token*
+  // (proves you're allowed to write to the shared Drive as yourself) to
+  // actually call the Drive API. Before Phase 12, Authorization carried the
+  // access token because nothing else needed that header — now that every
+  // route needs the ID token there for auth, the two can't share the slot.
+  router.post('/upload', requireAuth, upload.single('mod'), async (req, res) => {
     const tempPath = req.file?.path
     try {
-      const authHeader = req.headers.authorization || ''
-      const accessToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
-      if (!accessToken) return res.status(401).json({ ok: false, error: 'Missing bearer token' })
+      const accessToken = req.headers['x-drive-access-token'] || null
+      if (!accessToken) return res.status(401).json({ ok: false, error: 'Missing X-Drive-Access-Token header' })
       if (!req.file) return res.status(400).json({ ok: false, error: 'mod file required' })
 
       const { name, category, description } = req.body
@@ -124,7 +135,7 @@ module.exports = function createModsRouter(io) {
     }
   })
 
-  router.get('/installs/:handle', (req, res) => {
+  router.get('/installs/:handle', requireAuth, (req, res) => {
     try {
       const rows = modInstalls.list(req.params.handle)
       res.json({ ok: true, data: rows.map(r => ({ fileId: r.file_id, installedAt: r.installed_at, versionDate: r.version_date })) })
@@ -133,7 +144,7 @@ module.exports = function createModsRouter(io) {
     }
   })
 
-  router.post('/installs', (req, res) => {
+  router.post('/installs', requireAuth, (req, res) => {
     try {
       const { handle, fileId, versionDate } = req.body
       if (!handle || !fileId) return res.status(400).json({ ok: false, error: 'handle and fileId are required' })

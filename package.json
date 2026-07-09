@@ -10,6 +10,9 @@
     "pack": "vite build && electron-builder --dir",
     "release": "vite build && electron-builder --publish always",
     "release:dry": "vite build && electron-builder --publish never",
+    "version:patch": "npm version patch -m \"Release v%s\" && git push && git push --tags",
+    "version:minor": "npm version minor -m \"Release v%s\" && git push && git push --tags",
+    "version:major": "npm version major -m \"Release v%s\" && git push && git push --tags",
     "lint": "eslint src/renderer"
   },
   "build": {
@@ -38,7 +41,10 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "installerIcon": "resources/icon.ico",
-      "shortcutName": "ShinRacer"
+      "shortcutName": "ShinRacer",
+      "license": "resources/license.txt",
+      "include": "resources/installer.nsh",
+      "deleteAppDataOnUninstall": false
     },
     "extraResources": [
       {

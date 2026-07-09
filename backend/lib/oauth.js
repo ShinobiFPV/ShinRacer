@@ -17,6 +17,14 @@ function getAuthUrl(redirectUri) {
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: [
+      // 'openid' is what makes Google actually include an id_token in the
+      // token response (see exchangeCode below) — without it the response
+      // is access/refresh tokens only. Phase 12's whole sign-in system is
+      // built on verifying that id_token server-side via Google's tokeninfo
+      // endpoint (middleware/auth.js), so this scope isn't optional anymore
+      // the way it effectively was when this flow only fed the Mod Manager's
+      // Drive uploads.
+      'openid',
       'https://www.googleapis.com/auth/drive.file',
       'https://www.googleapis.com/auth/userinfo.profile',
       'https://www.googleapis.com/auth/userinfo.email',
@@ -43,4 +51,20 @@ function getAuthenticatedClient(tokens) {
   return oauth2Client
 }
 
-module.exports = { getAuthUrl, exchangeCode, getAuthenticatedClient }
+// Phase 12's client-side flow described using a stored refresh_token to get
+// a fresh id_token "via Google's OAuth token endpoint" directly from
+// Electron — but that grant requires the client secret for a confidential
+// (Desktop app) client like this one, and the secret has never left the
+// backend (see docs/GOOGLE_DRIVE_SETUP.md). So this has to happen here
+// instead: the client sends its stored refresh_token to the backend, the
+// backend does the actual refresh with its secret, and hands back a new
+// id_token the client can store. See routes/auth.js's POST /google, which
+// accepts this as an alternative to a fresh idToken.
+async function refreshIdToken(refreshToken) {
+  const oauth2Client = createOAuthClient()
+  oauth2Client.setCredentials({ refresh_token: refreshToken })
+  const { credentials } = await oauth2Client.refreshAccessToken()
+  return credentials // { access_token, id_token, expiry_date, refresh_token? }
+}
+
+module.exports = { getAuthUrl, exchangeCode, getAuthenticatedClient, refreshIdToken }

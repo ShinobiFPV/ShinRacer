@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import httpApi, { setBackendUrl as setApiBackendUrl } from '../lib/api'
+import { C } from '../components/primitives'
 
 const api = window.api  // injected by preload
 
@@ -13,6 +14,12 @@ const DEFAULT_SETTINGS = {
   setupComplete: false,
 }
 
+// Kept as the shape every existing view already reads via useStore().identity
+// (CommsView, EventsView, StatsView, ModsView, ClusterView, LinksView) —
+// Phase 12 changes *where* handle/color come from (derived from googleAuth
+// below, a display preference set after Google sign-in) but not what they
+// look like to everything that already consumes them. This is deliberate:
+// it's the difference between "add Google auth" and "rewrite six views."
 const DEFAULT_IDENTITY = { handle: '', color: '#0066FF' }
 export const DEFAULT_BACKEND_URL =
   (typeof __BACKEND_URL__ !== 'undefined' ? __BACKEND_URL__ : null) || 'http://192.168.1.203:3000'
@@ -21,9 +28,12 @@ export const DEFAULT_QUICK_PHRASES = [
   'Ready when you are', 'Give me 2 mins', 'On my way to grid', 'GG',
 ]
 
+function shapeAuthUser(data) {
+  return { uid: data.uid, email: data.email, name: data.name, picture: data.picture }
+}
+
 export function AppStoreProvider({ children }) {
   const [settings, setSettingsState]   = useState(DEFAULT_SETTINGS)
-  const [identity, setIdentityState]   = useState(DEFAULT_IDENTITY)
   const [backendUrl, setBackendUrlState] = useState(DEFAULT_BACKEND_URL)
   const [quickPhrases, setQuickPhrasesState] = useState(DEFAULT_QUICK_PHRASES)
   const [liveServers, setLiveServers]  = useState([])   // { id, name, config, startedAt, pid, logPath }
@@ -33,6 +43,37 @@ export function AppStoreProvider({ children }) {
   const [acDetected, setAcDetected]    = useState(null) // null | { found, path }
   const [backendOnline, setBackendOnline] = useState(true) // optimistic default; first poll corrects it
   const [hydrated, setHydrated]        = useState(false) // true once persisted state has loaded — gates the first-run Wizard so it doesn't flash for returning users
+
+  // ── Google auth (Phase 12) ─────────────────────────────────────────────────
+  // googleAuth is the single source of truth for "am I signed in" — see its
+  // shape below in signIn(). identity/{handle,color} is derived from it so
+  // every pre-Phase-12 view's contract stays intact.
+  const [googleAuth, setGoogleAuthState] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+
+  const identity = googleAuth ? { handle: googleAuth.handle, color: googleAuth.color } : DEFAULT_IDENTITY
+  const user = googleAuth?.user || null
+  const role = googleAuth?.role || null
+  const isAdmin = role === 'admin'
+  const isHost = role === 'host' || role === 'admin'
+  const isCrew = !!googleAuth
+  const isSignedIn = !!googleAuth
+
+  const persistGoogleAuth = useCallback(async (next) => {
+    setGoogleAuthState(next)
+    await api.store.set('googleAuth', next)
+  }, [])
+
+  // Declared up here (rather than down near the other simple setters, where
+  // it lived before Phase 12) because the accomp://oauth callback effect
+  // below needs it — `const` bindings aren't hoisted, so referencing it from
+  // an effect defined earlier in this function body than its own `const`
+  // line would throw "Cannot access before initialization" the moment that
+  // effect actually ran.
+  const showToast = useCallback((msg, color) => {
+    setToastState({ msg, color, key: Date.now() })
+    setTimeout(() => setToastState(null), 2800)
+  }, [])
 
   const recheckBackend = useCallback(async () => {
     try {
@@ -63,9 +104,6 @@ export function AppStoreProvider({ children }) {
       }
       if (saved.quickPhrases?.length) setQuickPhrasesState(saved.quickPhrases)
 
-      const savedIdentity = await api.identity.get()
-      if (savedIdentity) setIdentityState({ ...DEFAULT_IDENTITY, ...savedIdentity })
-
       // Detect AC install
       const detected = await api.ac.detect()
       setAcDetected(detected)
@@ -81,6 +119,36 @@ export function AppStoreProvider({ children }) {
       const running = await api.server.list()
       setLiveServers(running.map(s => ({ ...s.config, pid: s.pid, startedAt: s.startedAt, logPath: s.logPath })))
 
+      // Google auth: verify the stored token is still good (or refresh it if
+      // expired) before the rest of the app trusts it. A network failure here
+      // keeps the cached auth as-is rather than forcing a sign-out — only an
+      // explicit 401 (token actually invalid/revoked) clears it. This mirrors
+      // backendOnline's existing "optimistic, corrected on the next check"
+      // pattern rather than punishing a briefly-unreachable backend.
+      const savedAuth = saved.googleAuth
+      if (savedAuth) {
+        try {
+          const expired = savedAuth.expiryDate && savedAuth.expiryDate < Date.now()
+          const body = expired ? { refreshToken: savedAuth.refreshToken } : { idToken: savedAuth.idToken }
+          const { data } = await httpApi.post('/api/auth/google', body)
+          if (data.ok) {
+            const next = {
+              ...savedAuth,
+              role: data.data.role,
+              user: shapeAuthUser(data.data),
+              idToken: data.data.idToken || savedAuth.idToken,
+              expiryDate: data.data.expiryDate || savedAuth.expiryDate,
+            }
+            await persistGoogleAuth(next)
+          } else {
+            await persistGoogleAuth(null) // 401/invalid — the backend said no, not just unreachable
+          }
+        } catch (e) {
+          setGoogleAuthState(savedAuth) // network/backend-unreachable — keep cached auth, don't force a re-sign-in
+        }
+      }
+      setAuthLoading(false)
+
       setHydrated(true)
     })()
 
@@ -89,7 +157,106 @@ export function AppStoreProvider({ children }) {
       setLiveServers(prev => prev.filter(s => s.id !== id))
     })
     return unsub
+  }, [persistGoogleAuth])
+
+  // signInStatus/pendingProfile/signInError expose the in-progress sign-in
+  // state for the Wizard's "Connecting" step (Step 2). There's a real
+  // architectural wrinkle here worth being explicit about: the spec's Step 2
+  // imagines the *code exchange* succeeding independently of "our" backend
+  // and only the *role lookup* (POST /api/auth/google) being able to fail
+  // while offline. In this app, both calls go through the backend —
+  // exchanging the code for tokens (POST /api/mods/auth/callback) needs the
+  // OAuth client secret, which has never left the backend (see
+  // docs/GOOGLE_DRIVE_SETUP.md) — so if the backend is genuinely
+  // unreachable, the exchange itself fails and there's no Google profile to
+  // build even a degraded identity from. "Continue offline" is only
+  // actually offerable when the exchange succeeded (we have a real Google
+  // profile) but the *role* lookup specifically failed — that narrower case
+  // is real and handled below; total backend unreachability during the
+  // exchange has nothing to offer but Retry, which is the honest outcome
+  // given a client secret that can't be shipped to every crew member's PC.
+  const [signInStatus, setSignInStatus] = useState('idle') // idle | exchanging | fetching-role | error | offline-available
+  const [pendingProfile, setPendingProfile] = useState(null)
+  const [signInError, setSignInError] = useState(null)
+
+  const applyGoogleAuth = useCallback(async ({ tokens, googleUser, roleData }) => {
+    const next = {
+      idToken: tokens?.id_token ?? null,
+      accessToken: tokens?.access_token ?? null,
+      refreshToken: tokens?.refresh_token ?? null,
+      expiryDate: tokens?.expiry_date ?? 0,
+      user: roleData ? shapeAuthUser(roleData) : googleUser,
+      role: roleData?.role || 'crew', // "default to crew" per the offline-mode spec
+      // Display preferences — defaulted once, then user-editable in
+      // Settings/the wizard's Identity step. Re-signing in doesn't reset
+      // these if they're already set.
+      handle: googleAuth?.handle || googleUser?.name?.split(' ')[0] || 'Racer',
+      color: googleAuth?.color || C.blue,
+      offline: !roleData,
+    }
+    await persistGoogleAuth(next)
+    return next
+  }, [googleAuth?.handle, googleAuth?.color, persistGoogleAuth])
+
+  // accomp://oauth callback — the one listener for the whole app (Wizard's
+  // sign-in button and Settings' "Sign in again" both just call signIn();
+  // ModsView no longer runs its own separate OAuth exchange, per Phase 12's
+  // "Google sign-in replaces all existing identity systems" — see
+  // CLAUDE.md's Phase 12 notes on the ModsView consolidation).
+  useEffect(() => {
+    const unsub = api.auth.onCallback(async (code) => {
+      setSignInStatus('exchanging')
+      setSignInError(null)
+      setPendingProfile(null)
+      try {
+        const { data: exch } = await httpApi.post('/api/mods/auth/callback', { code })
+        if (!exch.ok) {
+          setSignInStatus('error')
+          setSignInError(exch.error)
+          return
+        }
+        const { tokens, user: googleUser } = exch.data
+        setPendingProfile(googleUser)
+        setSignInStatus('fetching-role')
+        try {
+          const { data: roleRes } = await httpApi.post('/api/auth/google', { idToken: tokens.id_token })
+          if (!roleRes.ok) { setSignInStatus('error'); setSignInError(roleRes.error); return }
+          const next = await applyGoogleAuth({ tokens, googleUser, roleData: roleRes.data })
+          setSignInStatus('idle')
+          showToast(`✓ Signed in as ${next.user.name}`)
+        } catch (e) {
+          // Exchange succeeded (we have a real Google profile) but the role
+          // lookup itself couldn't reach the backend — this is the one case
+          // "Continue offline" can actually do something with.
+          setSignInStatus('offline-available')
+          setSignInError(e.message)
+        }
+      } catch (e) {
+        setSignInStatus('error')
+        setSignInError(e.message)
+      }
+    })
+    return unsub
+  }, [applyGoogleAuth, showToast])
+
+  // Wizard's [CONTINUE OFFLINE] button — only ever reachable from
+  // signInStatus === 'offline-available' (see the comment above).
+  const continueOffline = useCallback(async () => {
+    if (!pendingProfile) return
+    const next = await applyGoogleAuth({ tokens: null, googleUser: pendingProfile, roleData: null })
+    setSignInStatus('idle')
+    return next
+  }, [pendingProfile, applyGoogleAuth])
+
+  const signIn = useCallback(async () => {
+    const { data } = await httpApi.get('/api/mods/auth/url')
+    if (!data.ok) throw new Error(data.error || 'Could not build a Google sign-in URL')
+    await api.shell.openExternal(data.data.url)
   }, [])
+
+  const signOut = useCallback(async () => {
+    await persistGoogleAuth(null)
+  }, [persistGoogleAuth])
 
   const saveSettings = useCallback(async (patch) => {
     const next = { ...settings, ...patch }
@@ -97,11 +264,13 @@ export function AppStoreProvider({ children }) {
     await api.store.set('settings', next)
   }, [settings])
 
+  // Handle/color are display preferences layered on top of Google auth now —
+  // saving them with nobody signed in yet is a no-op (there's no googleAuth
+  // object to attach them to).
   const saveIdentity = useCallback(async (patch) => {
-    const next = { ...identity, ...patch }
-    setIdentityState(next)
-    await api.identity.set(next)
-  }, [identity])
+    if (!googleAuth) return
+    await persistGoogleAuth({ ...googleAuth, ...patch })
+  }, [googleAuth, persistGoogleAuth])
 
   const saveBackendUrl = useCallback(async (url) => {
     const next = url || DEFAULT_BACKEND_URL
@@ -128,11 +297,6 @@ export function AppStoreProvider({ children }) {
   const addLiveServer = useCallback((s) => setLiveServers(prev => [...prev, s]), [])
   const removeLiveServer = useCallback((id) => setLiveServers(prev => prev.filter(s => s.id !== id)), [])
 
-  const showToast = useCallback((msg, color) => {
-    setToastState({ msg, color, key: Date.now() })
-    setTimeout(() => setToastState(null), 2800)
-  }, [])
-
   return (
     <Ctx.Provider value={{
       settings, saveSettings,
@@ -146,6 +310,10 @@ export function AppStoreProvider({ children }) {
       acDetected,
       backendOnline, recheckBackend,
       hydrated,
+      // Phase 12
+      googleAuth, user, role, isAdmin, isHost, isCrew, isSignedIn, authLoading,
+      signIn, signOut,
+      signInStatus, pendingProfile, signInError, continueOffline,
     }}>
       {children}
     </Ctx.Provider>

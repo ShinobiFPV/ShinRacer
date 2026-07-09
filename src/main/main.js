@@ -3,6 +3,7 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const dgram = require('dgram')
+const net = require('net')
 const readline = require('readline')
 const { spawn, execSync, execFileSync } = require('child_process')
 const Store = require('electron-store')
@@ -972,9 +973,16 @@ ipcMain.handle('network:localIp', () => {
   return null
 })
 
-// ── IPC: User identity ────────────────────────────────────────────────────────
-ipcMain.handle('identity:get', () => store.get('identity'))
-ipcMain.handle('identity:set', (_, identity) => { store.set('identity', identity); return true })
+// ── IPC: Machine hostname (Phase 12 host registration) ───────────────────────
+ipcMain.handle('system:hostname', () => os.hostname())
+
+// ── IPC: Port availability (Host Status readiness checklist) ────────────────
+ipcMain.handle('net:checkPortAvailable', (_, port) => new Promise((resolve) => {
+  const tester = net.createServer()
+  tester.once('error', () => resolve(false))
+  tester.once('listening', () => tester.close(() => resolve(true)))
+  tester.listen(port, '127.0.0.1')
+}))
 
 // ── IPC: Event reminders ───────────────────────────────────────────────────────
 // `events` is a pre-filtered list of { id, name, time, date, track } candidates —

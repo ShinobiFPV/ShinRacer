@@ -16,6 +16,15 @@ function getSharedSocket() {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
+      // A function (not a plain object) so socket.io-client re-invokes it on
+      // every connect *and* every reconnect attempt — the backend's io.use
+      // middleware (socket.js) now rejects any handshake with no/invalid
+      // token, and this guarantees a reconnect after a token refresh picks
+      // up the fresh one instead of replaying whatever was current when the
+      // socket was first constructed.
+      auth: (cb) => {
+        window.api.store.get('googleAuth').then(a => cb({ token: a?.idToken }))
+      },
     })
     singletonUrl = url
   }

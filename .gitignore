@@ -13,6 +13,10 @@ backend/uploads/*
 backend/ac_companion.db
 backend/ac_companion.db-*
 
+# Real roles.json lives only on shinobi — William creates it manually per
+# docs/ADMIN_SETUP.md. Only the .example template is committed.
+backend/config/roles.json
+
 # Env / secrets
 .env
 .env.*

@@ -6,16 +6,6 @@ import api, { DEFAULT_BACKEND_URL, setBackendUrl, getBackendUrl } from '../lib/a
 import { setOnboarded, getIdentity } from '../lib/auth'
 import { useAuth } from '../hooks/useAuth'
 
-const GUEST_CHECKLIST = [
-  { ok: true, label: 'View events' },
-  { ok: true, label: 'Browse mods (no install — no local AC)' },
-  { ok: true, label: 'Useful links' },
-  { ok: false, label: 'Accept events (needs identity)' },
-  { ok: false, label: 'Voice/text comms (needs identity)' },
-  { ok: false, label: 'Upload mods (needs Google auth)' },
-  { ok: false, label: 'Lap stats (needs AC running locally)' },
-]
-
 function Screen({ children }) {
   return (
     <div style={{
@@ -36,7 +26,6 @@ export default function OnboardingPage() {
   const [backendUrl, setBackendUrlInput] = useState(getBackendUrl() || DEFAULT_BACKEND_URL)
   const [testResult, setTestResult] = useState(null) // null | 'ok' | 'fail'
   const [testing, setTesting] = useState(false)
-  const [isGuest, setIsGuest] = useState(!auth.user)
   const [signInError, setSignInError] = useState(null)
 
   async function testConnection() {
@@ -108,26 +97,17 @@ export default function OnboardingPage() {
           Sign in with Google
         </Btn>
         {signInError && <div style={{ color: C.red, fontSize: 13 }}>{signInError}</div>}
-        <div style={{ fontSize: 13, color: C.muted, maxWidth: 320 }}>Sign in to access mods and comms.</div>
-        <button onClick={() => { setIsGuest(true); setStep(4) }} style={{ fontSize: 13, color: C.blue, textDecoration: 'underline', marginTop: 8 }}>
-          Continue as guest
-        </button>
-        <div style={{ maxWidth: 320, textAlign: 'left', marginTop: 20, width: '100%' }}>
-          <Label>Guest mode</Label>
-          {GUEST_CHECKLIST.map(item => (
-            <div key={item.label} style={{ display: 'flex', gap: 8, fontSize: 13, color: item.ok ? C.textSec : C.muted, padding: '4px 0' }}>
-              <span style={{ color: item.ok ? C.green : C.red }}>{item.ok ? '✓' : '✗'}</span>
-              {item.label}
-            </div>
-          ))}
+        <div style={{ fontSize: 13, color: C.muted, maxWidth: 320 }}>
+          Every route on the backend now requires a signed-in Google account —
+          there's no guest/browse-only mode anymore.
         </div>
       </Screen>
     )
   }
 
-  // Step 4 — Done. Reached either via "Continue as guest" (same SPA session)
-  // or via a full redirect back from Google through /auth/callback?step=done
-  // (auth state lives in localStorage by then, so useAuth() picks it up fresh).
+  // Step 4 — Done. Only reached via a full redirect back from Google through
+  // /auth/callback?step=done (auth state lives in localStorage by then, so
+  // useAuth() picks it up fresh) — sign-in is mandatory, there's no other path here.
   const identity = getIdentity()
   const name = auth.user?.name || identity?.handle
   return (
@@ -139,9 +119,7 @@ export default function OnboardingPage() {
         {name ? `You're in, ${name}.` : "You're in."}
       </div>
       <div style={{ fontSize: 13, color: C.muted, maxWidth: 320 }}>
-        {isGuest && !auth.user
-          ? 'Guest mode: events and links are open to browse. Sign in anytime from Settings for comms, accepting events, and uploads.'
-          : 'Full access — events, comms, mods, and stats are all yours.'}
+        Full access — events, comms, mods, and stats are all yours.
       </div>
       <Btn size="lg" onClick={finish} style={{ marginTop: 16 }}>Open ShinRacer</Btn>
     </Screen>

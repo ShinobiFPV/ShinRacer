@@ -6,6 +6,8 @@ Set-Location $ProjectRoot
 Write-Host "=== AC Companion backend deploy -> shinobi@192.168.1.203 ===" -ForegroundColor Cyan
 Write-Host "--- Step 1: copying backend files ---" -ForegroundColor Cyan
 ssh shinobi@192.168.1.203 "mkdir -p /home/shinobi/ac-companion-backend/lib"
+ssh shinobi@192.168.1.203 "mkdir -p /home/shinobi/ac-companion-backend/middleware"
+ssh shinobi@192.168.1.203 "mkdir -p /home/shinobi/ac-companion-backend/config"
 scp backend\server.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/
 scp backend\db.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/
 scp backend\socket.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/
@@ -17,11 +19,15 @@ scp backend\routes\invites.js shinobi@192.168.1.203:/home/shinobi/ac-companion-b
 scp backend\routes\mods.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
 scp backend\routes\push.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
 scp backend\routes\auth.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
+scp backend\routes\admin.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
+scp backend\routes\hosts.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
 scp backend\routes\cluster.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
 scp backend\routes\telemetry.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
+scp backend\middleware\auth.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/middleware/
 scp backend\lib\drive.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/lib/
 scp backend\lib\oauth.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/lib/
 scp backend\lib\push.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/lib/
+scp backend\lib\roles.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/lib/
 scp backend\nginx\shinracer.conf shinobi@192.168.1.203:/tmp/shinracer.conf
 Write-Host "--- Step 1 complete ---" -ForegroundColor Green
 Write-Host "--- Step 2: npm install on shinobi ---" -ForegroundColor Cyan

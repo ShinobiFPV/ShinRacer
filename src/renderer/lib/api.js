@@ -30,4 +30,18 @@ export function onBackendUrlChange(fn) {
   return () => urlListeners.delete(fn)
 }
 
+// Phase 12: every route on the backend now requires a Google ID token.
+// Reads electron-store fresh on every request (rather than caching the
+// token in a module variable) so a sign-in, token refresh, or sign-out from
+// AppStore.jsx is picked up on the very next request with no pubsub needed —
+// unlike the backend URL above, the token is never read synchronously
+// anywhere, so there's no reason to keep an in-memory copy in sync.
+api.interceptors.request.use(async (config) => {
+  try {
+    const auth = await window.api?.store.get('googleAuth')
+    if (auth?.idToken) config.headers.Authorization = `Bearer ${auth.idToken}`
+  } catch (e) { /* preload not ready / not signed in — request goes out unauthenticated and the backend 401s it */ }
+  return config
+})
+
 export default api

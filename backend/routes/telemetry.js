@@ -1,4 +1,5 @@
 const express = require('express')
+const { requireAuth } = require('../middleware/auth')
 
 // In-memory only, by design — this is a ~500ms-latency mirror of whatever
 // the host's Electron app is currently seeing via AC's Shared Memory API
@@ -14,6 +15,7 @@ let latestTelemetryFrame = null
 // but nothing stops another consumer from listening for the socket event instead.
 module.exports = function createTelemetryRouter(io) {
   const router = express.Router()
+  router.use(requireAuth)
 
   router.post('/frame', (req, res) => {
     const { frame } = req.body

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
+import httpApi from '../lib/api'
 import { C, Card, SectionHead, Label, Btn, TextInput } from '../components/primitives'
 import Tooltip from '../components/Tooltip'
 import { useStore, DEFAULT_QUICK_PHRASES } from '../store/AppStore'
@@ -7,10 +8,86 @@ import { useStore, DEFAULT_QUICK_PHRASES } from '../store/AppStore'
 const api = window.api
 
 const IDENTITY_COLORS = [C.yellow, C.blue, C.green, C.red, C.orange, '#8E44AD', C.white, C.mutedHi]
+const ROLE_COLOR = { admin: C.red, host: C.blue, crew: C.muted }
+const HOST_PORT = 9600
+
+function HostStatusSection({ settings, backendOnline, user, isHost }) {
+  const [checks, setChecks] = useState({ acInstalled: null, acServerExe: null, portFree: null })
+  const [hostRecord, setHostRecord] = useState(null) // null = not checked yet, false = 404/not registered
+  const [registering, setRegistering] = useState(false)
+  const [checking, setChecking] = useState(false)
+
+  const runChecks = useCallback(async () => {
+    setChecking(true)
+    const acServerExe = settings.acServerExe ? await api.fs.exists(settings.acServerExe) : false
+    const portFree = await api.net.checkPortAvailable(HOST_PORT)
+    setChecks({ acInstalled: !!settings.acPath, acServerExe, portFree })
+    try {
+      const res = await httpApi.get(`/api/hosts/${user.uid}/status`)
+      setHostRecord(res.data?.data || false)
+    } catch (e) {
+      setHostRecord(false)
+    }
+    setChecking(false)
+  }, [settings.acPath, settings.acServerExe, user?.uid])
+
+  useEffect(() => { if (isHost && user) runChecks() }, [isHost, user, runChecks])
+
+  if (!isHost || !user) return null
+
+  const registered = !!hostRecord
+  const ready = checks.acInstalled && checks.acServerExe && backendOnline && registered && checks.portFree
+
+  const registerHost = async () => {
+    setRegistering(true)
+    try {
+      const machineName = await api.system.hostname()
+      await httpApi.post('/api/hosts/register', { machineName, acPath: settings.acPath || null })
+      await runChecks()
+    } catch (e) {
+      // surfaced via the checklist re-run below (registered stays false)
+    }
+    setRegistering(false)
+  }
+
+  const Check = ({ label, ok }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
+      <span style={{ width: 14, textAlign: 'center', color: ok ? C.green : C.red, fontFamily: C.head }}>{ok ? '✓' : '✕'}</span>
+      <span style={{ fontSize: 13, color: C.textSec }}>{label}</span>
+    </div>
+  )
+
+  return (
+    <Card accent={ready ? C.green : C.borderHi}>
+      <SectionHead children="Host status" sub="Readiness to run game servers for crew events" />
+      <div style={{ marginBottom: 12 }}>
+        <Check label="Assetto Corsa installed" ok={!!checks.acInstalled} />
+        <Check label="acServer.exe found" ok={!!checks.acServerExe} />
+        <Check label="Backend reachable" ok={!!backendOnline} />
+        <Check label={`Port ${HOST_PORT} available`} ok={!!checks.portFree} />
+        <Check label="Registered as available host" ok={registered} />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 4 }}>
+        <span style={{ fontFamily: C.head, fontSize: 16, letterSpacing: 1, color: ready ? C.green : C.orange }}>
+          {ready ? 'READY TO HOST' : 'NOT READY'}
+        </span>
+        <Tooltip text="Re-run all readiness checks">
+          <Btn size="sm" variant="ghost" onClick={runChecks} disabled={checking}>{checking ? 'Checking…' : 'Recheck'}</Btn>
+        </Tooltip>
+        <Tooltip text={registered ? 'Update this machine\'s host registration' : 'Register this machine as a host crew can select when proposing events'}>
+          <Btn size="sm" onClick={registerHost} disabled={registering}>
+            {registering ? 'Saving…' : registered ? 'Update host info' : 'Register as host'}
+          </Btn>
+        </Tooltip>
+      </div>
+    </Card>
+  )
+}
 
 export default function SettingsView() {
   const { settings, saveSettings, identity, saveIdentity, backendUrl, saveBackendUrl,
-    quickPhrases, saveQuickPhrases, acDetected, showToast } = useStore()
+    quickPhrases, saveQuickPhrases, acDetected, showToast,
+    user, role, isHost, signOut, backendOnline } = useStore()
   const [local, setLocal] = useState({ ...settings })
   const [identityLocal, setIdentityLocal] = useState({ ...identity })
   const [backendUrlLocal, setBackendUrlLocal] = useState(backendUrl)
@@ -73,6 +150,49 @@ export default function SettingsView() {
 
   return (
     <div style={{ padding: 28, maxWidth: 780, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <Card accent={ROLE_COLOR[role] || C.borderHi}>
+        <SectionHead children="Profile" sub="Google identity — handle and color are your display preferences on top of it" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18 }}>
+          {user?.picture ? (
+            <img src={user.picture} alt="" style={{ width: 64, height: 64, borderRadius: '50%', border: `2px solid ${C.blue}` }} />
+          ) : (
+            <div style={{ width: 64, height: 64, borderRadius: '50%', border: `2px solid ${C.blue}`, background: C.raised }} />
+          )}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: C.head, fontSize: 20, letterSpacing: 0.5, color: C.textPrimary }}>{user?.name || 'Not signed in'}</div>
+            <div style={{ fontSize: 12, color: C.muted }}>{user?.email || '—'}</div>
+          </div>
+          {role && (
+            <span style={{ fontFamily: C.head, fontSize: 12, letterSpacing: 1, color: ROLE_COLOR[role] || C.muted,
+              border: `1px solid ${ROLE_COLOR[role] || C.muted}`, padding: '3px 10px', textTransform: 'uppercase' }}>
+              {role}
+            </span>
+          )}
+        </div>
+
+        <Label>Handle</Label>
+        <div style={{ marginBottom: 16 }}>
+          <TextInput value={identityLocal.handle} onChange={v => setIdentity('handle', v)} placeholder="e.g. shinobi" />
+        </div>
+        <Label>Color</Label>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          {IDENTITY_COLORS.map(c => (
+            <Tooltip key={c} text="Choose your crew color — shown next to your name in Events and Comms">
+              <button onClick={() => setIdentity('color', c)}
+                style={{ width: 24, height: 24, borderRadius: 0, background: c, cursor: 'pointer',
+                  border: identityLocal.color === c ? `2px solid ${C.whiteHot}` : `2px solid transparent`,
+                  boxShadow: identityLocal.color === c ? `0 0 0 2px ${c}` : 'none' }} />
+            </Tooltip>
+          ))}
+        </div>
+
+        <Tooltip text="Sign out of Google — you'll need to sign back in to use ShinRacer">
+          <Btn variant="danger" size="sm" onClick={signOut}>Sign out</Btn>
+        </Tooltip>
+      </Card>
+
+      <HostStatusSection settings={local} backendOnline={backendOnline} user={user} isHost={isHost} />
+
       {/* AC detection banner */}
       {acDetected?.found && (
         <div style={{ background: `${C.green}18`, border: `1px solid ${C.green}60`, borderRadius: 0, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -136,25 +256,6 @@ export default function SettingsView() {
           <TextInput value={local.adminPassword} onChange={v => set('adminPassword', v)} placeholder="admin" />
         </div>
         <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>Used for /admin command in-game</div>
-      </Card>
-
-      <Card accent={C.borderHi}>
-        <SectionHead children="Your identity" sub="Shown to friends in Events, Comms, and Stats — no login required" />
-        <Label>Handle</Label>
-        <div style={{ marginBottom: 16 }}>
-          <TextInput value={identityLocal.handle} onChange={v => setIdentity('handle', v)} placeholder="e.g. shinobi" />
-        </div>
-        <Label>Color</Label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {IDENTITY_COLORS.map(c => (
-            <Tooltip key={c} text="Choose your crew color — shown next to your name in Events and Comms">
-              <button onClick={() => setIdentity('color', c)}
-                style={{ width: 24, height: 24, borderRadius: 0, background: c, cursor: 'pointer',
-                  border: identityLocal.color === c ? `2px solid ${C.whiteHot}` : `2px solid transparent`,
-                  boxShadow: identityLocal.color === c ? `0 0 0 2px ${c}` : 'none' }} />
-            </Tooltip>
-          ))}
-        </div>
       </Card>
 
       <Card accent={C.borderHi}>

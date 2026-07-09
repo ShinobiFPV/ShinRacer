@@ -14,6 +14,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - run: npm install
 
@@ -21,3 +22,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           VITE_BACKEND_URL: http://192.168.1.203:3000
+
+      # electron-builder --publish always (npm run release) already created
+      # and published the GitHub release with the NSIS installer attached —
+      # this just replaces electron-builder's auto-generated notes (which are
+      # only the tag name) with the crew-facing template.
+      - name: Apply release notes template
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $body = (Get-Content .github/release-template.md -Raw) -replace '\{\{VERSION\}\}', $tag
+          gh release edit $tag --notes "$body"
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}

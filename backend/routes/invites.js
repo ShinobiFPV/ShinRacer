@@ -1,5 +1,6 @@
 const express = require('express')
 const { invites } = require('../db')
+const { requireAuth } = require('../middleware/auth')
 
 const CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 function generateCode() {
@@ -11,6 +12,7 @@ function generateCode() {
 // Takes `io` so a new invite can be broadcast to connected clients — matches events.js's pattern.
 module.exports = function createInvitesRouter(io) {
   const router = express.Router()
+  router.use(requireAuth)
 
   router.post('/', (req, res) => {
     try {
