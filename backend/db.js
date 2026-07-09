@@ -44,6 +44,12 @@ try {
       password TEXT, track TEXT, cars TEXT,
       created_by TEXT, created_at TEXT, expires_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS mod_installs (
+      file_id TEXT, handle TEXT,
+      installed_at TEXT, version_date TEXT,
+      PRIMARY KEY (file_id, handle)
+    );
   `)
 } catch (e) {
   console.error('Failed to initialize database schema:', e)
@@ -215,4 +221,15 @@ const invites = {
   },
 }
 
-module.exports = { db, events, stats, chat, invites }
+// ── Mod installs ──────────────────────────────────────────────────────────────
+const modInstalls = {
+  list(handle) {
+    return db.prepare(`SELECT * FROM mod_installs WHERE handle = ?`).all(handle)
+  },
+  upsert({ fileId, handle, installedAt, versionDate }) {
+    db.prepare(`INSERT OR REPLACE INTO mod_installs (file_id, handle, installed_at, version_date) VALUES (?, ?, ?, ?)`)
+      .run(fileId, handle, installedAt, versionDate)
+  },
+}
+
+module.exports = { db, events, stats, chat, invites, modInstalls }

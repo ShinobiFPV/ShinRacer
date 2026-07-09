@@ -3,7 +3,7 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const dgram = require('dgram')
-const { spawn, execSync } = require('child_process')
+const { spawn, execSync, execFileSync } = require('child_process')
 const Store = require('electron-store')
 const { autoUpdater } = require('electron-updater')
 
@@ -134,8 +134,20 @@ autoUpdater.on('error', (err) => { log(`Auto-updater error: ${err.message}`) })
 // Windows launches a fresh process for a protocol click; if we're already
 // running, that second process's argv arrives here via 'second-instance'
 // instead — requestSingleInstanceLock() is what makes that handoff happen.
+// A subset of accomp:// URLs are Google OAuth callbacks (accomp://oauth?code=...)
+// rather than invite/connect links — those get routed to their own IPC event
+// carrying just the extracted code, so ModsView doesn't have to re-parse the
+// generic accomp:open payload that DeployView already owns interpreting.
 function handleAccompUrl(url) {
   log(`accomp:// URL received: ${url}`)
+  const isOauth = /^accomp:\/\/oauth\b/i.test(url) || url.includes('?code=')
+  if (isOauth) {
+    const match = url.match(/[?&]code=([^&]+)/)
+    if (match) {
+      win?.webContents.send('oauth:callback', decodeURIComponent(match[1]))
+      return
+    }
+  }
   win?.webContents.send('accomp:open', url)
 }
 
@@ -551,6 +563,55 @@ ipcMain.handle('replays:openFolder', () => {
   const replayDir = replayDirPath()
   fs.mkdirSync(replayDir, { recursive: true })
   shell.openPath(replayDir)
+  return { ok: true }
+})
+
+// ── IPC: Mod Manager — download + install ─────────────────────────────────────
+const CATEGORY_CONTENT_DIR = { cars: 'cars', tracks: 'tracks', tools: 'tools' }
+
+ipcMain.handle('mods:download', async (_, { fileId, filename, category }) => {
+  const settings = store.get('settings') || {}
+  const backendUrl = store.get('backendUrl')
+  if (!settings.acPath) return { ok: false, error: 'AC path not set — set it in Settings first' }
+  if (!backendUrl) return { ok: false, error: 'Backend URL not set' }
+
+  const subdir = CATEGORY_CONTENT_DIR[category]
+  if (!subdir) return { ok: false, error: `Unknown category: ${category}` }
+
+  const tempZip = path.join(app.getPath('temp'), `mod_${Date.now()}_${filename}`)
+  const destName = filename.replace(/\.zip$/i, '')
+  const destPath = path.join(settings.acPath, 'content', subdir, destName)
+
+  try {
+    const res = await fetch(`${backendUrl}/api/mods/download/${fileId}`)
+    if (!res.ok) return { ok: false, error: `Download failed: HTTP ${res.status}` }
+    const buf = Buffer.from(await res.arrayBuffer())
+    fs.writeFileSync(tempZip, buf)
+
+    fs.mkdirSync(destPath, { recursive: true })
+    // -EncodedCommand (Base64 UTF-16LE) sidesteps quoting/escaping entirely for
+    // paths that may contain spaces or apostrophes — safer than building a
+    // -Command string by concatenation. ProgressPreference silences Expand-Archive's
+    // CLIXML progress-stream noise, which otherwise leaks onto stderr.
+    const psQuote = (s) => s.replace(/'/g, "''")
+    const script = `$ProgressPreference = 'SilentlyContinue'; Expand-Archive -LiteralPath '${psQuote(tempZip)}' -DestinationPath '${psQuote(destPath)}' -Force`
+    const encoded = Buffer.from(script, 'utf16le').toString('base64')
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded])
+    fs.unlinkSync(tempZip)
+    log(`Mod installed: ${filename} -> ${destPath}`)
+    return { ok: true, installedPath: destPath }
+  } catch (e) {
+    try { fs.unlinkSync(tempZip) } catch (_e) {}
+    log(`Mod install failed (${filename}): ${e.message}`)
+    return { ok: false, error: e.message }
+  }
+})
+
+ipcMain.handle('mods:openFolder', (_, category) => {
+  const settings = store.get('settings') || {}
+  const subdir = CATEGORY_CONTENT_DIR[category]
+  const folder = subdir ? path.join(settings.acPath, 'content', subdir) : settings.acPath
+  shell.openPath(folder)
   return { ok: true }
 })
 

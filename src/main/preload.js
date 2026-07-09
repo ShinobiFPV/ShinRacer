@@ -115,4 +115,16 @@ contextBridge.exposeInMainWorld('api', {
     launch:      (p) => ipcRenderer.invoke('replays:launch', p),
     openFolder:  ()  => ipcRenderer.invoke('replays:openFolder'),
   },
+
+  // Mod Manager — download/install + Google OAuth callback
+  mods: {
+    download:   (args) => ipcRenderer.invoke('mods:download', args),
+    openFolder: (cat)  => ipcRenderer.invoke('mods:openFolder', cat),
+  },
+  auth: {
+    onCallback: (cb) => {
+      ipcRenderer.on('oauth:callback', (_, code) => cb(code))
+      return () => ipcRenderer.removeAllListeners('oauth:callback')
+    },
+  },
 })

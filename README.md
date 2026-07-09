@@ -94,6 +94,17 @@ Browse, tag, and launch AC replays without digging through File Explorer.
 - Launch directly into AC with the `-replay` flag
 - Metadata cache with mtime-based invalidation, so re-scans stay fast
 
+### 📦 Mod Manager
+
+Download and auto-install mods directly from the ShinTech Drive library.
+
+- Browse Cars, Tracks, and Tools pulled live from a shared Google Drive folder
+- One-click install: downloads and extracts straight into your AC content folders
+- Update badges when a mod on Drive is newer than what you have installed
+- Sign in with Google to upload your own mods for William to review and add to the library
+- Live "someone just uploaded a mod" toast for everyone connected
+- No login required just to browse and download — sign-in is only for uploading
+
 ### 🧙 First-Run Wizard
 
 Zero-friction setup for new crew members — no README required to get running.
@@ -140,7 +151,7 @@ Zero-friction setup for new crew members — no README required to get running.
 
 **The backend** is a small always-on Node service that every client points at, over Tailscale or LAN. It's the one thing that has to be shared: it holds the events calendar, chat history, WebRTC signaling, lap stats, and invite codes in a single SQLite database, and relays realtime events over Socket.io. It runs on a Raspberry Pi 5 (`shinobi`) as a systemd service, but there's nothing Pi-specific about it — any always-on Linux box (or Windows machine) on the network works.
 
-Server Manager, Traffic Manager, and the Replay Browser work entirely offline — they only touch your local AC install and filesystem. Events, Comms, and Stats need the backend, since those are the genuinely shared, multiplayer parts of the app.
+Server Manager, Traffic Manager, and the Replay Browser work entirely offline — they only touch your local AC install and filesystem. Events, Comms, and Stats need the backend, since those are the genuinely shared, multiplayer parts of the app. Mod Manager downloads/browsing need the backend too (it proxies Google Drive), but only uploading needs a Google sign-in.
 
 ## Tech Stack
 
@@ -153,6 +164,7 @@ Server Manager, Traffic Manager, and the Replay Browser work entirely offline �
 | Realtime | Socket.io 4 |
 | Database | SQLite via better-sqlite3 |
 | Voice | WebRTC (browser APIs, peer-to-peer mesh) |
+| Mod library | Google Drive API + OAuth (googleapis) |
 | Networking | Tailscale (or LAN) |
 | Deployment | Raspberry Pi 5 + systemd |
 | Build | electron-builder, GitHub Actions |
@@ -261,7 +273,7 @@ Architecture, feature design, UX direction, QA, and deployment.
 **Built with Claude**
 This project was designed in collaboration with [Claude](https://claude.ai) (Anthropic's AI assistant) and built using [Claude Code](https://claude.ai/code) (Anthropic's agentic coding tool).
 
-The development process: William directed all product decisions — what to build, how it should work, and how it should feel. Claude handled code generation across five iterative phases, from initial scaffold through production hardening. Claude Code executed each phase given a detailed prompt, with William reviewing, testing, and course-correcting between phases.
+The development process: William directed all product decisions — what to build, how it should work, and how it should feel. Claude handled code generation across six iterative phases, from initial scaffold through production hardening and the Mod Manager. Claude Code executed each phase given a detailed prompt, with William reviewing, testing, and course-correcting between phases.
 
 This is an example of what's possible when a technically-minded builder uses AI as a force multiplier — not to replace judgment, but to ship faster.
 
@@ -273,6 +285,7 @@ This is an example of what's possible when a technically-minded builder uses AI 
 - [Vite](https://vitejs.dev) — build tooling
 - [electron-builder](https://electron.build) — packaging
 - [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) — invite QR codes
+- [googleapis](https://github.com/googleapis/google-api-nodejs-client) — Google Drive + OAuth for the Mod Manager
 
 **Community**
 - The Assetto Corsa modding community for track and car content

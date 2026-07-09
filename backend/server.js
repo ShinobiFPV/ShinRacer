@@ -1,3 +1,5 @@
+require('dotenv').config()
+
 const express = require('express')
 const http    = require('http')
 const path    = require('path')
@@ -9,6 +11,7 @@ const createEventsRouter  = require('./routes/events')
 const statsRouter         = require('./routes/stats')
 const chatRouter          = require('./routes/chat')
 const createInvitesRouter = require('./routes/invites')
+const createModsRouter    = require('./routes/mods')
 const attachSocket        = require('./socket')
 const { invites }         = require('./db')
 
@@ -29,6 +32,7 @@ app.use('/api/events', createEventsRouter(io))
 app.use('/api/stats', statsRouter)
 app.use('/api/chat', chatRouter)
 app.use('/api/invites', createInvitesRouter(io))
+app.use('/api/mods', createModsRouter(io))
 
 invites.cleanup()
 

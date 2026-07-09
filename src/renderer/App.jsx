@@ -11,6 +11,7 @@ import EventsView  from './views/EventsView'
 import CommsView   from './views/CommsView'
 import StatsView   from './views/StatsView'
 import ReplayView  from './views/ReplayView'
+import ModsView    from './views/ModsView'
 import SettingsView from './views/SettingsView'
 
 // ── Sidebar nav ───────────────────────────────────────────────────────────────
@@ -23,6 +24,7 @@ const NAV = [
   { id:'comms',   icon:'🎙️', label:'Comms' },
   { id:'stats',   icon:'📊', label:'Stats' },
   { id:'replays', icon:'🎬', label:'Replays' },
+  { id:'mods',    icon:'📦', label:'Mods' },
   { id:'settings',icon:'⚙',  label:'Settings' },
 ]
 
@@ -142,6 +144,7 @@ function Inner() {
                 {view==='comms'   && <CommsView />}
                 {view==='stats'   && <StatsView />}
                 {view==='replays' && <ReplayView onGoSettings={() => setView('settings')} showToast={showToast} />}
+                {view==='mods'    && <ModsView />}
                 {view==='settings'&& <SettingsView />}
               </ErrorBoundary>
             </div>
