@@ -6,15 +6,17 @@
 ```
 
 **Built by the crew. For the crew.**
-*No subscriptions. No accounts. No nonsense.*
+*No subscriptions. No spreadsheets. No nonsense.*
 
 ![Platform](https://img.shields.io/badge/platform-Windows-blue) ![Electron](https://img.shields.io/badge/electron-28-47848F) ![Node](https://img.shields.io/badge/node-24-green) ![License](https://img.shields.io/badge/license-MIT-yellow) ![Status](https://img.shields.io/badge/status-active-brightgreen) ![Built with Claude](https://img.shields.io/badge/built%20with-Claude-blueviolet)
+
+One installer. One download link. Sign in with Google and go — there's no portable build, no zip to pick by mistake, no second app to remember for your phone.
 
 ## What is this?
 
 ShinRacer is the app your AC friend group never knew it needed but won't be able to race without.
 
-One app. Everything the crew needs. Server up in 30 seconds, traffic dialed in for a 2am Shutoko run, race night on the calendar, everyone in voice, lap times already logged before you've tabbed back out. No Discord bots stitched to a spreadsheet. No third-party SaaS holding your data hostage. It all runs on a Raspberry Pi in shinobi's setup and a private Tailscale network — nobody outside the crew even knows it exists, and there's no login screen because there doesn't need to be one.
+One app. Everything the crew needs. Server up in 30 seconds, traffic dialed in for a 2am Shutoko run, race night on the calendar, everyone in voice, lap times already logged before you've tabbed back out. No Discord bots stitched to a spreadsheet. No third-party SaaS holding your data hostage. It all runs on a Raspberry Pi in shinobi's setup and a private Tailscale network — nobody outside the crew even knows it exists. One Google sign-in gets you in; there's no password to remember and no account to create.
 
 Hover anything you don't recognize — every control explains what it actually does, not just what its label already told you. And it doesn't look like a spreadsheet with buttons bolted on: true black, sharp edges, electric blue, gauges built to read at a glance. Gold means exactly three things — your personal best, a favorited replay, first place on the board. Everywhere else, you'll just feel it.
 
@@ -110,7 +112,7 @@ Build your own button box. Design a custom panel of buttons, toggles, gauges, an
 
 - Full drag-and-drop editor — momentary buttons, toggles, rocker switches, rotary encoders, sliders, an XY pad, indicator lights, gauges, text readouts, image panels, labels. No code, no external tools
 - Bind any button to a real keystroke (fires straight into AC) or a ShinRacer function — push-to-talk, quick phrases, launching a server, marking a lap, and more
-- Runs as a real overlay window you can drag anywhere over AC, or full-screen on a phone propped up next to your wheel
+- Runs as a real overlay window you can drag anywhere over AC, or full-screen on the PWA on a phone propped up next to your wheel — build it once on desktop, publish it, and pull the same layout up on mobile in seconds
 - A proper editor, not a toy: undo/redo, grid snap, multi-select, zoom, precise x/y/w/h entry
 - Unlimited local presets, publish up to 5 to the crew library, share any preset as a QR code or a JSON file
 - Full build-and-share walkthrough: **[docs/CLUSTER_FUCKER.md](docs/CLUSTER_FUCKER.md)**
@@ -137,7 +139,7 @@ The crew's mod collection, in the app. Click install. Done. No zip files. No dra
 - A badge tells you the moment something you've got installed is out of date
 - Sign in with Google to upload your own finds for William to add to the shelf
 - Everyone connected gets a toast the second a new mod lands
-- Browsing and downloading need no login at all — sign-in's only for uploading
+- The same sign-in gates the whole app now (see Roles, below) — downloads and browsing don't need any *extra* sign-in beyond that, only uploading ever needed Google in the first place
 
 ### 🔗 Useful Links
 
@@ -150,13 +152,23 @@ Everywhere the crew actually goes for mods, tools, and guides — one tab, not a
 - One click to visit (opens in your real browser, never trapped in the app) or copy the link
 - Fully local — the built-in list ships with the app, your additions live on your machine, nothing phones home
 
+### 🔐 Roles & Admin Panel
+
+Every crew member is Admin, Host, or Crew. Nobody types in a password to get there — Google sign-in decides who you are, `roles.json` decides what you can do.
+
+- Three roles: **Admin** (William) manages everyone and everything, **Host** can also volunteer their PC for event servers, **Crew** gets events/comms/stats/mods/links — which covers almost everyone
+- Role-gated nav — Host/Admin-only tabs aren't shown-and-disabled to Crew, they're just not there
+- Admin panel: crew management with a live role dropdown, host status table, a server overview, and a one-click backend restart
+- Proposing an event only shows "I'll host" to people who actually can — Crew only ever sees "Shinobi hosts," full stop
+- Full breakdown: **[docs/ADMIN_SETUP.md](docs/ADMIN_SETUP.md)**
+
 ### 🧙 First-Run Wizard
 
-New to the crew? Four steps and you're in. The app finds your AC install. You pick a handle. We handle the rest.
+New to the crew? Sign in with Google and you're in — the app fills in the rest from there.
 
+- **Sign in with Google** is step one; your handle and color default from your Google profile and are yours to change right after
 - Finds your AC install on its own from the usual Steam paths
-- No server to host? No problem — it skips the server-config steps entirely and sets you up as a client
-- Pick a handle and a color, see it live before you commit
+- Host or Admin? Two extra steps appear — AC path confirmation and a host-readiness check. Everyone else skips straight past them
 - Backend URL's already filled in — just hit test and confirm it connects
 - Set up your quick-phrases while you're at it
 - Nothing saves until you hit "Done" on the last screen
@@ -164,11 +176,31 @@ New to the crew? Four steps and you're in. The app finds your AC install. You pi
 ## For the crew on mobile
 
 Not everyone needs the full desktop app. The ShinRacer PWA gets your friends
-in without installing anything — events, comms, mods, and stats, right in
-their browser, sitting on their home screen like it's a real app.
+in without installing anything — a real second app, same backend, own
+codebase, sitting on their home screen with its own icon and zero browser
+chrome once it's installed.
 
-**On Tailscale?** Open `http://192.168.1.203`, tap Share → Add to Home Screen,
-done. No App Store. No Play Store. Just a link.
+- **Events** — the same crew calendar, cards instead of a full grid (a
+  month view is a lot of screen for a phone), propose/accept/edit/cancel,
+  the same iCal export
+- **Comms** — full voice and text, hold-to-talk built for a thumb instead of
+  a keybind, same WebRTC mesh as the desktop app so a phone and three
+  laptops can all be in the same call
+- **Mods** — browse and download anytime; upload if you're signed in (same
+  account, same rules as desktop)
+- **Stats** — a simplified read-only lap chart, same data as the full
+  Electron dashboard, sized for a small screen
+- **Links** — the same crew link list, long-press to copy on a phone
+  instead of a right-click
+- **The Cluster Fucker** — pull up any published button-box preset
+  full-screen, right next to your wheel or your phone mount
+- **Push notifications** — a real system notification when a new event
+  goes up or a mod lands in the library, even with the app closed
+- Sign in with Google, same as desktop — the same mandatory account, the
+  same Admin/Host/Crew role, no separate guest mode to keep straight
+
+**On Tailscale?** Open `http://192.168.1.203`, sign in, tap Share → Add to
+Home Screen, done. No App Store. No Play Store. Just a link.
 
 Full mobile setup, VAPID push notifications, and the nginx config that
 serves it: **[docs/PWA_SETUP.md](docs/PWA_SETUP.md)**.
@@ -209,9 +241,11 @@ The heavy lifting runs on a Pi 5 in shinobi's setup. Everyone else just runs the
 
 **The app on your machine** does everything that needs real OS access: spawns and watches `acServer.exe`, listens for AC's UDP telemetry, reads AC's shared memory straight for the Live Telemetry tab, touches your AC config files, and catches `accomp://` links so invites just work. The interface itself never touches any of that directly — it all goes through Electron's IPC bridge.
 
-**The backend** is the one thing that has to be shared — a small always-on Node service holding the events calendar, chat history, WebRTC signaling, lap stats, and invite codes in a single SQLite database, pushing realtime updates over Socket.io. It lives on shinobi's Pi 5 as a systemd service, but there's nothing Pi-specific about it — any always-on box on the network does the job.
+**The backend** is the one thing that has to be shared — a small always-on Node service holding the events calendar, chat history, WebRTC signaling, lap stats, host registrations, roles, and invite codes in a single SQLite database, pushing realtime updates over Socket.io. It lives on shinobi's Pi 5 as a systemd service, but there's nothing Pi-specific about it — any always-on box on the network does the job. The same Pi also serves the mobile PWA over nginx (not pictured above, for diagram simplicity) — same backend, separate codebase, separate deploy.
 
-Server Manager, Traffic Manager, Live Telemetry, and the Replay Browser don't need the backend at all — that's just you and your AC install. Events, Comms, and Stats do, because those are the parts that are actually shared. Mod Manager needs it too for browsing and downloads (it's just proxying Drive) — signing in only matters if you're uploading.
+Every request to the backend — from the desktop app, the PWA, either one — carries a Google ID token, verified against Google's own servers on every single call. Nothing in this diagram trusts a client just because it asked nicely.
+
+Server Manager, Traffic Manager, Live Telemetry, and the Replay Browser don't need the backend at all — that's just you and your AC install. Events, Comms, Stats, and the Admin panel do, because those are the parts that are actually shared. Mod Manager needs it too for browsing and downloads (it's just proxying Drive), and — since Phase 12 — so does everything else, because signing in is how ShinRacer knows who you are at all now.
 
 ## Under the hood
 
@@ -226,11 +260,14 @@ Since you asked:
 | Realtime | Socket.io 4 |
 | Database | SQLite via better-sqlite3 |
 | Voice | WebRTC (browser APIs, peer-to-peer mesh) |
+| Auth | Google Sign-In (OAuth 2.0 + ID tokens), role-based access via `roles.json` |
 | Mod library | Google Drive API + OAuth (googleapis) |
 | Keystroke dispatch | robotjs (PowerShell SendKeys fallback) |
+| Mobile app | PWA (React + Vite, service worker via vite-plugin-pwa), served through nginx |
+| Push notifications | Web Push (VAPID keys, web-push) |
 | Networking | Tailscale (or LAN) |
 | Deployment | Raspberry Pi 5 + systemd |
-| Build | electron-builder, GitHub Actions |
+| Build | electron-builder (single NSIS installer), GitHub Actions |
 
 ## Let's go
 
@@ -244,6 +281,7 @@ You need Node 24. You probably already have it. Past that:
 - Assetto Corsa installed via Steam
 - A Raspberry Pi (or any always-on Linux box) for the backend
 - Tailscale on all devices ([tailscale.com](https://tailscale.com))
+- A Google Cloud project + OAuth client — every route requires a signed-in Google account now, not just Mod Manager uploads. See **[docs/GOOGLE_DRIVE_SETUP.md](docs/GOOGLE_DRIVE_SETUP.md)**
 
 **Steps**
 
@@ -265,21 +303,34 @@ npm run dev        # dev mode, hot reload
 npm run build       # production installer
 ```
 
-First launch runs the setup wizard — it finds your AC install, asks for a handle and color, and hooks straight into the backend you just stood up.
+First launch runs the setup wizard — sign in with Google, find your AC install, set a handle and color, and hook straight into the backend you just stood up. Since you're standing this up for the first time, you'll also need to bootstrap yourself as the first Admin by hand-editing `backend/config/roles.json` on the Pi — see **[docs/ADMIN_SETUP.md](docs/ADMIN_SETUP.md)**.
 
 ### If you're joining the crew
 
 William sent you here. Good. Do this:
 
 1. Get a Tailscale invite from William
-2. Grab the latest installer: [GitHub Releases](https://github.com/ShinobiFPV/ShinRacer/releases/latest)
-3. Run `ShinRacer-Setup-x.x.x.exe` — Windows might throw a SmartScreen warning since it's unsigned for now. Click "More info" → "Run anyway."
-4. Run through the setup wizard — handle, color, hit Test Connection on the backend (it's pre-filled)
-5. You're in. Check Events for what's coming up.
+2. Send William the Google account you'll sign in with, so he can add you to the crew list
+3. Grab the latest installer: [GitHub Releases](https://github.com/ShinobiFPV/ShinRacer/releases/latest) — one file, `ShinRacer Setup x.x.x.exe`
+4. Run it — Windows might throw a SmartScreen warning since it's unsigned for now. Click "More info" → "Run anyway."
+5. Run through the setup wizard — **Sign in with Google** first, then handle/color (defaulted from your Google profile), then hit Test Connection on the backend (it's pre-filled)
+6. You're in. Check Events for what's coming up.
 
 The whole thing takes about 5 minutes.
 
 Full step-by-step: **[docs/FRIEND_SETUP.md](docs/FRIEND_SETUP.md)**
+
+### Roles
+
+| Role | Who | Gets |
+|------|-----|------|
+| **Admin** | William | Everything Host has, plus the Admin panel — crew role management, host status, server overview, backend restart |
+| **Host** | Anyone trusted to run a game server for crew events | Everything Crew has, plus Server Manager, Traffic Manager, Live Telemetry, and the "I'll host" option when proposing an event |
+| **Crew** | Everyone signed in | Events, Comms, Stats, Mods, Replays, Links, Cluster Fucker, Settings |
+
+Roles live in `backend/config/roles.json` on shinobi (not in git, not in the
+database) and apply instantly — no restart, no redeploy. Full setup and
+promotion flow: **[docs/ADMIN_SETUP.md](docs/ADMIN_SETUP.md)**.
 
 ## Deploying the backend
 
@@ -349,7 +400,10 @@ If you've ever wondered what it looks like when a builder uses AI as a genuine f
 - [Vite](https://vitejs.dev) — build tooling
 - [electron-builder](https://electron.build) — packaging
 - [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) — invite QR codes
-- [googleapis](https://github.com/googleapis/google-api-nodejs-client) — Google Drive + OAuth for the Mod Manager
+- [googleapis](https://github.com/googleapis/google-api-nodejs-client) — Google Drive, OAuth, and sign-in
+- [vite-plugin-pwa](https://vite-pwa-org.netlify.app) — the mobile app's service worker
+- [web-push](https://github.com/web-push-libs/web-push) — push notifications
+- [robotjs](https://github.com/octalmage/robotjs) — keystroke dispatch for The Cluster Fucker
 
 **Community**
 - The Assetto Corsa modding community for track and car content
