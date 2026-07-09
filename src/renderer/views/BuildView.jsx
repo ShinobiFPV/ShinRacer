@@ -20,6 +20,7 @@ function defaultCfg(serverName) {
     allowances: { tc: true, abs: true, stability: false, autoclutch: false, tyreBlankets: false },
     sessionPractice: true, sessionQualify: true, sessionRace: true,
     raceLength: 20, qualifyMinutes: 15, jumpStart: 'DT',
+    strackerEnabled: false,
   }
 }
 
@@ -304,6 +305,8 @@ export default function BuildView({ initialCfg, onDeployed }) {
                 <Label>Jump start penalty</Label>
                 <Select value={cfg.jumpStart} onChange={v => set('jumpStart', v)} options={JUMP_START} />
               </div>
+              <Toggle label="Enable stracker plugin" value={cfg.strackerEnabled} onChange={v => set('strackerEnabled', v)}
+                hint="Requires stracker.exe in server/ folder" />
             </div>
           )}
 

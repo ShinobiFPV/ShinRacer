@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { AppStoreProvider, useStore } from './store/AppStore'
 import { C, GLOBAL_CSS, StatusDot, Toast } from './components/primitives'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import Wizard from './components/Wizard'
 import DeployView  from './views/DeployView'
 import BuildView   from './views/BuildView'
 import GarageView  from './views/GarageView'
@@ -8,6 +10,7 @@ import TrafficView from './views/TrafficView'
 import EventsView  from './views/EventsView'
 import CommsView   from './views/CommsView'
 import StatsView   from './views/StatsView'
+import ReplayView  from './views/ReplayView'
 import SettingsView from './views/SettingsView'
 
 // ── Sidebar nav ───────────────────────────────────────────────────────────────
@@ -19,10 +22,11 @@ const NAV = [
   { id:'events',  icon:'📅', label:'Events' },
   { id:'comms',   icon:'🎙️', label:'Comms' },
   { id:'stats',   icon:'📊', label:'Stats' },
+  { id:'replays', icon:'🎬', label:'Replays' },
   { id:'settings',icon:'⚙',  label:'Settings' },
 ]
 
-function Sidebar({ view, onChange, liveCount, setupComplete }) {
+function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backendOnline }) {
   return (
     <div style={{ width:196, background:C.surface, borderRight:`1px solid ${C.border}`,
       display:'flex', flexDirection:'column', flexShrink:0, userSelect:'none' }}>
@@ -71,6 +75,12 @@ function Sidebar({ view, onChange, liveCount, setupComplete }) {
       <div style={{ padding:'10px 14px', borderTop:`1px solid ${C.border}`, fontSize:10, color:C.muted, lineHeight:1.6 }}>
         ShinTech Electronics<br/>
         acServer v1.16.x compat
+        <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:6 }}>
+          <span style={{ width:6, height:6, borderRadius:'50%', background: backendOnline ? C.green : C.red, flexShrink:0 }} />
+          <span style={{ fontFamily:C.mono, fontSize:9, color:C.muted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+            {backendUrl}
+          </span>
+        </div>
       </div>
     </div>
   )
@@ -78,50 +88,66 @@ function Sidebar({ view, onChange, liveCount, setupComplete }) {
 
 // ── Inner app (has store access) ──────────────────────────────────────────────
 function Inner() {
-  const { liveServers, settings, toast } = useStore()
+  const { liveServers, settings, toast, backendUrl, backendOnline, hydrated, showToast,
+    saveSettings, saveIdentity, saveBackendUrl, saveQuickPhrases } = useStore()
   const [view, setView]   = useState('deploy')
   const [buildCfg, setBuildCfg] = useState(null)
 
   const goToBuild = (cfg) => { setBuildCfg(cfg || null); setView('build') }
 
+  const finishSetup = async ({ settings: s, identity, backendUrl: bUrl, quickPhrases }) => {
+    await saveSettings(s)
+    await saveIdentity(identity)
+    await saveBackendUrl(bUrl)
+    await saveQuickPhrases(quickPhrases)
+  }
+
   return (
     <>
       <style>{GLOBAL_CSS}</style>
-      <div style={{ display:'flex', height:'100vh', overflow:'hidden' }}>
-        <Sidebar view={view} onChange={setView} liveCount={liveServers.length} setupComplete={settings.setupComplete} />
+      {!hydrated ? null : !settings.setupComplete ? (
+        <Wizard onComplete={finishSetup} />
+      ) : (
+        <div style={{ display:'flex', height:'100vh', overflow:'auto' }}>
+          <Sidebar view={view} onChange={setView} liveCount={liveServers.length} setupComplete={settings.setupComplete}
+            backendUrl={backendUrl} backendOnline={backendOnline} />
 
-        {/* Main area */}
-        <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-          {/* Page header bar */}
-          <div style={{ height:48, display:'flex', alignItems:'center', padding:'0 24px',
-            borderBottom:`1px solid ${C.border}`, flexShrink:0,
-            WebkitAppRegion:'drag', background:C.surface }}>
-            <span style={{ fontFamily:C.head, fontWeight:700, fontSize:18, WebkitAppRegion:'no-drag' }}>
-              {NAV.find(n=>n.id===view)?.label}
-            </span>
-            {view==='deploy' && (
-              <button onClick={() => goToBuild()} WebkitAppRegion="no-drag"
-                style={{ marginLeft:'auto', background:C.yellow, color:'#000', border:'none',
-                  borderRadius:5, padding:'5px 16px', fontFamily:C.head, fontWeight:700,
-                  fontSize:13, cursor:'pointer', WebkitAppRegion:'no-drag' }}>
-                + New server
-              </button>
-            )}
-          </div>
+          {/* Main area */}
+          <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'auto' }}>
+            {/* Page header bar */}
+            <div style={{ height:48, display:'flex', alignItems:'center', padding:'0 24px',
+              borderBottom:`1px solid ${C.border}`, flexShrink:0,
+              WebkitAppRegion:'drag', background:C.surface }}>
+              <span style={{ fontFamily:C.head, fontWeight:700, fontSize:18, WebkitAppRegion:'no-drag' }}>
+                {NAV.find(n=>n.id===view)?.label}
+              </span>
+              {view==='deploy' && (
+                <button onClick={() => goToBuild()}
+                  style={{ marginLeft:'auto', background:C.yellow, color:'#000', border:'none',
+                    borderRadius:5, padding:'5px 16px', fontFamily:C.head, fontWeight:700,
+                    fontSize:13, cursor:'pointer', WebkitAppRegion:'no-drag' }}>
+                  + New server
+                </button>
+              )}
+            </div>
 
-          {/* View */}
-          <div style={{ flex:1, overflow:'hidden' }}>
-            {view==='deploy'  && <DeployView onBuild={() => goToBuild()} />}
-            {view==='build'   && <BuildView initialCfg={buildCfg} onDeployed={() => setView('deploy')} />}
-            {view==='garage'  && <GarageView onLoad={cfg => goToBuild(cfg)} onDeploy={cfg => goToBuild(cfg)} />}
-            {view==='traffic' && <TrafficView />}
-            {view==='events'  && <EventsView />}
-            {view==='comms'   && <CommsView />}
-            {view==='stats'   && <StatsView />}
-            {view==='settings'&& <SettingsView />}
+            {/* View */}
+            <div style={{ flex:1, overflow:'auto' }}>
+              <ErrorBoundary key={view}>
+                {view==='deploy'  && <DeployView onBuild={() => goToBuild()} />}
+                {view==='build'   && <BuildView initialCfg={buildCfg} onDeployed={() => setView('deploy')} />}
+                {view==='garage'  && <GarageView onLoad={cfg => goToBuild(cfg)} onDeploy={cfg => goToBuild(cfg)} />}
+                {view==='traffic' && <TrafficView />}
+                {view==='events'  && <EventsView />}
+                {view==='comms'   && <CommsView />}
+                {view==='stats'   && <StatsView />}
+                {view==='replays' && <ReplayView onGoSettings={() => setView('settings')} showToast={showToast} />}
+                {view==='settings'&& <SettingsView />}
+              </ErrorBoundary>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {toast && <Toast msg={toast.msg} color={toast.color} key={toast.key} onDone={()=>{}} />}
     </>

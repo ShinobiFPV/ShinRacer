@@ -56,22 +56,24 @@ A Windows desktop Electron + React app that serves as a full companion to Assett
 - `src/renderer/views/TrafficView.jsx` — full CSP traffic editor (behaviour, roster, density schedule, file preview)
 - `src/renderer/views/SettingsView.jsx` — AC path config
 
-### Known stubs to fix as part of this work:
-- `iniUtils.js` → `parseTrafficIni()` — parse existing traffic_config.ini back into profile state (so "Load existing" actually populates the editor)
-- `BuildView.jsx` → Entry list editor — per-slot car/skin/GUID assignment tab (currently auto-generated evenly)
+### Stubs (fixed in Phase 1, verified in Phase 2):
+- `iniUtils.js` → `parseTrafficIni()` — parses existing traffic_config.ini back into profile state; "Load existing" populates the editor. **Do not modify.**
+- `BuildView.jsx` → Entry list editor — per-slot car/skin/driver/GUID tab with auto-fill. **Do not modify.**
 
-### New views to build:
+### New views (built in Phase 1, hardened in Phase 2):
 - `src/renderer/views/EventsView.jsx` — calendar + propose/accept flow
 - `src/renderer/views/CommsView.jsx` — voice + text chat hub
 - `src/renderer/views/StatsView.jsx` — lap times + session stats
 
-### New backend to build:
+### Backend (built in Phase 1, hardened in Phase 2):
 - `backend/server.js` — Express + Socket.io entry point
-- `backend/db.js` — SQLite schema + queries (events, messages, laps, users)
-- `backend/routes/events.js` — GET/POST/PATCH events, poster upload
-- `backend/routes/stats.js` — POST lap, GET laps by user/track/session
+- `backend/db.js` — SQLite schema + queries (events, messages, laps, sessions)
+- `backend/routes/events.js` — GET/POST events, PATCH :id/accept, poster upload
+- `backend/routes/stats.js` — POST lap, GET laps/sessions/bests/leaderboard
 - `backend/routes/chat.js` — message history REST endpoint
 - `backend/socket.js` — Socket.io handlers (chat relay, WebRTC signaling, user presence)
+
+See "Phase 2 completion" and "Phase 3 completion" at the end of this file for the full list of fixes, wiring, polish, and feature-completion work applied on top of the Phase 1 foundation above.
 
 ## Design system (use throughout — do not deviate)
 All components in `src/renderer/components/primitives.jsx` must be used.
@@ -238,6 +240,22 @@ identity: {
 - Add to `scripts/deploy-backend.ps1`: rsync backend/ to shinobi:~/ac-companion-backend/, ssh restart systemd service
 - Systemd unit file at `backend/ac-companion.service`
 
+## Publishing (public export)
+`scripts/publish-public.ps1` pushes a sanitized copy of this repo straight
+from this Windows machine to the public `ShinobiFPV/ac-server-manager` repo
+— no Pi involved, unlike imq2/shinagent's publish flow, since this project
+never runs anywhere but here. It robocopies the tree (excluding `.git`,
+`.claude`, `node_modules`, `dist*`, `release`, `CLAUDE.md`, uploaded files,
+the local SQLite DB, and the two publish scripts themselves) into
+`%TEMP%\ac-server-manager-public-export`, runs
+`scripts/sanitize-public-export.js` to scrub the owner's Pi hostname
+(`shinobi`) and LAN IP (`192.168.1.203`) from every `.js`/`.jsx`/`.json`/
+`.md`/`.html`/`.service`/`.ps1` file, then force-pushes it as a single
+squashed commit. When adding a new file with a hardcoded personal
+IP/hostname/path, add a scrub pattern for it in
+`sanitize-public-export.js` — the scrubber only touches known extensions,
+so an unlisted extension silently ships unsanitized.
+
 ## File structure additions
 ```
 backend/
@@ -288,3 +306,159 @@ Parse using Node's `dgram` module in main process.
 - All IPC handlers follow existing pattern in main.js
 - Socket.io events namespaced with colon convention (chat:message, rtc:offer, etc.)
 - No auth — this is a closed friends app on Tailscale/LAN
+
+## Phase 2 completion
+
+Phase 2 audited the Phase 1 output for cold-start correctness, wired the remaining
+runtime loose ends, and applied UI polish. Three tracks, all complete.
+
+### Track 1 — cold-start fixes
+- Root `package.json`: confirmed `axios`/`socket.io-client`/`electron-store@^8` already present; added `define: { global: 'globalThis' }` to `vite.config.js` (required for socket.io-client in Electron's renderer).
+- `backend/package.json`: added `uuid` (now used for all generated IDs instead of `crypto.randomBytes`), `engines.node >= 18`.
+- `backend/db.js`: DB file renamed to `ac_companion.db` (was `data.db`), path built from `__dirname` so it's cwd-independent; schema creation wrapped in try/catch with `console.error`; `events.list()`/`events.get()`/`events.accept()` now return `acceptances` as a plain array of handles (`[handle, ...]`) instead of `{handle, accepted_at}` objects; `listLaps` now orders by `lap_time_ms ASC`; `listSessions`/`personalBests` accept an optional `track` filter.
+- `backend/server.js`: explicit CORS methods list, `uploads/` created at startup via `fs.mkdirSync`, `/api/health` returns the flat `{ ok, uptime }` shape (no `data` wrapper — this one route is intentionally an exception to the `{ok,data}` convention, per explicit spec).
+- `backend/routes/events.js`: POST validates `name/date/time/track/proposed_by` and 400s if missing; accept endpoint moved to `PATCH /api/events/:id/accept` (was `PATCH /api/events/:id`).
+- `backend/routes/stats.js`: POST /lap validates required fields; added `GET /api/stats/leaderboard` (per-handle-per-track bests, car-agnostic) used by the friends comparison, kept separate from `GET /api/stats/bests` (per-car bests for the single-driver table) rather than merging the two shapes.
+- `backend/socket.js`: `presence:list` now re-broadcast to **all** clients (not just the joining socket) after every join/leave, so presence self-heals. WebRTC relay keys off socket id rather than a handle→socketId map — a handle can have more than one live connection (two tabs), which a handle-keyed map can't disambiguate; socket id has no such collision and Socket.IO already rooms every socket under its own id.
+- `src/main/main.js`: UDP telemetry payload now includes sector 3 (`s3 = buf.readUInt32LE(17)`), field names simplified to `{ lapTimeMs, s1, s2, s3 }`.
+- `src/renderer/lib/api.js`: added a pub-sub (`onBackendUrlChange`) so other singletons can react when Settings changes the backend URL, instead of polling.
+- `src/renderer/hooks/useSocket.js`: rebuilt as a true module-level singleton connection (survives view switches instead of reconnecting every mount), exports `{ socket, connected, users }`, reconnects automatically when the backend URL changes.
+- `src/renderer/hooks/useWebRTC.js`: speaking detection moved into the hook itself (was per-component in CommsView) — one shared AnalyserNode per peer, polled every 100ms, returned as a `speaking` map alongside `remoteStreams`.
+- `EventsView.jsx` / `CommsView.jsx` / `StatsView.jsx`: updated to match all of the above (acceptances-as-array, `/accept` path, `users`/`speaking` from the hooks, `s1/s2/s3` telemetry fields).
+
+### Track 2 — runtime integration
+- `AppStore.jsx`: `identity`, `backendUrl`, and `quickPhrases` are now independent top-level store keys (previously `backendUrl`/`quickPhrases` were nested inside `settings`, which meant `lib/api.js`'s read of the top-level `backendUrl` store key never actually matched what Settings saved — a real bug, now fixed).
+- `SettingsView.jsx`: identity section (handle + 8-swatch color picker, colors drawn from `C`), backend URL field with a "Test connection" button hitting `GET /api/health`, quick-phrases grid with "Reset to defaults".
+- `backend/server.js`: `GET /api/health` added (see Track 1).
+- `scripts/deploy-backend.ps1`: retargeted to `billk@192.168.1.203`, prints a clear pass/fail per step (rsync, npm install, restart, status).
+- `backend/ac-companion.service`: `User=billk`, `WorkingDirectory=/home/billk/ac-companion-backend`.
+
+### Track 3 — polish
+- Empty states: Events (flag emoji + propose CTA), Stats (stopwatch emoji + collapsible cfg.ini snippet with copy button), Comms (orange "backend unreachable" banner + Retry).
+- Event status colors: proposed = blue, happening = green (detail panel gets a green edge glow), past = muted + 0.6 opacity (applied to both the detail panel and the calendar pill).
+- Calendar: yellow inset border on today, per-event status-colored dots under the day number, click an empty day to open the propose form pre-filled with that date.
+- Comms: peer color dot pulses (scale 1→1.3→1, 600ms) while `speaking` is true.
+- Stats: red pulsing dot + "Recording" badge + live lap counter next to the session selector while capture is active.
+- Lap time formatting centralized in `src/renderer/lib/format.js` (`formatLapTime`), used everywhere lap times are displayed.
+- Required mods: propose form now has one editable row per mod with a remove button (was a single input + static tag list); detail panel renders them as a bulleted list with a "Copy all" button.
+
+### Noted deviations
+- `/api/health` returns `{ ok, uptime }` with no `data` wrapper — explicit spec override of the general `{ok,data}` convention.
+- `/api/stats/bests` kept car-level granularity and single-handle filtering (for the personal-bests table); the new `/api/stats/leaderboard` handles the multi-handle, car-agnostic case (for friends comparison) instead of overloading `/bests` with both shapes.
+- `/api/stats/laps` query param is `sessionId` (camelCase), matching the existing renderer contract, not `session_id` — changing it would have required touching both sides of an already-consistent, working interface for no functional gain.
+- WebRTC signaling addresses peers by socket id, not by a handle→socketId map (see Track 1 notes above).
+
+## Phase 3 completion
+
+Phase 3 added the remaining admin/completion features across six tracks, on top of
+the running Phase 1+2 app (backend live on shinobi, 192.168.1.203:3000). Manual
+runtime fixes applied before this pass (renderer CSP, `App.jsx` overflow, the
+`billk`→`shinobi` rename on the deploy target and systemd unit, `EventsView`
+default time + `position:absolute` detail panel) were left as-is and built on top of,
+not reverted.
+
+### Track 0 — Events admin
+- `DELETE /api/events/all` (registered before `/:id` so Express doesn't swallow it as an id param) and `DELETE /api/events/:id`, both via new `events.deleteAll()`/`events.deleteOne()` in `db.js`.
+- EventsView: "Delete event" in the detail panel and "Clear calendar" in the header, both two-step (click → "Confirm ___" + Cancel). Both re-fetch from the backend after succeeding, in addition to the optimistic local-state update.
+
+### Track 1 — Server manager completion
+- `main.js` polls each running server's `http://localhost:{httpPort}/JSON` every 10s (Node 18's global `fetch`, no new dependency) and pushes `server:players:{id}` — one IPC channel per server, matching the existing `server:log:{id}` pattern, so multiple live pit boards don't stomp on each other's listeners the way a single shared `server:players` channel would (`removeAllListeners` on unmount would have killed every other board's subscription too).
+- `DeployView`'s Players tile now shows the live count and a `title` tooltip listing driver names.
+- BuildView "Sessions" tab: "Enable stracker plugin" toggle (`cfg.strackerEnabled`) appends a `[PLUGIN]` block to `server_cfg.ini`. Note: `[SERVER]` already unconditionally sets `UDP_PLUGIN_LOCAL_PORT=11000` from Phase 1 — this adds a second, conditional one under `[PLUGIN]` exactly as specified rather than touching the pre-existing line.
+
+### Track 2 — Events calendar, full feature
+- iCal export ("Add to Calendar") builds a minimal `.ics` by hand and downloads it via `URL.createObjectURL`.
+- Editing: `ProposeForm` now doubles as an edit form (`editingEvent` prop) submitting `PUT /api/events/:id`. Changing date/track/time resets status to `proposed` and clears acceptances server-side (`events.update()` in `db.js`). Any user can edit — no ownership check, per spec.
+- Cancellation: `PATCH /api/events/:id/cancel`, cancelled events render with a muted dot, strikethrough name, and 0.5 opacity; the route also `io.emit('event:cancelled', ...)` and `EventsView` listens for it (via `useSocket`, which it now also uses) to re-sync everyone's calendar.
+- Reminders: `EventsView` fetches events on mount + hourly, filters to `status === 'happening'` within 24h, and calls `window.api.reminders.check(...)`. Main-process owns the notified-id `Set` and actually shows the `Notification`. This only fires while `EventsView` has been mounted at least once this session — there's no independent backend-polling loop elsewhere, since main.js has no way to reach the backend's event data on its own.
+
+### Track 3 — Comms voice quality + reliability
+- `getUserMedia` now requests `echoCancellation`/`noiseSuppression`/`autoGainControl`/`sampleRate: 48000`.
+- `useWebRTC` tracks `connectionState` per peer and who originally sent the offer (`offererRef`); on `failed`, only the original offerer auto-re-initiates (avoids both sides racing to re-offer). A manual "Reconnect" button (shown on failed/disconnected peers) always re-offers fresh regardless of original role.
+- PTT: the existing 🎙️ indicator now pulses (reusing the existing `pulse` keyframe, no new CSS) while the key is held.
+- Per-peer volume persists to electron-store under `peerVolumes` (keyed by handle), debounced 500ms on slider change, loaded once when the Voice panel mounts.
+
+### Track 4 — Lap stats depth
+- `POST /api/stats/session` added; called once per capture session (first lap) from `StatsView`. Also added `sessions.created_at` via a guarded `ALTER TABLE` migration (SQLite has no `ADD COLUMN IF NOT EXISTS`, so it's wrapped in try/catch) so sessions can display as "{track} — HH:MM".
+- The polyline chart was replaced with a stacked S1(blue)/S2(yellow)/S3(green) bar chart, one bar per lap, height scaled to the session's slowest lap with a dashed PB line at the fastest. Hover shows a per-lap tooltip. This is a genuine interpretation call: the spec didn't say whether "per lap" bars should split by driver — bars stay chronological across all drivers in the session, with a thin per-driver color tag on top of each bar and a legend, rather than inventing a driver-selector that wasn't asked for.
+- CSV (`Session,Track,Car,Driver,Lap,Time,S1,S2,S3,Valid`) and JSON export buttons, both via `Blob` + `URL.createObjectURL`.
+- Invalid-lap flagging: `main.js` reads byte 21 of the UDP packet (`(flags & 1) === 0` → valid) and includes it on `telemetry:lap`. A new raw "All laps" list shows invalid laps in red/strikethrough, gated by an "Include invalid laps" toggle (default off) that also filters the leaderboard/chart/exports.
+
+### Track 5 — Production hardening
+- `ErrorBoundary.jsx` (class component) wraps the active view in `App.jsx`, keyed by view id so switching views resets it. Shows the stack, a "Copy error" button, and "Reload view".
+- `AppStore` polls `GET /api/health` every 30s, exposing `backendOnline`/`recheckBackend`. Sidebar footer shows a green/red dot next to the backend URL.
+- Shared `<OfflineBanner>` (primitives.jsx) replaces the bespoke banner Comms had in Phase 2; now used identically in Events, Comms, and Stats, all gated on the same `backendOnline` flag (Comms' Retry also nudges the socket via `socket.connect()`).
+- Window bounds save to electron-store on `close`, restored on next launch only if still within `screen.getAllDisplays()` bounds (otherwise Electron's own centering default applies).
+- Main-process logging to `%APPDATA%\AC Server Manager\logs\main-{date}.log` (explicit `app.getPath('appData')` join, not relying on `app.name`, so the folder name is correct in both dev and packaged builds), 5-day rolling cleanup on startup, covering app start, AC detection, server start/stop/exit, and every UDP lap. "Open log folder" button added to Settings.
+- Deploy script rewritten to use `scp`/`ssh` instead of `rsync` (Windows path-conversion issues), one command per line, no backticks/here-docs, retargeted to `shinobi@192.168.1.203` to match the manually-updated systemd unit. Deviation: copies explicit backend source paths (`server.js`, `db.js`, `socket.js`, `package.json`, `ac-companion.service`, `routes/`) instead of a blanket `backend\*`, to avoid ever scp'ing a local `node_modules/` or stray `ac_companion.db` over the live production database.
+
+### Not independently verified
+Node is still unavailable in the sandbox this was built in, so none of Phase 3 was run — same caveat as Phases 1 and 2. Everything above was checked via careful reading plus brace/paren-balance and stale-reference scans across every touched file, not by executing the app.
+
+## Phase 4 completion
+
+Phase 4 added three tracks on top of the running Phase 1–3 app: a from-scratch
+deploy script rewrite, a first-run install wizard, and friend invite/join-link
+sharing. Unlike prior phases, this one **was** run and driven end to end — Node
+24 and Electron 28 are both available in this environment now, so the backend
+was smoke-tested live and the renderer was driven through a real Electron
+window via a throwaway Playwright `_electron` script (deleted after use, not
+checked in).
+
+### Track 0 — Deploy script rewrite
+- `scripts/deploy-backend.ps1` rewritten from scratch per the strict single-line-statement rule: no `if`/`else`, no `try`/`catch`, no backticks, no here-strings — every `scp`/`ssh`/`Write-Host` is a standalone line. Verified by parsing (not executing) the file with `[scriptblock]::Create()`, which fails on any real syntax error without touching the network.
+- Copies `server.js`, `db.js`, `socket.js`, `package.json`, and `routes/{events,stats,chat,invites}.js` individually (see Track 2 below for why `invites.js` is included even though the original spec list predated that file), `npm install --omit=dev --silent` remotely, `sudo systemctl restart ac-companion` (passwordless per the sudoers rule already configured), then a `curl` health check whose raw JSON is the last line printed.
+
+### Track 1 — First-run install wizard
+- `src/renderer/components/Wizard.jsx` — new component, gated in `App.jsx` on `settings.setupComplete`. Steps: Welcome, AC Path (6-step flow only), Identity, Backend, Quick phrases (6-step only), Done.
+- `AppStore.jsx` gained a `hydrated` flag (true once persisted store state has loaded). `App.jsx` renders nothing until `hydrated`, then the Wizard or the main app — without this, returning users would see the Wizard flash for one frame before their real `settings.setupComplete: true` loaded from electron-store.
+- Detection: `api.ac.detect()` (AC root) decides the step count ("AC server found" = AC root found); `api.fs.exists()` on `{root}\server\acServer.exe` separately drives the AC Path step's own green-check/orange-banner and Next-button validation. In practice a standard Steam install has both together, but this split means a base install missing just the dedicated server component still gets a useful banner instead of the step silently vanishing.
+- Wizard state is fully local until "Open AC Companion" is clicked, which batch-calls `saveSettings`/`saveIdentity`/`saveBackendUrl`/`saveQuickPhrases` once from `App.jsx` (the Wizard itself has no store access — it's rendered standalone before the rest of the layout mounts).
+- Verified live: launched Electron against an isolated `--user-data-dir` (never touched the real `%APPDATA%\ac-server-manager\config.json`), stepped through every screen, confirmed real AC auto-detection, and confirmed landing on the main app with the Sidebar/DeployView intact.
+
+### Track 2 — Friend invites / join links
+- `backend/db.js`: new `invites` table (`code` PK, `server_name`, `host`, `port`, `password`, `track`, `cars`, `created_by`, `created_at`, `expires_at`) plus `create`/`get`/`delete`/`cleanup()`. `get()` treats an expired row as not-found rather than deleting it inline — `cleanup()` (called once on server startup) is what actually prunes, so a lookup stays a pure read.
+- `backend/routes/invites.js`: `POST /api/invites` (6-char uppercase alnum code, re-rolled on collision), `GET /api/invites/:code` (case-insensitive — uppercased server-side), `DELETE /api/invites/:code`. Mounted at `/api/invites` in `server.js`, which also calls `invites.cleanup()` once at boot. Smoke-tested live (Node available, but `better-sqlite3` has no prebuilt binary for Node 24/win32 and this machine has no VS Build Tools for `node-gyp`) by stubbing `db.js` in the require cache with an in-memory equivalent and loading the real `server.js`/`invites.js` unmodified — create, case-insensitive lookup, 404-on-expired-or-missing, 400-on-missing-host, and delete all verified against actual HTTP responses.
+- `backend/socket.js`/`routes/invites.js`: `io.emit('invite:created', { code, serverName, createdBy })` on every successful POST; `DeployView` listens via the existing `useSocket` hook and shows a toast.
+- `DeployView.jsx`: `ShareModal` (exported, not just local — see below) generates an invite for a live server, shows the code, a QR code, host/port/password/track, "Copy code"/"Copy join command" (`/connect {host}:{port} password:{password}`), a live expiry countdown, and Revoke. `JoinModal` looks up a code via `GET /api/invites/:code` and shows a "Connect in AC" button. Host is prefilled from a new `network:localIp` IPC handler (`os.networkInterfaces()`, first non-internal IPv4) — editable, since this app explicitly supports both LAN and Tailscale and there's no way to know which one a given friend needs.
+- QR codes use the `qrcode-generator` npm package (the one dependency addition the spec permitted) — `qr.createDataURL(5, 2)` returns a ready `data:image/gif;base64,...` string, so no SVG/canvas plumbing was needed.
+- `main.js`: registers `accomp` as the default protocol client (`app.setAsDefaultProtocolClient`, dev-mode-aware per Electron's own docs), and adds `app.requestSingleInstanceLock()` + a `second-instance` handler — this app had no single-instance lock before, and without one Windows would never hand a clicked `accomp://` link back to the already-running instance at all. Incoming URLs (from `second-instance` argv or the initial launch's `process.argv`) are forwarded to the renderer via a new `accomp:open` IPC event; `DeployView` distinguishes a 6-char invite code (opens `JoinModal` pre-filled) from a `host:port` payload (toast only — see deviation below).
+- `EventsView.jsx`: detail panel shows "Generate invite" for a `happening` event when `liveServers` has an entry whose `config.trackId` matches the event's track (reuses `ShareModal` from `DeployView.jsx` rather than duplicating the invite UI, with an added `carRestriction` display line for the event's car class); otherwise shows "No live server for this event" in muted text.
+
+### Verified live
+Node 24 and Electron 28 both work in this environment (unlike Phases 1–3's sandbox). Concretely verified, not just read: `scripts/deploy-backend.ps1` parses as valid PowerShell; the invites backend's full request/response cycle (via the db.js stub above); a real Electron window driven through the entire Wizard flow end to end including real AC auto-detection, landing on the main app, and opening the Join-server modal from `DeployView`'s header. Not verified live: the Share modal's actual invite POST from the UI, EventsView's "Generate invite" button, and the `accomp://` protocol round-trip (`app.setAsDefaultProtocolClient` + second-instance handoff) — all three need either the compiled backend or an OS-level protocol-click, neither of which this pass could reach.
+
+### Noted deviations
+- The deploy script's file list includes `routes/invites.js` even though it predates that file's existence in the original spec — omitting it would silently break the exact feature the deploy is shipping.
+- "AC server found" (which gates the Wizard's step count) is read from `api.ac.detect()` alone, not the `ac.detect() + fs.exists(acServer.exe)` combination — see Track 1 above for why.
+- The `accomp://host:port` "Connect in AC" round-trip is a real, working protocol registration and second-instance handoff, but on receipt it currently only shows a toast rather than launching Content Manager — this codebase has no CM-launch capability anywhere else to hook into, and fabricating one wasn't part of the spec. The `accomp:open` IPC event is the clean extension point if that's wanted later.
+
+## Phase 5 completion
+
+Phase 5 added GitHub-Releases-based friend onboarding (installer + auto-updater)
+and a Replay Browser, plus a small pre-existing-cleanup track. This entry
+picks up after a Claude Code crash mid-session; everything below was found
+already implemented on disk when the follow-up session started, and this pass
+was spent auditing it against the spec rather than writing it from scratch,
+then closing the one gap found (this doc) and verifying the app actually runs.
+
+### Track 0 — pre-existing cleanup
+- WebkitAppRegion: already only ever set inside `style={{...}}` objects in `App.jsx` (`grep` across `src/` turned up zero JSX-prop instances) — no change needed.
+- Garbled UTF-8 (`â€"`, `âœ"`, etc.): none found anywhere under `src/renderer/` — no change needed.
+- Unused import in `DeployView.jsx`: every imported identifier (`useRef`, `useMemo`, `StatusDot`, `Label`, etc.) has a real usage site in the file — no change needed.
+
+### Track 1 — GitHub Releases installer + auto-updater
+- `package.json`: `build.publish` (github/ShinobiFPV/AC1Companion/release), `release`/`release:dry` scripts, `electron-updater` dependency — all present exactly as specced.
+- `vite.config.js` / `AppStore.jsx`: `__BACKEND_URL__` define wired through to `DEFAULT_BACKEND_URL`, falling back to the hardcoded LAN IP when unset.
+- `Wizard.jsx`'s Backend step pre-fills from `DEFAULT_BACKEND_URL` and auto-runs the connection test on mount (see its effect comment).
+- `main.js`: `autoUpdater` wired to `update-available` (Notification), `update-downloaded` (restart/later dialog → `quitAndInstall()`), gated behind `!isDev`, called after `app.whenReady()`.
+- `.env.example`, `.gitignore` (`.env`/`.env.*` ignored, `.env.example` unignored), `.github/workflows/release.yml` (tag-triggered, windows-latest, node 20, `npm install` + `npm run release` with `GH_TOKEN`/`VITE_BACKEND_URL`), `.github/release-template.md`, `docs/FRIEND_SETUP.md` — all present and matching spec content.
+- Not independently verified this pass: an actual tag push / GitHub Actions run (would publish a real release), and a real auto-update cycle (needs two published versions).
+
+### Track 2 — Replay Browser
+- `main.js`: `replays:scan`, `replays:getMetadata` (binary header parser with the exact field layout from the spec, wrapped in try/catch, cached in electron-store under `replayMetadata` keyed by path with mtime-based invalidation), `replays:launch` (reads `settings.acPath`, spawns `AssettoCorsa.exe -replay <path>` detached), `replays:openFolder`. `preload.js` bridges all four.
+- `ReplayView.jsx`: two-column layout, search/filter/sort, thumbnail hash-color, favorite star, tag chips + suggested tags, debounced notes, launch/open-folder actions, empty/skeleton/folder-missing states — matches the spec section-by-section. Annotations stored separately under `replayAnnotations` so metadata cache invalidation never touches user tags/notes/favorites.
+- `App.jsx` nav already has `replays` between `stats` and `settings`.
+
+### Verified this pass
+`npx vite build` compiles clean (132 modules, no errors — the one pre-existing `path`-externalized warning is from `BuildView.jsx`, unrelated to Phase 5). `node --check` passes on `main.js`/`preload.js`. Ran `npm run dev` for real: Vite served on 5173, multiple `electron.exe` processes came up (main/renderer/GPU/utility) and stayed up, the app's own `%APPDATA%\AC Server Manager\logs\main-*.log` shows a clean `App started` → `AC detected at D:\SteamLibrary\...` sequence with no errors, and the dev console had no exceptions. Instance was then stopped cleanly. Not driven interactively (no click-through of the Replay Browser or a live installer build) — that would need a manual pass with real replay files and either a tagged release or `npm run release:dry`.

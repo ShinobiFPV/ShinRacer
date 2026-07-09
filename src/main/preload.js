@@ -45,7 +45,12 @@ contextBridge.exposeInMainWorld('api', {
     onStopped: (cb) => {
       ipcRenderer.on('server:stopped', (_, data) => cb(data))
       return () => ipcRenderer.removeAllListeners('server:stopped')
-    }
+    },
+    onPlayers: (id, cb) => {
+      const channel = `server:players:${id}`
+      ipcRenderer.on(channel, (_, data) => cb(data))
+      return () => ipcRenderer.removeAllListeners(channel)
+    },
   },
 
   // Traffic config
@@ -78,5 +83,36 @@ contextBridge.exposeInMainWorld('api', {
   identity: {
     get: ()     => ipcRenderer.invoke('identity:get'),
     set: (id)   => ipcRenderer.invoke('identity:set', id),
+  },
+
+  // Local network info (invite Share modal host prefill)
+  network: {
+    getLocalIp: () => ipcRenderer.invoke('network:localIp'),
+  },
+
+  // accomp:// protocol — invite links + "Connect in AC" round-trips
+  protocol: {
+    onOpen: (cb) => {
+      ipcRenderer.on('accomp:open', (_, url) => cb(url))
+      return () => ipcRenderer.removeAllListeners('accomp:open')
+    },
+  },
+
+  // Event reminder notifications
+  reminders: {
+    check: (events) => ipcRenderer.invoke('reminders:check', events),
+  },
+
+  // Main-process log files
+  logs: {
+    openFolder: () => ipcRenderer.invoke('logs:openFolder'),
+  },
+
+  // Replay browser
+  replays: {
+    scan:        ()  => ipcRenderer.invoke('replays:scan'),
+    getMetadata: (p) => ipcRenderer.invoke('replays:getMetadata', p),
+    launch:      (p) => ipcRenderer.invoke('replays:launch', p),
+    openFolder:  ()  => ipcRenderer.invoke('replays:openFolder'),
   },
 })

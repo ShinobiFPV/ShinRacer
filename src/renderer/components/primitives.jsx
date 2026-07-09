@@ -35,6 +35,10 @@ export const GLOBAL_CSS = `
   button { cursor: pointer; font-family: ${C.body}; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
   @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.5; } }
+  @keyframes speakPulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.3); } }
+  @keyframes shimmer { 0% { background-position: -300px 0; } 100% { background-position: 300px 0; } }
+  .shimmer-block { background: linear-gradient(90deg, ${C.raised} 25%, ${C.border} 37%, ${C.raised} 63%);
+    background-size: 600px 100%; animation: shimmer 1.6s infinite linear; border-radius: 4px; }
 `
 
 export function Label({ children, muted, style: sx = {} }) {
@@ -166,6 +170,18 @@ export function StatusDot({ online, size = 8 }) {
       background: online ? C.green : C.red, flexShrink: 0,
       boxShadow: online ? `0 0 6px ${C.green}88` : 'none',
       animation: online ? 'none' : 'pulse 2s infinite' }} />
+  )
+}
+
+export function OfflineBanner({ backendUrl, onRetry }) {
+  return (
+    <div style={{ background: `${C.orange}18`, borderBottom: `1px solid ${C.orange}60`, padding: '10px 16px',
+      display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+      <span style={{ color: C.orange, fontSize: 13, fontWeight: 600 }}>
+        ⚠ Can't reach backend at <span style={{ fontFamily: C.mono }}>{backendUrl}</span>
+      </span>
+      <Btn size="xs" variant="subtle" style={{ marginLeft: 'auto' }} onClick={onRetry}>Retry</Btn>
+    </div>
   )
 }
 

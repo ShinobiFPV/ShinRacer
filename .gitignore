@@ -10,12 +10,13 @@ release/
 # Backend runtime data
 backend/uploads/*
 !backend/uploads/.gitkeep
-backend/data.db
-backend/data.db-*
+backend/ac_companion.db
+backend/ac_companion.db-*
 
 # Env / secrets
 .env
 .env.*
+!.env.example
 
 # OS
 .DS_Store

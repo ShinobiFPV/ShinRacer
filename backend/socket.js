@@ -1,15 +1,22 @@
 const { chat } = require('./db')
 
 // ── Socket.io handlers: presence, chat relay, WebRTC signaling ───────────────
+// WebRTC 'to'/'from' addresses are socket ids (already unique per connection and
+// automatically routable via io.to(id) — Socket.IO joins every socket to a room
+// named after its own id). A handle->socketId map was considered instead, but a
+// single handle can have more than one live connection (e.g. two tabs), which a
+// handle-keyed map can't disambiguate — socket id has no such collision.
 module.exports = function attachSocket(io) {
   const presence = new Map() // socket.id -> { handle, color }
+
+  const presenceList = () => [...presence.entries()].map(([id, u]) => ({ id, ...u }))
 
   io.on('connection', (socket) => {
     socket.on('presence:join', ({ handle, color }) => {
       presence.set(socket.id, { handle, color })
       socket.emit('chat:history', chat.history(100))
-      socket.emit('presence:list', [...presence.entries()].map(([id, u]) => ({ id, ...u })))
       socket.broadcast.emit('presence:join', { id: socket.id, handle, color })
+      io.emit('presence:list', presenceList())
     })
 
     socket.on('chat:message', ({ handle, color, text }) => {
@@ -25,7 +32,10 @@ module.exports = function attachSocket(io) {
     socket.on('disconnect', () => {
       const user = presence.get(socket.id)
       presence.delete(socket.id)
-      if (user) socket.broadcast.emit('presence:leave', { id: socket.id, ...user })
+      if (user) {
+        socket.broadcast.emit('presence:leave', { id: socket.id, ...user })
+        io.emit('presence:list', presenceList())
+      }
     })
   })
 }

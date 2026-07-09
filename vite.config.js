@@ -6,6 +6,10 @@ export default defineConfig({
   plugins: [react()],
   root: 'src/renderer',
   base: './',
+  define: {
+    global: 'globalThis',
+    __BACKEND_URL__: JSON.stringify(process.env.VITE_BACKEND_URL || 'http://192.168.1.203:3000'),
+  },
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src/renderer') }
   },

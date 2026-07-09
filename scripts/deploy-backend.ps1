@@ -1,31 +1,25 @@
-# AC Companion — Backend deploy helper
-# Rsyncs backend/ to the Pi 5 (shinobi) and restarts the systemd service.
+# AC Companion — Backend deploy helper (scp-based; rsync path conversion is unreliable on Windows)
 # Run from project root: .\scripts\deploy-backend.ps1
-
-param(
-    [string]$RemoteHost = "shinobi",
-    [string]$RemoteUser = "pi",
-    [string]$RemotePath = "~/ac-companion-backend/"
-)
-
+# Requires passwordless sudo on shinobi for: systemctl restart ac-companion, systemctl status ac-companion
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 Set-Location $ProjectRoot
-
-$Target = "$RemoteUser@${RemoteHost}:$RemotePath"
-
-Write-Host "Syncing backend/ to $Target ..." -ForegroundColor Cyan
-rsync -avz --delete `
-    --exclude 'node_modules' `
-    --exclude 'data.db*' `
-    --exclude '.git' `
-    "./backend/" $Target
-
-if ($LASTEXITCODE -ne 0) { Write-Error "rsync failed"; exit 1 }
-
-Write-Host "Installing dependencies and restarting service on $RemoteHost ..." -ForegroundColor Cyan
-$RemoteCmd = "cd $RemotePath && npm install --production && sudo cp ac-companion.service /etc/systemd/system/ac-companion.service && sudo systemctl daemon-reload && sudo systemctl enable ac-companion && sudo systemctl restart ac-companion"
-ssh "$RemoteUser@$RemoteHost" $RemoteCmd
-
-if ($LASTEXITCODE -ne 0) { Write-Error "Remote deploy step failed"; exit 1 }
-
-Write-Host "Deployed. Backend running at http://${RemoteHost}:3000" -ForegroundColor Green
+Write-Host "=== AC Companion backend deploy -> shinobi@192.168.1.203 ===" -ForegroundColor Cyan
+Write-Host "--- Step 1: copying backend files ---" -ForegroundColor Cyan
+scp backend\server.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/
+scp backend\db.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/
+scp backend\socket.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/
+scp backend\package.json shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/
+scp backend\routes\events.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
+scp backend\routes\stats.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
+scp backend\routes\chat.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
+scp backend\routes\invites.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
+Write-Host "--- Step 1 complete ---" -ForegroundColor Green
+Write-Host "--- Step 2: npm install on shinobi ---" -ForegroundColor Cyan
+ssh shinobi@192.168.1.203 "cd /home/shinobi/ac-companion-backend && npm install --omit=dev --silent"
+Write-Host "--- Step 2 complete ---" -ForegroundColor Green
+Write-Host "--- Step 3: restarting ac-companion service ---" -ForegroundColor Cyan
+ssh shinobi@192.168.1.203 "sudo systemctl restart ac-companion"
+Write-Host "--- Step 3 complete ---" -ForegroundColor Green
+Write-Host "--- Step 4: health check ---" -ForegroundColor Cyan
+ssh shinobi@192.168.1.203 "sleep 2 && curl -s http://localhost:3000/api/health"
+Write-Host "=== Deploy finished - health check JSON printed above ===" -ForegroundColor Cyan

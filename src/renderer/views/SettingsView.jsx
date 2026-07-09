@@ -1,25 +1,31 @@
 import { useState } from 'react'
-import { C, Card, SectionHead, Label, Btn, TextInput, Tag, Toggle, Divider } from '../components/primitives'
-import { useStore } from '../store/AppStore'
+import axios from 'axios'
+import { C, Card, SectionHead, Label, Btn, TextInput } from '../components/primitives'
+import { useStore, DEFAULT_QUICK_PHRASES } from '../store/AppStore'
 
 const api = window.api
 
-const IDENTITY_COLORS = [C.yellow, C.blue, C.green, C.red, C.orange, C.purple, '#00BCD4', '#FF80AB']
+const IDENTITY_COLORS = [C.yellow, C.blue, C.green, C.red, C.orange, C.purple, C.white, C.mutedHi]
 
 export default function SettingsView() {
-  const { settings, saveSettings, identity, saveIdentity, acDetected, showToast } = useStore()
+  const { settings, saveSettings, identity, saveIdentity, backendUrl, saveBackendUrl,
+    quickPhrases, saveQuickPhrases, acDetected, showToast } = useStore()
   const [local, setLocal] = useState({ ...settings })
   const [identityLocal, setIdentityLocal] = useState({ ...identity })
+  const [backendUrlLocal, setBackendUrlLocal] = useState(backendUrl)
+  const [quickPhrasesLocal, setQuickPhrasesLocal] = useState([...quickPhrases])
   const [scanning, setScanning]   = useState(false)
   const [dirty, setDirty]         = useState(false)
+  const [testing, setTesting]     = useState(false)
+  const [testResult, setTestResult] = useState(null) // { ok, uptime? , error? }
 
   const set = (k, v) => { setLocal(prev => ({ ...prev, [k]: v })); setDirty(true) }
   const setIdentity = (k, v) => { setIdentityLocal(prev => ({ ...prev, [k]: v })); setDirty(true) }
   const setQuickPhrase = (i, v) => {
-    const next = [...local.quickPhrases]
-    next[i] = v
-    set('quickPhrases', next)
+    setQuickPhrasesLocal(prev => prev.map((p, idx) => (idx === i ? v : p)))
+    setDirty(true)
   }
+  const resetQuickPhrases = () => { setQuickPhrasesLocal([...DEFAULT_QUICK_PHRASES]); setDirty(true) }
 
   const browseAcPath = async () => {
     const p = await api.dialog.openFolder({ title: 'Select Assetto Corsa root folder' })
@@ -34,6 +40,8 @@ export default function SettingsView() {
   const save = async () => {
     await saveSettings({ ...local, setupComplete: true })
     await saveIdentity(identityLocal)
+    await saveBackendUrl(backendUrlLocal)
+    await saveQuickPhrases(quickPhrasesLocal)
     setDirty(false)
     showToast('✓ Settings saved')
   }
@@ -41,7 +49,22 @@ export default function SettingsView() {
   const revert = () => {
     setLocal({ ...settings })
     setIdentityLocal({ ...identity })
+    setBackendUrlLocal(backendUrl)
+    setQuickPhrasesLocal([...quickPhrases])
+    setTestResult(null)
     setDirty(false)
+  }
+
+  const testConnection = async () => {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const res = await axios.get(`${backendUrlLocal}/api/health`, { timeout: 5000 })
+      setTestResult(res.data?.ok ? { ok: true, uptime: res.data.uptime } : { ok: false, error: 'Unexpected response' })
+    } catch (e) {
+      setTestResult({ ok: false, error: e.message })
+    }
+    setTesting(false)
   }
 
   const openAcFolder = () => local.acPath && api.shell.openPath(local.acPath)
@@ -122,16 +145,33 @@ export default function SettingsView() {
       <Card>
         <SectionHead children="Backend connection" sub="Events, chat, comms signaling, and lap stats all go through this server" />
         <Label>Backend URL</Label>
-        <TextInput value={local.backendUrl} onChange={v => set('backendUrl', v)} placeholder="http://192.168.1.203:3000" mono />
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <TextInput value={backendUrlLocal} onChange={v => { setBackendUrlLocal(v); setDirty(true); setTestResult(null) }}
+            placeholder="http://192.168.1.203:3000" mono style={{ flex: 1 }} />
+          <Btn size="sm" variant="subtle" onClick={testConnection} disabled={testing}>{testing ? 'Testing…' : 'Test connection'}</Btn>
+        </div>
+        {testResult && (
+          testResult.ok ? (
+            <div style={{ fontSize: 12, color: C.green }}>✓ Reachable — uptime {Math.floor(testResult.uptime)}s</div>
+          ) : (
+            <div style={{ fontSize: 12, color: C.red }}>✕ {testResult.error || 'Unreachable'}</div>
+          )
+        )}
       </Card>
 
       <Card>
         <SectionHead children="Quick-phrase buttons" sub="Shown in the Comms text chat panel" />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          {local.quickPhrases.map((p, i) => (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+          {quickPhrasesLocal.map((p, i) => (
             <TextInput key={i} value={p} onChange={v => setQuickPhrase(i, v)} />
           ))}
         </div>
+        <Btn size="sm" variant="subtle" onClick={resetQuickPhrases}>Reset to defaults</Btn>
+      </Card>
+
+      <Card>
+        <SectionHead children="Diagnostics" sub="Main-process logs — app start, server lifecycle, UDP lap events" />
+        <Btn size="sm" variant="subtle" onClick={() => api.logs.openFolder()}>Open log folder</Btn>
       </Card>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>

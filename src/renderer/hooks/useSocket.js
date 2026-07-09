@@ -1,40 +1,77 @@
 import { useEffect, useState } from 'react'
 import { io } from 'socket.io-client'
-import { getBackendUrl } from '../lib/api'
+import { getBackendUrl, onBackendUrlChange } from '../lib/api'
+
+// One socket connection per app session (module-level singleton) rather than
+// one per component mount — so switching away from Comms and back doesn't
+// tear down and reconnect, and multiple consumers would share the same link.
+let singletonSocket = null
+let singletonUrl = null
+
+function getSharedSocket() {
+  const url = getBackendUrl()
+  if (!singletonSocket || singletonUrl !== url) {
+    singletonSocket?.disconnect()
+    singletonSocket = io(url, {
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    })
+    singletonUrl = url
+  }
+  return singletonSocket
+}
 
 // Connects to the backend, announces presence, and tracks who else is online.
 export function useSocket(identity) {
   const [socket, setSocket] = useState(null)
   const [connected, setConnected] = useState(false)
-  const [presence, setPresence] = useState([])
+  const [users, setUsers] = useState([])
 
   useEffect(() => {
     if (!identity?.handle) return
 
-    const s = io(getBackendUrl(), {
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-    })
+    // Wires listeners onto one socket instance; returns the matching teardown.
+    const attach = (s) => {
+      const announce = () => {
+        setConnected(true)
+        s.emit('presence:join', { handle: identity.handle, color: identity.color })
+      }
+      const onDisconnect = () => setConnected(false)
+      const onUsers = (list) => setUsers(list)
 
-    s.on('connect', () => {
-      setConnected(true)
-      s.emit('presence:join', { handle: identity.handle, color: identity.color })
-    })
-    s.on('disconnect', () => setConnected(false))
-    s.on('presence:list', (list) => setPresence(list))
-    s.on('presence:join', (user) => setPresence(prev => [...prev.filter(p => p.id !== user.id), user]))
-    s.on('presence:leave', (user) => setPresence(prev => prev.filter(p => p.id !== user.id)))
+      s.on('connect', announce)
+      s.on('disconnect', onDisconnect)
+      s.on('presence:list', onUsers)
+      if (s.connected) announce()
 
-    setSocket(s)
+      return () => {
+        s.off('connect', announce)
+        s.off('disconnect', onDisconnect)
+        s.off('presence:list', onUsers)
+      }
+    }
+
+    let detach = null
+    const mount = () => {
+      const s = getSharedSocket()
+      setSocket(s)
+      setConnected(s.connected)
+      detach = attach(s)
+    }
+    mount()
+
+    // Rebuild the shared connection if Settings changes the backend URL mid-session.
+    const unsubUrl = onBackendUrlChange(() => {
+      detach?.()
+      mount()
+    })
 
     return () => {
-      s.disconnect()
-      setSocket(null)
-      setConnected(false)
-      setPresence([])
+      detach?.()
+      unsubUrl()
     }
   }, [identity?.handle, identity?.color])
 
-  return { socket, connected, presence }
+  return { socket, connected, users }
 }
