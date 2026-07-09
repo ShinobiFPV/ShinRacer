@@ -32,15 +32,6 @@ Build and deploy AC dedicated servers without touching a single config file by h
 - Pit board cards: live player count, uptime, PID, real-time log streaming
 - stracker UDP plugin toggle
 
-![Live server pit boards](docs/screenshots/deploy-view.png)
-*Live Servers — pit board cards with real-time player count and log streaming*
-
-![Server build wizard](docs/screenshots/build-view.png)
-*Server Builder — track/car selection with live INI preview*
-
-![Entry list editor](docs/screenshots/build-view-entry-list.png)
-*Server Builder — per-slot entry list editor with auto-fill*
-
 ### 🌆 Traffic Manager
 
 A full editor for CSP AI Traffic and sol WeatherFX configs on open-world maps like Shutoko Revival Project — the kind of tuning that's normally a lot of manual INI editing and trial-and-error reloads.
@@ -51,15 +42,6 @@ A full editor for CSP AI Traffic and sol WeatherFX configs on open-world maps li
 - 24h density schedule: draggable SVG curve, maps directly to sol WeatherFX `DENSITY_HOUR_XX` keys
 - Named profiles: Rush Hour, Quiet Night, Drift Night, plus fully custom profiles
 - Save writes `traffic_config.ini` + `settings.json` with a timestamped backup of whatever was there before
-
-![Traffic behaviour panel](docs/screenshots/traffic-behavior.png)
-*Traffic Manager — behaviour and spawning controls*
-
-![Traffic density schedule](docs/screenshots/traffic-schedule.png)
-*Traffic Manager — 24h density schedule curve*
-
-![Traffic car roster](docs/screenshots/traffic-roster.png)
-*Traffic Manager — car roster with live spawn probability*
 
 ### 📅 Events Calendar
 
@@ -74,15 +56,6 @@ Coordinate race nights without a group chat full of "who's in?" messages. Propos
 - 24-hour reminder notifications via Electron's Notification API
 - Clear-calendar admin function
 
-![Events calendar](docs/screenshots/events-calendar.png)
-*Events Calendar — month view with status-colored event dots*
-
-![Event detail panel](docs/screenshots/events-detail.png)
-*Events Calendar — detail panel with accept/invite actions*
-
-![Propose event form](docs/screenshots/events-propose.png)
-*Events Calendar — propose form with poster upload and required mods*
-
 ### 🎙️ Comms Hub
 
 Voice and text in one panel — no Discord server required.
@@ -96,12 +69,6 @@ Voice and text in one panel — no Discord server required.
 - Text chat with history (last 100 messages, persisted on the backend)
 - 8 quick-phrase buttons, fully editable in Settings (defaults: "Returning to pits", "I've wrecked, I'm out", and more)
 
-![Comms voice panel](docs/screenshots/comms-voice.png)
-*Comms — voice panel with per-peer volume and speaking indicators*
-
-![Comms text chat](docs/screenshots/comms-chat.png)
-*Comms — text chat with quick-phrase buttons*
-
 ### 📊 Lap Stats
 
 Real telemetry straight from AC's own UDP broadcast — captured, stored, and compared, no third-party plugin required.
@@ -113,12 +80,6 @@ Real telemetry straight from AC's own UDP broadcast — captured, stored, and co
 - Invalid-lap flagging straight from the UDP flags byte, with a toggle to include/exclude them
 - Export to CSV or JSON per session
 - Recording indicator with a live lap counter
-
-![Lap stats chart](docs/screenshots/stats-chart.png)
-*Lap Stats — stacked sector-time chart with PB line*
-
-![Friends comparison](docs/screenshots/stats-comparison.png)
-*Lap Stats — friends comparison with delta highlighting*
 
 ### 🎬 Replay Browser
 
@@ -133,12 +94,6 @@ Browse, tag, and launch AC replays without digging through File Explorer.
 - Launch directly into AC with the `-replay` flag
 - Metadata cache with mtime-based invalidation, so re-scans stay fast
 
-![Replay browser list](docs/screenshots/replays-list.png)
-*Replay Browser — list view with search, filters, and favorites*
-
-![Replay detail panel](docs/screenshots/replays-detail.png)
-*Replay Browser — detail panel with tagging and notes*
-
 ### 🧙 First-Run Wizard
 
 Zero-friction setup for new crew members — no README required to get running.
@@ -149,12 +104,6 @@ Zero-friction setup for new crew members — no README required to get running.
 - Backend connection: pre-filled URL, auto-tests on mount
 - Quick-phrase customization
 - Saves nothing until you hit the final "Done" step
-
-![Wizard welcome screen](docs/screenshots/wizard-welcome.png)
-*First-Run Wizard — welcome screen*
-
-![Wizard identity step](docs/screenshots/wizard-identity.png)
-*First-Run Wizard — identity setup with live preview*
 
 ## Architecture
 
