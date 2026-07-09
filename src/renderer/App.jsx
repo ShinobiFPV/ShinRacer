@@ -35,7 +35,7 @@ function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backend
       <div style={{ height:32, display:'flex', alignItems:'center', padding:'0 16px',
         borderBottom:`1px solid ${C.border}`, WebkitAppRegion:'drag', flexShrink:0 }}>
         <span style={{ fontFamily:C.head, fontWeight:700, fontSize:18, lineHeight:1 }}>
-          <span style={{color:C.yellow}}>AC</span> Manager
+          <span style={{color:C.yellow}}>Shin</span>Racer
         </span>
       </div>
 

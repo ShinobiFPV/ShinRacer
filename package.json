@@ -1,7 +1,7 @@
 {
   "name": "ac-server-manager",
   "version": "1.0.0",
-  "description": "Assetto Corsa Server Manager — ShinTech Edition",
+  "description": "ShinRacer — Race. Drift. Coordinate.",
   "main": "src/main/main.js",
   "license": "MIT",
   "scripts": {
@@ -13,8 +13,8 @@
     "lint": "eslint src/renderer"
   },
   "build": {
-    "appId": "com.shintech.ac-server-manager",
-    "productName": "AC Server Manager",
+    "appId": "com.shintech.shinracer",
+    "productName": "ShinRacer",
     "copyright": "ShinTech Electronics",
     "publish": {
       "provider": "github",
@@ -38,7 +38,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "installerIcon": "resources/icon.ico",
-      "shortcutName": "AC Server Manager"
+      "shortcutName": "ShinRacer"
     },
     "extraResources": [
       {

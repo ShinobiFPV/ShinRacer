@@ -1,5 +1,7 @@
 # AC Companion App — Claude Code Project Brief
 
+> App display name: ShinRacer (repo remains AC1Companion)
+
 ## What this is
 A Windows desktop Electron + React app that serves as a full companion to Assetto Corsa 1 (via Content Manager). It combines:
 1. **Server Manager** — build, deploy, and run AC servers locally (already partially built)
@@ -468,3 +470,18 @@ then closing the one gap found (this doc) and verifying the app actually runs.
 - `docs/screenshots/README.md` added: the full expected-filename table plus capture instructions, so the screenshot set can be produced consistently later without re-deriving which view/state each one needs.
 - No source files, backend code, or scripts were touched — documentation only, per spec.
 - Follow-up: a root `LICENSE` file (MIT, copyright William Kew / ShinTech Electronics) was added in a separate pass right after, so the README's License section link now resolves.
+
+## ShinRacer rebrand (display-name-only)
+
+The app's visible name changed from "AC Companion"/"AC Server Manager" to
+**ShinRacer** — repo name, folder paths, the `ac-companion` backend service,
+the `ac-companion.service` unit, and the `accomp://` URL scheme were all left
+untouched, per explicit instruction. Changed: `package.json` (`productName`,
+`description`, `build.appId`, `nsis.shortcutName`), `index.html` `<title>`,
+`main.js`'s log directory (`%APPDATA%\ShinRacer\logs`) and the two
+Notification/dialog strings in the auto-updater handlers, `App.jsx`'s sidebar
+wordmark, `Wizard.jsx`'s welcome title and "Open ShinRacer →" button, and the
+app-facing strings in `README.md`/`docs/FRIEND_SETUP.md`. Backend console
+logs, the SQLite filename, iCal `PRODID`, and script comments (`deploy-backend.ps1`,
+`publish-public.ps1`, etc.) were left as `AC Companion`/`ac-server-manager` —
+none of those are user-visible and none were in the rebrand's explicit file list.

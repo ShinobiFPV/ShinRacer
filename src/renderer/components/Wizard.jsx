@@ -35,7 +35,7 @@ function WelcomeStep({ onNext }) {
   return (
     <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
       <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 56, letterSpacing: 0.5, lineHeight: 1 }}>
-        <span style={{ color: C.yellow }}>AC</span> Companion
+        <span style={{ color: C.yellow }}>Shin</span>Racer
       </div>
       <div style={{ fontSize: 16, color: C.mutedHi }}>Race. Drift. Coordinate.</div>
       <Btn size="lg" onClick={onNext} style={{ marginTop: 18 }}>Get started →</Btn>
@@ -215,7 +215,7 @@ function DoneStep({ data, acFound, onFinish }) {
           Server features disabled — AC server not found on this machine.
         </div>
       )}
-      <Btn size="lg" onClick={onFinish} style={{ marginTop: 18 }}>Open AC Companion →</Btn>
+      <Btn size="lg" onClick={onFinish} style={{ marginTop: 18 }}>Open ShinRacer →</Btn>
     </div>
   )
 }

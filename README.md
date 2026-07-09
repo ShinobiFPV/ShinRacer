@@ -1,15 +1,15 @@
 ```
-╔══════════════════════════════════════════════════════╗
-║   AC COMPANION  ·  ShinTech Electronics               ║
-║   Race. Drift. Coordinate.                            ║
-╚══════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════╗
+║   ShinRacer  ·  ShinTech Electronics         ║
+║   Race. Drift. Coordinate.                   ║
+╚══════════════════════════════════════════════╝
 ```
 
 ![Platform](https://img.shields.io/badge/platform-Windows-blue) ![Electron](https://img.shields.io/badge/electron-28-47848F) ![Node](https://img.shields.io/badge/node-24-green) ![License](https://img.shields.io/badge/license-MIT-yellow) ![Status](https://img.shields.io/badge/status-active-brightgreen) ![Built with Claude](https://img.shields.io/badge/built%20with-Claude-blueviolet)
 
 ## Overview
 
-AC Companion is a full desktop companion app for Assetto Corsa 1, built to run alongside Content Manager on Windows. It handles the parts of running a private racing crew that Content Manager doesn't: standing up dedicated servers without hand-editing INI files, configuring CSP AI traffic and sol WeatherFX for open-world maps, coordinating race nights, running voice comms, tracking lap times, and browsing replays — all from one app, one design system, one running process.
+ShinRacer is a full desktop companion app for Assetto Corsa 1, built to run alongside Content Manager on Windows. It handles the parts of running a private racing crew that Content Manager doesn't: standing up dedicated servers without hand-editing INI files, configuring CSP AI traffic and sol WeatherFX for open-world maps, coordinating race nights, running voice comms, tracking lap times, and browsing replays — all from one app, one design system, one running process.
 
 It's built for a specific crew, not the general public. William (callsign `shinobi`) and a small group of racing and drifting friends run this on a private Tailscale network, with a Raspberry Pi 5 at the center acting as the shared backend for events, chat, and stats. There's no login system because there doesn't need to be one — everyone on the network is already someone who's supposed to be there.
 
@@ -113,7 +113,7 @@ Zero-friction setup for new crew members — no README required to get running.
 │                                 │
 │  ┌───────────────────────────┐  │
 │  │   Electron + React App    │  │
-│  │   (AC Companion)          │  │
+│  │   (ShinRacer)             │  │
 │  └────────────┬──────────────┘  │
 │               │ IPC             │
 │  ┌────────────▼──────────────┐  │
@@ -194,7 +194,7 @@ First launch runs the setup wizard — it auto-detects your AC install, asks for
 
 1. Get a Tailscale invite from William
 2. Download the latest installer from [GitHub Releases](https://github.com/ShinobiFPV/AC1Companion/releases/latest)
-3. Run `AC-Companion-Setup-x.x.x.exe` (Windows SmartScreen may warn — the app is unsigned for now, click "More info" → "Run anyway")
+3. Run `ShinRacer-Setup-x.x.x.exe` (Windows SmartScreen may warn — the app is unsigned for now, click "More info" → "Run anyway")
 4. Follow the setup wizard — handle, color, backend URL (pre-filled, just hit Test Connection)
 5. Done — check the Events tab for upcoming sessions
 

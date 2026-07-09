@@ -23,7 +23,7 @@ let telemetrySocket = null
 const notifiedEventIds = new Set()
 
 // ── Logging ───────────────────────────────────────────────────────────────────
-const LOG_DIR = path.join(app.getPath('appData'), 'AC Server Manager', 'logs')
+const LOG_DIR = path.join(app.getPath('appData'), 'ShinRacer', 'logs')
 let logStream = null
 
 function initLogging() {
@@ -111,7 +111,7 @@ function createWindow() {
 autoUpdater.on('update-available', () => {
   log('Update available — downloading in background')
   if (Notification.isSupported()) {
-    new Notification({ title: 'AC Companion', body: 'AC Companion update available — downloading in background' }).show()
+    new Notification({ title: 'ShinRacer', body: 'ShinRacer update available — downloading in background' }).show()
   }
 })
 
@@ -120,7 +120,7 @@ autoUpdater.on('update-downloaded', async (info) => {
   const result = await dialog.showMessageBox(win, {
     type: 'info',
     title: 'Update ready',
-    message: `AC Companion ${info.version} has been downloaded.`,
+    message: `ShinRacer ${info.version} has been downloaded.`,
     buttons: ['Restart and update', 'Later'],
     defaultId: 0,
     cancelId: 1,
