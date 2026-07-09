@@ -79,12 +79,30 @@ contextBridge.exposeInMainWorld('api', {
       return () => ipcRenderer.removeAllListeners('telemetry:error')
     },
 
-    // Shared-memory live telemetry (physics/graphics/static frames)
+    // Shared-memory live telemetry (physics/graphics/static frames) — since
+    // Phase 13, multi-game via TelemetryManager (AC1/ACC/AC Evo/AC Rally
+    // over shared memory, FH5/FH6 over UDP), all normalized to one frame shape.
     shmStart: () => ipcRenderer.invoke('telemetry:shmStart'),
     shmStop:  () => ipcRenderer.invoke('telemetry:shmStop'),
     onFrame:  (cb) => {
       ipcRenderer.on('telemetry:frame', (_, data) => cb(data))
       return () => ipcRenderer.removeAllListeners('telemetry:frame')
+    },
+
+    // Phase 13: multi-game detection
+    getActiveGame: () => ipcRenderer.invoke('telemetry:getActiveGame'),
+    setForzaPort:  (p) => ipcRenderer.invoke('telemetry:setForzaPort', p),
+    onGameDetected: (cb) => {
+      ipcRenderer.on('game:detected', (_, game) => cb(game))
+      return () => ipcRenderer.removeAllListeners('game:detected')
+    },
+    onGameLost: (cb) => {
+      ipcRenderer.on('game:lost', (_, game) => cb(game))
+      return () => ipcRenderer.removeAllListeners('game:lost')
+    },
+    onWarning: (cb) => {
+      ipcRenderer.on('telemetry:warning', (_, message) => cb(message))
+      return () => ipcRenderer.removeAllListeners('telemetry:warning')
     },
 
     // Overlay window

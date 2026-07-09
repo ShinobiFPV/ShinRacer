@@ -1775,3 +1775,290 @@ pass) — `npm run dev`/`npx vite build` remain the supported way to actually
 run and verify the app here. Re-run `npx vite build` before using the
 shortcut any time renderer source changes, since it loads whatever is
 already in `dist/`, not live source.
+
+## Phase 13: Multi-game telemetry support
+
+Phase 13 extended Phase 9's AC1-only Live Telemetry tab to five more games —
+ACC, AC Evo, AC Rally, FH5, and FH6 — behind one canonical frame shape, via
+a new `src/main/telemetry/` module replacing the old inline SHM code in
+`main.js`.
+
+### The actual research this phase needed
+
+The spec's own protocol notes were explicit that ACC's and AC Evo's byte
+offsets were "approximate... verify against SDK if behavior is unexpected."
+That verification was actually done, not skipped:
+
+- **ACC**: offsets were computed field-by-field from
+  [github.com/Dekadee/accshm](https://github.com/Dekadee/accshm), a real,
+  working Go library that reads real ACC shared memory — not guessed. This
+  turned up something the spec got wrong: **the spec's "ACC additions"
+  list is almost entirely AC Evo's fields, not ACC's.** `waterTemp`,
+  `frontBrakeCompound`/`rearBrakeCompound`, `padLife`/`discLife`,
+  `rainIntensity`, and all four `mfdTyrePressure*`/`mfdTyreSet`/
+  `mfdFuelToAdd` fields don't exist in ACC's real struct at all — but they
+  (or close equivalents) DO exist in AC Evo's real struct, cross-checked
+  against a second independent source below. The two games share engine
+  lineage (both post-AC1 Kunos titles), which is the likely source of the
+  mix-up. `src/main/telemetry/sources/acc.js` uses the real, verified
+  offsets and nulls the fields that don't actually exist for this game,
+  documented inline rather than silently dropped.
+- **AC Evo**: the *entire* struct — physics, graphics, and static — was
+  extracted from
+  [github.com/dSyncro/acevo-shared-memory](https://github.com/dSyncro/acevo-shared-memory)'s
+  bindgen source header (`src/bindings/source/wrapper.hpp`), a real C++
+  header (`#pragma pack(4)`) backing a real, working Rust crate. The
+  physics struct is homogeneous 4-byte fields (no padding risk); the
+  graphics struct mixes bool/int8_t/short/uint64_t with floats — its ~135
+  fields were laid out **programmatically** (a small Node script summing
+  each field's size+alignment in declared order), not by hand, specifically
+  to avoid a manual arithmetic slip cascading through the whole struct.
+  Both the physics and graphics offsets were then verified by writing
+  synthetic buffers with known values at the computed offsets and
+  confirming they read back correctly with no cross-field contamination —
+  not just computed and trusted. This is a real upgrade over the spec's own
+  "~offset, unverified" numbers for the one game the spec was most worried
+  about (AC Evo's early-access instability) — see acEvo.js's header comment
+  for the full source citation.
+- **AC Rally**: no equivalent struct dump exists anywhere public. A
+  targeted search surfaced one specific, more useful claim than the spec's
+  own assumption though: AC Rally shares ACC's memory layout, not AC1's
+  (both are the newer post-AC1 Kunos engine) — `ACRallySource` extends
+  `ACCSource` on that basis rather than `AC1Source` per the spec's literal
+  instruction, with the five rally-specific fields (handbrake, surfaceGrip,
+  rallyStageTime, rallyPenaltyTime, distanceToFinish) still at unconfirmed,
+  TODO-flagged offsets appended after ACC's known struct end, since nothing
+  concrete exists for those anywhere.
+- **Forza (FH5/FH6)**: the spec's own byte table is precise and internally
+  matches real-world knowledge of Forza's public "Horizon Data Out"
+  format — used directly, no research needed. One internal inconsistency
+  in the spec was caught and resolved: its FH5 section header says "232
+  bytes total" but its own field table runs to byte 310 (311 bytes total),
+  and the FH6 section explicitly says "323 bytes (FH5: 311 bytes)" — 311
+  was used since it's both internally consistent and matches the real
+  format; "232" is almost certainly a stale label copied from Forza's
+  older, shorter "Sled" packet format. Verified live: a real UDP round-trip
+  (synthetic 311/323-byte packets sent over an actual loopback socket) confirmed
+  `ForzaSource`'s per-packet version detection and `ForzaSource.probe()`
+  both work correctly, not just against synthetic Buffers in-process.
+
+### Architecture (`src/main/telemetry/`)
+
+- `sources/ac1.js` — Phase 9's exact reader, extracted unchanged. Also
+  exports `buildShmReaderScript(prefix, pollIntervalMs)` and
+  `probeShmSegment(name)`, parametrized by segment prefix specifically so
+  `acEvo.js` (a completely different struct, but the identical
+  MemoryMappedFile-over-PowerShell mechanism) can reuse them instead of
+  duplicating the reader script.
+  - **Probe hardening found during this pass**: `probeShmSegment`'s first
+    real run in this environment showed PowerShell interleaving progress-
+    stream CLIXML noise into stdout ahead of the real "OK"/"FAIL" line
+    (observed on `Add-Type`'s first use) — an exact-string match on the
+    whole trimmed output would have silently misread a real success as a
+    failure. Fixed to check line-by-line for an exact "OK" instead.
+- `sources/acc.js` — `ACCSource extends AC1Source` for the shared start/
+  stop/reader-process plumbing (same `Local\acpmf_*` segment names), but
+  **fully overrides** `parsePhysics`/`parseGraphics` rather than appending
+  fields after AC1's — the real struct diverges field-for-field, not just
+  "AC1 plus extras," per the research above. `parseStaticInfo` is inherited
+  from AC1Source unchanged — no ACC-specific static-struct offsets were
+  found anywhere, and the spec didn't call out static-struct differences
+  either, so this is a disclosed assumption, not a verified fact.
+- `sources/acRally.js` — `ACRallySource extends ACCSource` (see research
+  above), appending the five rally-only fields at unconfirmed offsets.
+- `sources/acEvo.js` — does NOT extend AC1Source (unrelated struct). Every
+  single field read is wrapped in its own try/catch with a per-field
+  last-known-good fallback (verified live: a deliberately truncated buffer
+  correctly fell back to the prior tick's value per-field and set
+  `parseError: true`, rather than losing the whole frame). Tracks
+  `smVersion` from the static struct and fires a one-time warning callback
+  the moment it changes — there's no way to "re-probe" a byte layout
+  automatically (shared memory has no self-describing schema), so a
+  changed version means every offset in this file may now be stale until
+  it's manually updated, and the warning says exactly that rather than
+  silently continuing to parse what might be garbage.
+- `sources/forza.js` — deliberately thin: owns only the UDP socket and
+  per-packet version detection by byte length (311/323). All the actual
+  byte-offset parsing lives in `normalizer.js`'s `normalizeForza(buf,
+  version)`, matching the spec's own architecture note. Defaults to port
+  **5300**, never 8000 (Q2's own Forza-telemetry port) — `ForzaSource`
+  itself refuses to hardcode 8000 anywhere, and the port is user-
+  configurable from Settings.
+- `gameDetector.js` — process-list detection first (editable `EXE_NAMES`
+  config at the top, explicitly flagged as unverified assumptions per the
+  spec's own instruction), shared-memory probe second (disambiguates
+  AC1/ACC/AC Rally, which all share `Local\acpmf_*`, by re-checking the
+  process list), Forza UDP probe last (only reached if nothing else
+  matched, since it's the one check that touches the network). Exports a
+  stateless one-shot `detect()` — the 5s/30s polling backoff and
+  game:detected/game:lost emission live in TelemetryManager instead, a
+  cleaner split between "what's running right now" and "when to check."
+- `normalizer.js` — `normalizeAC1`/`normalizeACC`/`normalizeACEvo`/
+  `normalizeACRally`/`normalizeForza`, each mapping to one canonical frame
+  shape. Every Phase-13-new field defaults to `null` via a shared
+  `nullExtendedFields()` helper (called fresh per frame — arrays/objects
+  are never a shared reference two frames could alias), which normalizers
+  then override with whatever they can actually provide. Verified live: a
+  synthetic-buffer smoke test ran all six normalizers (five games + demo's
+  shape via the mock frame) back to back with zero exceptions, confirming
+  the whole pipeline holds together end to end, not just each file in
+  isolation.
+- `index.js` — `TelemetryManager`. Auto-detect mode re-polls on the 5s/30s
+  backoff and picks up game switches (closing AC1, opening ACC) live.
+  Manual mode is a deliberate simplification: it's a one-shot pin with no
+  background polling — the 5s/30s backoff exists specifically to support
+  auto-detection's game-switching case, which manual mode opts out of by
+  definition, so flipping the Settings dropdown takes effect on the next
+  explicit (re)start (e.g. "Test telemetry"), not live in the background.
+
+### main.js integration
+
+`startShmTelemetry()`/`stopShmTelemetry()` kept their exact Phase 9 names
+and call signature — both the two `telemetry:shmStart`/`shmStop` IPC
+handlers and the Cluster Fucker's `cluster:callFn` dispatch
+(`'telemetry.start'`/`'telemetry.stop'`) call them unchanged, so neither
+call site needed to change at all; only their internal implementation now
+delegates to a lazily-constructed `TelemetryManager`. The window `closed`
+cleanup handler's old direct `shmProcess`/`shmActive` check was replaced
+with a plain `stopShmTelemetry()` call. New IPC:
+`telemetry:getActiveGame`/`telemetry:setForzaPort`, plus `game:detected`/
+`game:lost`/`telemetry:warning` events forwarded to the renderer — all
+added to `preload.js` alongside the existing telemetry bridge. The old
+UDP-based `telemetry:start`/`stop`/`onLap` handlers (Lap Stats' separate,
+AC1-only UDP feed) are completely untouched, per the explicit constraint.
+
+### Renderer
+
+- `useTelemetryShm.js` gained a `warning` field (the AC Evo version-change
+  event) alongside its existing `frame`/`isLive`/`isDemo`/`error`.
+- `TelemetryView.jsx`: a colored `GameBadge` next to the LIVE/DEMO status
+  dot (AC1=blue, ACC=green, AC Evo=purple, AC Rally=orange, FH5/FH6=Forza
+  green, Demo=muted), an orange AC-Evo-specific banner when
+  `frame.parseError` or a version-change warning fires, and a collapsible
+  per-game "How to enable telemetry" accordion.
+  - **Real UX conflict found and resolved, not just implemented literally**:
+    the spec's "when status is 'waiting'" wording assumes a persistent
+    waiting state, but `useTelemetryShm`'s existing demo-mode fallback
+    (unchanged since Phase 9) kicks in ~500ms after the last real frame —
+    so a bare "waiting, no game yet" state is only ever visible for a
+    flash before demo mode takes over. The setup instructions are shown
+    whenever demo mode is active (which *is* "no real game detected" from
+    the user's point of view), rendered alongside the widget grid rather
+    than replacing it — demo mode's whole point is letting someone see what
+    the dash looks like while they figure out how to get it live, and
+    hiding the widgets to show setup text instead would work against that.
+- `components/telemetry/widgets.jsx`: `TyreMap` grew an optional brake-temp
+  bar per corner (only rendered when `brakeTemp` is non-null — ACC today);
+  `FuelBar` shows a percentage instead of litres for `fh5`/`fh6` (Forza's
+  `fuel` field is already a 0-1 fraction, `maxFuel` is null since Forza
+  never exposes an absolute tank size); `StatusBar` gained a rain-intensity
+  emoji after the flag indicator. Three new widgets registered in
+  `WIDGET_CATALOG`: `GapWidget` (SESSION — AC Evo's gapAhead/gapBehind,
+  green when the gap is in the driver's favor), `BoostGauge` (MOTION —
+  reads either `frame.boost` or `frame.turboBoost`, whichever a game
+  populates), `PowerTorque` (MOTION — kW/N·m side by side, Forza-only
+  today). All three render "--" rather than a fabricated number when their
+  backing fields are null, per the spec's own null-vs-zero constraint.
+- `SettingsView.jsx`: new Telemetry section (Host/Admin-only, below AC
+  paths) — auto-detect toggle, a manual game dropdown shown only when
+  auto-detect is off, a Forza port field (with the Q2-port-conflict
+  warning inline), and a "Test telemetry" button that starts the manager,
+  waits 3s, and reports the detected game or "No game detected." Auto-
+  detect/manual-game persist directly via the existing `api.store` bridge
+  (TelemetryManager reads the same electron-store keys itself — no new IPC
+  needed for those two); the Forza port specifically goes through the new
+  `telemetry:setForzaPort` IPC instead, since that one needs to also live-
+  restart an already-running `ForzaSource` with the new port.
+- `lib/telemetryMock.js`: the demo frame gained `game: 'demo'`/
+  `gameDisplayName: 'Demo'` so the new game-badge component works
+  identically in demo and live modes without a special case.
+
+### Noted deviations
+
+- **ACC's "additions" list was corrected against real data** — see the
+  research section above. This is the single most consequential deviation
+  in this phase: implementing the spec's literal list would have produced
+  fields that don't exist in real ACC telemetry, populated with
+  garbage read from whatever ACC's actual struct happens to have at those
+  invented offsets.
+- **AC Rally extends ACCSource, not AC1Source** — a judgment call backed by
+  a specific (if less authoritative than ACC's/AC Evo's) search finding,
+  not the spec's own assumption. Flagged as the first thing to try
+  reverting if rally telemetry looks wrong in real testing.
+- **Manual-mode telemetry selection doesn't hot-reload in the background**
+  — a deliberate simplification, not an oversight; see index.js's notes
+  above.
+- **AC Rally's five extra physics fields remain genuinely unconfirmed** —
+  no amount of research turned up real offsets for these; they're
+  TODO-flagged placeholders exactly as the spec's own constraints
+  anticipated some fields would need to be.
+- **PowerTorque's category** (MOTION) wasn't specified by the spec at all —
+  grouped alongside BoostGauge since both are engine/powertrain readouts,
+  rather than SESSION where GapWidget's category was explicit.
+
+### Verified this pass
+
+Every new/touched main-process file passes `node --check`. All five
+per-game normalizers (plus the demo mock's shape) were smoke-tested
+together against synthetic buffers with zero exceptions. `ACCSource`'s
+computed offsets were verified against a synthetic buffer with known
+values written at each offset, confirming clean round-trips with no
+cross-field bleed. `ACEvoSource`'s graphics offsets (the trickiest, mixed-
+alignment ones) were verified the same way, including gapAhead/gapBehind
+and carModel string extraction. The per-field defensive fallback was
+verified against a deliberately truncated buffer — confirmed it falls back
+to the prior tick's per-field value and sets `parseError: true` rather than
+losing the whole frame or throwing. `ForzaSource` was verified with a real
+UDP round-trip over an actual loopback socket (not just an in-process
+Buffer call) for both version detection and the standalone `probe()`
+method. `probeShmSegment`'s CLIXML-noise-tolerance fix was verified by
+actually running `gameDetector.detect()` in this environment (no AC-family
+game or Forza running here) and confirming it correctly returns `null`
+after trying every detection method, in ~2.7s, with no unhandled
+exceptions despite the real PowerShell noise observed. `npx vite build`
+compiles clean after every renderer change (161 modules throughout, no new
+warnings). A full Electron boot (`electron.exe .`, no `--dev`) was run
+after the main.js refactor and confirmed a clean `App started` → `AC
+detected` sequence in `%APPDATA%\ShinRacer\logs\main-*.log` with no errors,
+confirming `require('./telemetry')` (pulling in all five sources +
+gameDetector + normalizer) loads without a top-level crash.
+
+A real interactive click-through was also driven via a throwaway
+`playwright` `_electron` script (`npm install --no-save`, deleted after
+use, never added to `package.json`/`package-lock.json` — confirmed clean
+via `git status` afterward), same technique as Phases 4-9. Since Phase 12
+made Google sign-in mandatory, reaching the main app required hand-seeding
+an isolated `--user-data-dir`'s `config.json` with a fake but well-shaped
+`googleAuth`/`settings.setupComplete` (AppStore's mount effect tolerates
+this: a network failure verifying the token against the real backend keeps
+the cached auth rather than forcing sign-out) and stepping through the
+first-run Wizard. Once in: navigated to the Telemetry tab and confirmed via
+both a full DOM text dump and a screenshot that the DEMO badge renders
+correctly next to "DEMO MODE" (blue outline, matching the design system),
+the updated "No game detected — showing simulated data" copy is live, all
+existing widgets still render real (mock) data with no regressions, and
+the new "HOW TO ENABLE TELEMETRY" accordion appears below the widget grid
+listing all six games. Switched to the CONFIGURE tab and confirmed all
+three new widgets appear in the checklist under the intended categories —
+"Boost Gauge" and "Power / Torque" under MOTION, "Gap Ahead / Behind" under
+SESSION — alongside every pre-existing widget, unchanged.
+
+### Not independently verified
+
+No real ACC, AC Evo, AC Rally, or Forza Horizon installation exists in this
+environment, so none of the five new sources were ever exercised against
+genuine game telemetry — only against the documented/reverse-engineered
+struct layouts (verified as thoroughly as external research allows, see
+above) and synthetic buffers with known values. A crew member with any of
+these games actually running should see real values; if a field reads as
+garbage, the specific source file's header comment says exactly which
+reference it came from and how confident that reference is. AC Rally in
+particular has no real-world verification path available anywhere right
+now — its five rally-specific fields are placeholders until someone can
+test against a real session. The AC Evo warning banner and the game
+badge's per-game colors for anything other than "demo" (ac1/acc/acevo/
+acrally/fh5/fh6) weren't visually confirmed this pass, since faking a
+specific game's live frame shape through the real UI wasn't attempted —
+only demo mode's rendering was — but they use the exact same `GameBadge`
+component and conditional-rendering logic already confirmed working for
+demo, just with a different `frame.game` value and color lookup.

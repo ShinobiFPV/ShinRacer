@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import httpApi from '../lib/api'
-import { C, Card, SectionHead, Label, Btn, TextInput } from '../components/primitives'
+import { C, Card, SectionHead, Label, Btn, TextInput, Select, Toggle } from '../components/primitives'
 import Tooltip from '../components/Tooltip'
 import { useStore, DEFAULT_QUICK_PHRASES } from '../store/AppStore'
 
@@ -79,6 +79,90 @@ function HostStatusSection({ settings, backendOnline, user, isHost }) {
             {registering ? 'Saving…' : registered ? 'Update host info' : 'Register as host'}
           </Btn>
         </Tooltip>
+      </div>
+    </Card>
+  )
+}
+
+const GAME_OPTIONS = [
+  { value: 'ac1', label: 'AC1' },
+  { value: 'acc', label: 'ACC' },
+  { value: 'acevo', label: 'AC Evo' },
+  { value: 'acrally', label: 'AC Rally' },
+  { value: 'fh5', label: 'FH5' },
+  { value: 'fh6', label: 'FH6' },
+]
+const GAME_LABELS = Object.fromEntries(GAME_OPTIONS.map(g => [g.value, g.label]))
+
+function TelemetrySection({ isHost }) {
+  const [autoDetect, setAutoDetect] = useState(true)
+  const [manualGame, setManualGame] = useState('ac1')
+  const [forzaPort, setForzaPort] = useState('5300')
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState(null) // null | { ok, game? }
+
+  useEffect(() => {
+    api.store.get('telemetryAutoDetect').then(v => setAutoDetect(v ?? true))
+    api.store.get('telemetryManualGame').then(v => setManualGame(v || 'ac1'))
+    api.store.get('forzaTelemetryPort').then(v => setForzaPort(String(v || 5300)))
+  }, [])
+
+  if (!isHost) return null
+
+  const updateAutoDetect = (v) => { setAutoDetect(v); api.store.set('telemetryAutoDetect', v) }
+  const updateManualGame = (v) => { setManualGame(v); api.store.set('telemetryManualGame', v) }
+  const updateForzaPort = (v) => { setForzaPort(v); const n = Number(v); if (n > 0) api.telemetry.setForzaPort(n) }
+
+  const testTelemetry = async () => {
+    setTesting(true)
+    setTestResult(null)
+    await api.telemetry.shmStart()
+    setTimeout(async () => {
+      const game = await api.telemetry.getActiveGame()
+      setTesting(false)
+      setTestResult(game ? { ok: true, game } : { ok: false })
+    }, 3000)
+  }
+
+  return (
+    <Card accent={C.borderHi}>
+      <SectionHead children="Telemetry" sub="Which game ShinRacer reads live telemetry from — Live Telemetry tab and The Cluster Fucker's gauge widgets" />
+
+      <Tooltip text="Automatically figure out which supported game is currently running">
+        <Toggle label="Auto-detect game" value={autoDetect} onChange={updateAutoDetect} />
+      </Tooltip>
+
+      {!autoDetect && (
+        <div style={{ marginTop: 14 }}>
+          <Label>Game</Label>
+          <Select value={manualGame} onChange={updateManualGame} options={GAME_OPTIONS} style={{ width: 200 }} />
+        </div>
+      )}
+
+      <div style={{ marginTop: 16 }}>
+        <Label>Forza Data Out port</Label>
+        <div style={{ maxWidth: 200 }}>
+          <TextInput mono value={forzaPort} onChange={updateForzaPort} placeholder="5300" />
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>
+          Set this port in Forza: Settings → HUD &amp; Gameplay → Data Out Port
+        </div>
+        <div style={{ fontSize: 11, color: C.orange, marginTop: 2 }}>
+          ⚠️ Q2's race engineer uses port 8000 — use different ports if running both.
+        </div>
+      </div>
+
+      <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Tooltip text="Start telemetry and check whether a supported game is detected within 3 seconds">
+          <Btn size="sm" variant="subtle" onClick={testTelemetry} disabled={testing}>{testing ? 'Testing…' : 'Test telemetry'}</Btn>
+        </Tooltip>
+        {testResult && (
+          testResult.ok ? (
+            <span style={{ fontSize: 12, color: C.green }}>✓ {GAME_LABELS[testResult.game] || testResult.game} detected</span>
+          ) : (
+            <span style={{ fontSize: 12, color: C.red }}>✗ No game detected</span>
+          )
+        )}
       </div>
     </Card>
   )
@@ -242,6 +326,8 @@ export default function SettingsView() {
           )}
         </div>
       </Card>
+
+      <TelemetrySection isHost={isHost} />
 
       <Card accent={C.borderHi}>
         <SectionHead children="Server defaults" sub="Used as starting values when creating a new server config" />

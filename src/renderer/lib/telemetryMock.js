@@ -43,6 +43,7 @@ export function generateMockFrame(now = Date.now()) {
   const deltaMs = Math.round(Math.sin(now / 4000) * 1800) // gentle random walk ±1.8s
 
   return {
+    game: 'demo', gameDisplayName: 'Demo',
     throttle, brake, clutch: 0,
     gear, rpm, maxRpm: 8000,
     speed, steerAngle: Math.sin(lapProgress * Math.PI * 2 * 3) * 0.6,

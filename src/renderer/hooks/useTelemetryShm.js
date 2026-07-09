@@ -16,6 +16,7 @@ export function useTelemetryShm() {
   const [frame, setFrame] = useState(null)
   const [isDemo, setIsDemo] = useState(false)
   const [error, setError] = useState(null)
+  const [warning, setWarning] = useState(null)
   const lastRealFrameAt = useRef(0)
   const lastPostedAt = useRef(0)
 
@@ -54,9 +55,17 @@ export function useTelemetryShm() {
       }
     }, TICK_MS)
 
+    // AC Evo's shared-memory struct is early-access and can shift between
+    // game patches — the source flags this per-frame (frame.parseError)
+    // rather than only on a one-time version-change warning, but main.js
+    // also surfaces the one-time version-change event itself here so the UI
+    // can show a specific "why," not just a generic parse-error banner.
+    const unsubWarning = window.api.telemetry.onWarning((message) => setWarning(message))
+
     return () => {
       cancelled = true
       unsub()
+      unsubWarning()
       clearInterval(tick)
       window.api.telemetry.shmStop()
     }
@@ -64,5 +73,5 @@ export function useTelemetryShm() {
 
   const isLive = !isDemo && !!frame && frame.status && frame.status !== 'OFF'
 
-  return { frame, isLive, isDemo, error }
+  return { frame, isLive, isDemo, error, warning }
 }

@@ -133,7 +133,14 @@ function tyreTempColor(t) {
   if (t < 100) return C.orange
   return C.red
 }
-function TyreCorner({ label, temp, tempI, tempM, tempO, wear, pressure }) {
+// Brake discs run far hotter than tyres (100s-1000+°C) — a coarser 3-tier
+// scale rather than tyreTempColor's tighter tyre-temp bands.
+function brakeTempColor(t) {
+  if (t < 300) return C.blue
+  if (t < 550) return C.orange
+  return C.red
+}
+function TyreCorner({ label, temp, tempI, tempM, tempO, wear, pressure, brakeTemp }) {
   const color = tyreTempColor(temp ?? 0)
   const w = wear ?? 0
   const healthPct = Math.max(0, Math.min(1, 1 - w))
@@ -154,6 +161,12 @@ function TyreCorner({ label, temp, tempI, tempM, tempO, wear, pressure }) {
       <div style={{ width: 48, height: 4, background: C.border, marginTop: 4 }}>
         <div style={{ width: `${healthPct * 100}%`, height: '100%', background: wearColor }} />
       </div>
+      {/* Brake temp — only ACC (and games that expose it) populate this; null elsewhere, so nothing renders. */}
+      {brakeTemp != null && (
+        <div style={{ width: 48, height: 3, background: C.border, marginTop: 2 }} title={`Brake ${Math.round(brakeTemp)}°C`}>
+          <div style={{ width: `${Math.max(0, Math.min(1, brakeTemp / 800)) * 100}%`, height: '100%', background: brakeTempColor(brakeTemp) }} />
+        </div>
+      )}
       <div style={{ fontFamily: C.mono, fontSize: 9, color: C.muted, marginTop: 2 }}>{(pressure ?? 0).toFixed(1)}</div>
     </div>
   )
@@ -165,7 +178,8 @@ export function TyreMap({ frame }) {
   const tempO = frame?.tyreTempO ?? [0, 0, 0, 0]
   const wear = frame?.tyreWear ?? [0, 0, 0, 0]
   const pressure = frame?.tyrePressure ?? [0, 0, 0, 0]
-  const corner = (i) => ({ label: WHEEL_LABELS[i], temp: temp[i], tempI: tempI[i], tempM: tempM[i], tempO: tempO[i], wear: wear[i], pressure: pressure[i] })
+  const brakeTemp = frame?.brakeTemp ?? [null, null, null, null]
+  const corner = (i) => ({ label: WHEEL_LABELS[i], temp: temp[i], tempI: tempI[i], tempM: tempM[i], tempO: tempO[i], wear: wear[i], pressure: pressure[i], brakeTemp: brakeTemp[i] })
   return (
     <div style={{ width: 180, height: 160, display: 'grid', gridTemplateColumns: '1fr 24px 1fr', gridTemplateRows: '1fr 1fr',
       gap: 4, alignItems: 'center', justifyItems: 'center' }}>
@@ -261,21 +275,27 @@ export function LapTimingPanel({ frame }) {
 
 // ── Fuel Bar ───────────────────────────────────────────────────────────────
 export function FuelBar({ frame }) {
+  // Forza's Fuel field is already a 0-1 fraction of the tank, not litres —
+  // there's no absolute tank size in the packet (maxFuel is null for
+  // fh5/fh6, see normalizer.js), so it's shown as a percentage instead.
+  const isForza = frame?.game === 'fh5' || frame?.game === 'fh6'
   const fuel = frame?.fuel ?? 0
   const maxFuel = frame?.maxFuel ?? 0
-  const pct = maxFuel > 0 ? Math.max(0, Math.min(1, fuel / maxFuel)) : 0
+  const pct = isForza ? Math.max(0, Math.min(1, fuel)) : (maxFuel > 0 ? Math.max(0, Math.min(1, fuel / maxFuel)) : 0)
   const color = pct > 0.4 ? C.blue : pct > 0.15 ? C.orange : C.red
   const perLap = frame?.fuelPerLap ?? 0
   return (
     <div style={{ width: 200 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <span style={{ fontFamily: C.head, fontSize: 24, color: C.textPrimary }}>{fuel.toFixed(1)}L</span>
+        <span style={{ fontFamily: C.head, fontSize: 24, color: C.textPrimary }}>
+          {isForza ? `${Math.round(pct * 100)}%` : `${fuel.toFixed(1)}L`}
+        </span>
         <span style={{ fontFamily: C.body, fontSize: 9, color: C.muted, textTransform: 'uppercase' }}>Fuel</span>
       </div>
       <div style={{ height: 8, background: C.border, marginTop: 4 }}>
         <div style={{ width: `${pct * 100}%`, height: '100%', background: color }} />
       </div>
-      {perLap > 0 && (
+      {!isForza && perLap > 0 && (
         <div style={{ fontFamily: C.body, fontSize: 10, color: C.muted, marginTop: 4 }}>~{(fuel / perLap).toFixed(1)} LAPS</div>
       )}
     </div>
@@ -338,6 +358,7 @@ export function SuspensionBars({ frame }) {
 
 // ── Status Bar ─────────────────────────────────────────────────────────────
 const FLAG_COLORS = { 0: 'transparent', 1: C.blue, 2: C.yellow, 3: C.textPrimary, 4: C.whiteHot, 6: C.border }
+const RAIN_ICONS = { 0: null, 1: '🌦', 2: '🌧', 3: '⛈' }
 function StatItem({ label, children }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
@@ -359,6 +380,9 @@ export function StatusBar({ frame }) {
         <div style={{ width: 14, height: 14, border: `1px solid ${C.border}`,
           background: flag === 5 ? `repeating-linear-gradient(45deg, ${C.textPrimary} 0 4px, ${C.muted} 4px 8px)` : (FLAG_COLORS[flag] || C.border) }} />
       </StatItem>
+      {frame?.rainIntensity != null && RAIN_ICONS[frame.rainIntensity] && (
+        <StatItem label="Rain"><span style={{ fontSize: 16, lineHeight: 1 }}>{RAIN_ICONS[frame.rainIntensity]}</span></StatItem>
+      )}
       <StatItem label="Session"><span style={{ fontFamily: C.head, fontSize: 14, color: C.textPrimary }}>{session}</span></StatItem>
       <StatItem label="Position"><span style={{ fontFamily: C.head, fontSize: 14, color: C.textPrimary }}>P{position}</span></StatItem>
       <StatItem label="Laps"><span style={{ fontFamily: C.head, fontSize: 14, color: C.textPrimary }}>{laps}</span></StatItem>
@@ -409,6 +433,73 @@ export function InputTrace({ frame }) {
   )
 }
 
+// ── Gap Widget (AC Evo) ────────────────────────────────────────────────────
+// Only ever populated by AC Evo (gapAhead/gapBehind are null for every other
+// game — see normalizer.js) — shows "--" rather than fabricating a number
+// for games that don't expose this.
+export function GapWidget({ frame }) {
+  const ahead = frame?.gapAhead
+  const behind = frame?.gapBehind
+  const fmt = (v) => (v == null ? '--' : `${v.toFixed(1)}s`)
+  // Closing the gap ahead (getting smaller) or extending the gap behind
+  // (growing) are both "good" — green; the reverse is red.
+  const aheadColor = ahead == null ? C.muted : ahead >= 0 ? C.green : C.red
+  const behindColor = behind == null ? C.muted : behind >= 0 ? C.green : C.red
+  return (
+    <div style={{ width: 140, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <span style={{ fontFamily: C.head, fontSize: 28, color: aheadColor }}>▲ {fmt(ahead)}</span>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <span style={{ fontFamily: C.head, fontSize: 28, color: behindColor }}>▼ {fmt(behind)}</span>
+      </div>
+      <div style={{ fontFamily: C.body, fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>Gap ahead / behind</div>
+    </div>
+  )
+}
+
+// ── Boost Gauge (Forza) ────────────────────────────────────────────────────
+// Populated from either frame.boost (Forza) or frame.turboBoost (ACC/AC
+// Evo) — whichever a given game actually exposes; null on every other field
+// path is left alone rather than guessed at.
+export function BoostGauge({ frame }) {
+  const raw = frame?.boost ?? frame?.turboBoost
+  const pct = raw == null ? 0 : Math.max(0, Math.min(1, raw))
+  const cx = 60, cy = 60, r = 50
+  const startAngle = -135, endAngle = 135
+  const fillAngle = startAngle + 270 * pct
+  return (
+    <div style={{ width: 120, height: 120, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <svg width={120} height={120} style={{ position: 'absolute', inset: 0 }}>
+        <path d={describeArc(cx, cy, r, startAngle, endAngle)} fill="none" stroke={C.border} strokeWidth={4} />
+        {raw != null && pct > 0 && <path d={describeArc(cx, cy, r, startAngle, fillAngle)} fill="none" stroke={C.blue} strokeWidth={4} />}
+      </svg>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontFamily: C.head, fontSize: 28, color: C.textPrimary, lineHeight: 1 }}>{raw == null ? '--' : raw.toFixed(2)}</div>
+        <div style={{ fontFamily: C.body, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: C.muted, marginTop: 2 }}>Boost</div>
+      </div>
+    </div>
+  )
+}
+
+// ── Power / Torque (Forza) ──────────────────────────────────────────────────
+export function PowerTorque({ frame }) {
+  const power = frame?.power // watts
+  const torque = frame?.torque // N·m
+  return (
+    <div style={{ width: 160, display: 'flex', gap: 16 }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontFamily: C.head, fontSize: 26, color: C.textPrimary }}>{power == null ? '--' : Math.round(power / 1000)}</div>
+        <div style={{ fontFamily: C.body, fontSize: 9, color: C.muted, textTransform: 'uppercase' }}>kW</div>
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontFamily: C.head, fontSize: 26, color: C.textPrimary }}>{torque == null ? '--' : Math.round(torque)}</div>
+        <div style={{ fontFamily: C.body, fontSize: 9, color: C.muted, textTransform: 'uppercase' }}>N·m</div>
+      </div>
+    </div>
+  )
+}
+
 // ── Widget catalog — single source of truth for the CONFIGURE checklist,
 // preset definitions, and the LIVE/overlay renderers ──────────────────────
 export const WIDGET_CATALOG = [
@@ -417,6 +508,8 @@ export const WIDGET_CATALOG = [
   { id: 'gearDisplay',      label: 'Gear Display (large)',      category: 'MOTION',   component: GearDisplay,      defaultSize: 'sm' },
   { id: 'gForceCircle',     label: 'G-Force Circle',            category: 'MOTION',   component: GForceCircle,     defaultSize: 'sm' },
   { id: 'inputTrace',       label: 'Input Trace',               category: 'MOTION',   component: InputTrace,       defaultSize: 'md' },
+  { id: 'boostGauge',       label: 'Boost Gauge',               category: 'MOTION',   component: BoostGauge,       defaultSize: 'sm' },
+  { id: 'powerTorque',      label: 'Power / Torque',             category: 'MOTION',   component: PowerTorque,      defaultSize: 'sm' },
   { id: 'throttleBrakeBar', label: 'Throttle & Brake Bars',      category: 'CONTROLS', component: ThrottleBrakeBar, defaultSize: 'sm' },
   { id: 'steeringAngle',    label: 'Steering Angle',             category: 'CONTROLS', component: SteeringAngle,    defaultSize: 'sm' },
   { id: 'tyreMap',          label: 'Tyre Map',                  category: 'TYRES',    component: TyreMap,          defaultSize: 'lg' },
@@ -426,6 +519,7 @@ export const WIDGET_CATALOG = [
   { id: 'fuelBar',          label: 'Fuel Bar',                  category: 'SESSION',  component: FuelBar,          defaultSize: 'md' },
   { id: 'statusBar',        label: 'Status Bar',                category: 'SESSION',  component: StatusBar,        defaultSize: 'lg' },
   { id: 'damagePanel',      label: 'Damage Panel',               category: 'SESSION',  component: DamagePanel,      defaultSize: 'md' },
+  { id: 'gapWidget',        label: 'Gap Ahead / Behind',         category: 'SESSION',  component: GapWidget,        defaultSize: 'sm' },
   { id: 'miniSpeed',        label: 'Mini Speed + Gear',           category: 'MINIMAL',  component: MiniSpeed,        defaultSize: 'sm' },
 ]
 
