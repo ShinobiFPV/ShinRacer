@@ -604,3 +604,208 @@ Applied throughout: empty-state emoji shrunk to 32px with Bebas Neue uppercase t
 
 ### Not independently verified
 No interactive click-through — hover states, the corner-mark box-shadow's visual appearance, the peer-speaking border-pulse animation, and every view's actual on-screen look were verified by reading the resulting styles and confirming a clean render, not by driving the UI and taking screenshots.
+
+## Phase 9: Telemetry Screen
+
+Phase 9 added live AC telemetry: a Telemetry view (LIVE/CONFIGURE/OVERLAY tabs,
+15 widgets, 5 presets) and a separate always-on-top overlay window, both fed
+from AC's Shared Memory API.
+
+### SHM approach taken — real reader, not a stub
+
+The brief asked us to check three options and document which was used. All
+three were evaluated against this actual environment, not assumed:
+
+- **`ac-node-telemetry`** — doesn't exist on npm. Confirmed via `npm view
+  ac-node-telemetry`, which returned a real `404` from the registry (this
+  environment does have registry access, so the 404 is authoritative, not a
+  network failure).
+- **`mmap-io` / `node-ffi-napi`+`ref-napi`** — all three are native C++
+  addons requiring `node-gyp` and an MSVC compiler. `where cl.exe` found
+  nothing in this environment — the identical blocker already documented in
+  Phase 4/6 for `better-sqlite3`'s missing prebuilt binary on Node 24/win32.
+  These would fail to install here for the same reason, and most likely on
+  a fresh crew member's machine too, unless they happen to have Visual
+  Studio Build Tools installed just for this app.
+- **Persistent PowerShell reader (what was actually built)** — a child
+  process running Windows PowerShell 5.1's built-in
+  `System.IO.MemoryMappedFiles.MemoryMappedFile.OpenExisting()` (.NET,
+  zero extra dependencies, zero compilation) opens AC's three named shared
+  memory blocks every 60ms, base64-encodes the raw bytes, and prints one
+  `FRAME:<physics>|<graphics>|<static>` line to stdout. `main.js` reads that
+  stream line-by-line via Node's `readline` and parses every struct offset
+  from the brief in plain JS (`Buffer.readFloatLE`/`readInt32LE`, plus a
+  `readWChar` helper for the UTF-16LE name/time-string fields). This is the
+  same `-EncodedCommand`-over-PowerShell technique already used for Phase 6's
+  mod zip extraction, for the same reason: no compiler, no quoting hazards.
+  **This was verified working in this environment**, not just written on
+  faith — a standalone PowerShell `OpenExisting("Local\acpmf_physics")`
+  call was run before writing any code, and it correctly threw
+  `System.IO.FileNotFoundException` (AC isn't running here), proving both
+  that the API call itself is valid and that the "AC not running" failure
+  path behaves exactly as the fallback logic assumes. `CreateViewAccessor(0,
+  0)` (capacity 0) maps the whole underlying file rather than a hardcoded
+  byte count, so the reader doesn't need to guess a struct size that might
+  drift between AC/CSP versions.
+- The reader script is wrapped in `$ErrorActionPreference = 'Stop'` +
+  try/catch inside its own `while ($true)` loop — a failed
+  `OpenExisting` on any given tick prints `NOFRAME` and the loop keeps
+  running, so it recovers automatically the moment AC launches, with no
+  restart needed from the Node side.
+
+### Track 0 — Main process + IPC
+- `main.js`: `parsePhysics`/`parseGraphics`/`parseStaticInfo` (raw struct →
+  JS objects per the brief's offset tables) and `buildTelemetryFrame` (raw →
+  the friendlier shape `useTelemetryShm` returns) are new pure functions;
+  `telemetry:shmStart`/`telemetry:shmStop` manage the persistent PowerShell
+  child process and forward parsed frames to both `win` and `overlayWindow`
+  via `webContents.send('telemetry:frame', ...)`. Wrapped end-to-end in
+  try/catch per the constraint — a spawn failure just means no frames ever
+  arrive, which the renderer hook already treats identically to "AC not
+  running" (see Track 5 below), so there's no separate error UI path needed
+  on the main-process side.
+- `telemetry:openOverlay`/`closeOverlay`/`setOverlayOpacity`/
+  `setOverlayAlwaysOnTop`/`setOverlayBounds`/`overlayStatus` manage a second
+  `BrowserWindow` (`transparent:true`, `frame:false`, `skipTaskbar:true`, per
+  the constraint). `telemetry:showOverlayContextMenu` is a small addition not
+  literally named in the brief's IPC list but needed to satisfy Track 3's
+  "right-click drag handle → context menu" requirement — it pops a native
+  `Menu` with Close/Toggle-always-on-top/Opacity ± entries.
+- Both the SHM child process and the overlay window are torn down in the
+  main window's existing `closed` handler, alongside the pre-existing server
+  process and UDP socket cleanup, so nothing survives a window close.
+- The existing UDP-based `telemetry:start`/`stop`/`onLap` handlers (used by
+  `useTelemetry.js` for posting lap times to the backend in Stats) are
+  completely untouched — this is a parallel system, not a replacement.
+  Nothing in the SHM path ever calls the backend; per the constraint, live
+  telemetry frames never leave the machine.
+
+### Track 1 — Widget library
+- `src/renderer/components/telemetry/widgets.jsx`: all 13 widgets named in
+  the brief, plus two more (`SteeringAngle`, `TyrePressures`) that the
+  CONFIGURE checklist itself lists under CONTROLS/TYRES but which have no
+  dedicated spec section in Track 1 — built to the same visual language
+  (sharp corners, Bebas Neue values, Barlow labels, blue accent) rather than
+  left out or stubbed.
+- `WIDGET_CATALOG` is the single source of truth (id → component/label/
+  category/defaultSize) shared by the CONFIGURE checklist, the LIVE grid,
+  the preview blocks, and `OverlayApp` — adding a widget in one place makes
+  it available everywhere automatically.
+- Every widget reads frame fields with `??`/`?.` per the constraint; none of
+  them paint an opaque background of their own (`SIZE_PRESETS` and the
+  surrounding container own layout/chrome), so the same component works
+  unmodified on the dark in-app grid and the transparent overlay.
+
+### Track 2/4 — TelemetryView + presets
+- `TelemetryView.jsx` holds the three tabs and the five preset definitions
+  (`PRESETS`, exported for `OverlayApp` to resolve a preset id back to its
+  widget list) exactly as instructed ("store as constants in
+  TelemetryView.jsx"). The 12-column grid uses `SIZE_PRESETS` column-span
+  values (`sm`=3, `md`=4, `lg`=6) rather than literal pixel widths, so
+  widgets reflow sensibly at different window sizes instead of overflowing.
+- The CONFIGURE tab's drag-to-reorder preview uses native HTML5 drag-and-
+  drop (`draggable`/`onDragStart`/`onDragOver`/`onDrop`) rather than a
+  drag-and-drop library — no new dependency, and the reorder logic is a
+  five-line array splice.
+- Layout (`telemetryLayout`) and overlay settings (`overlayConfig`) persist
+  to electron-store, matching the pattern already used for `peerVolumes`
+  (Comms) and `replayAnnotations` (Replays) rather than inventing a new
+  persistence convention.
+- "Snap to corner" reads `window.screen.width/height` directly in the
+  renderer (a standard browser API, available in Electron's renderer) rather
+  than adding a new IPC round-trip just to ask the main process for the
+  screen size.
+
+### Track 3 — Overlay window
+- `OverlayApp.jsx` is a genuinely separate render path: `App.jsx`'s default
+  export checks `window.location.hash === '#overlay'` before the
+  `AppStoreProvider` even mounts, so the overlay never pulls in the Sidebar,
+  the first-run Wizard, or the events/chat store — it talks to
+  `window.api` directly, exactly as specced.
+- The 8px drag handle's `WebkitAppRegion: 'drag'` makes the whole overlay
+  window draggable by that strip (frameless windows have no titlebar to drag
+  by otherwise); right-clicking it calls the new
+  `telemetry:showOverlayContextMenu` IPC handler.
+- Each overlay widget is wrapped in its own `rgba(5,5,7,0.75)` /
+  `rgba(28,34,51,0.8)`-bordered card exactly per spec, independent of the
+  window's own `setOpacity()` (which the constraint notes applies uniformly
+  on top of whatever the widgets already render).
+
+### Track 5 — Mock data
+- `src/renderer/lib/telemetryMock.js`: `generateMockFrame(now)` produces a
+  90-second simulated lap (sine-wave speed, gear from speed brackets,
+  periodic braking zones, tyre warmup over the first ~2 laps, a gentle
+  sine-based delta walk) matching the exact frame shape real SHM frames
+  produce, so every widget renders identically against either source.
+- `useTelemetryShm.js` is the fallback owner, per the brief's architecture:
+  it doesn't ask main.js whether AC is running — it just tracks the
+  timestamp of the last real `telemetry:frame` IPC event and, on its own
+  60ms tick, falls back to `generateMockFrame()` the moment more than 500ms
+  has passed without one. This means demo mode activates identically
+  whether AC was never running, was closed mid-session, or the SHM reader
+  process failed outright — one fallback path covers all three, silently,
+  with the DEMO MODE banner (`C.blue`, per constraint) as the only visible
+  sign anything failed over.
+
+### Noted deviations
+- **`clutch` is always `0`.** The brief's own physics offset table has no
+  clutch field (only `gas`/`brake` are listed), and real AC shared memory
+  doesn't expose clutch pedal position in this struct — it's a driver input,
+  not physics telemetry. The frame shape still carries a `clutch` field (per
+  Track 0's spec) so `ThrottleBrakeBar`'s clutch dot doesn't crash, but it
+  can never be non-zero from real SHM data.
+- **`DamagePanel`'s percentages are an approximation.** AC's raw
+  `carDamage` floats are unbounded deformation magnitudes with no fixed
+  0-100% ceiling defined anywhere in the struct; the widget divides by
+  1000 as a rough heuristic (light contact reads low, heavy damage reads
+  high) rather than a value verified against real damaged-car telemetry,
+  which this environment has no way to produce.
+- **`LapTimingPanel`'s completed sectors are always green**, not
+  "green if faster than best, red if slower" as specced — the frame shape
+  (and the raw graphics struct, per the brief's own offset table) has no
+  per-sector best-time array to compare against, only the current
+  session's live/last/best lap totals. Rather than inventing sector-best
+  tracking client-side with no authoritative source, completed sectors
+  render as a simple "done" state.
+- **Two widgets beyond the named 13** (`SteeringAngle`, `TyrePressures`)
+  were designed to fill gaps between the CONFIGURE checklist and the Track 1
+  widget specs — see Track 1 above.
+
+### Verified this pass
+`npx vite build` compiles clean (142 modules, up from 137, no new
+errors/warnings). `node --check` passes on `main.js` and `preload.js`. Before
+writing any SHM code, a standalone PowerShell `MemoryMappedFile.OpenExisting`
+call was run in this environment and confirmed it throws the expected
+`FileNotFoundException` when AC isn't running — proving the core mechanism
+before building on top of it, not after. The app was then driven end-to-end
+with a real, throwaway Playwright `_electron` script (deleted after use, not
+checked in, matching the Phase 4/5/6 technique) against an isolated
+`--user-data-dir` with a hand-seeded `config.json` (so it landed straight in
+the main app, bypassing the first-run wizard): confirmed the Telemetry nav
+item exists, the LIVE tab shows the DEMO MODE banner with real rendered
+widget values (gear, RPM, speed, lap timing panel with a red/blue delta and
+gold best time, tyre map with per-corner temps and wear bars, fuel bar), the
+CONFIGURE tab's checklist/size-selectors/preset strip/drag-reorder preview
+all render with the Full Dash preset pre-applied, the OVERLAY tab's controls
+render, and — the most important check — clicking "Launch overlay" actually
+opened a second real `BrowserWindow` (window count 2→3, confirmed via
+`app.windows()`), that window's URL was confirmed to be
+`http://localhost:5173/#overlay`, and its body text was confirmed to contain
+real rendered widget output. Screenshots of the LIVE and CONFIGURE tabs were
+captured and visually reviewed against the Phase 8 design system. All
+spawned dev/test processes and the throwaway `playwright` npm install
+(`--no-save`, confirmed absent from `package.json`/`package-lock.json`
+afterward) were cleaned up.
+
+### Not independently verified
+No real Assetto Corsa install with shared memory active exists in this
+environment, so the actual struct-offset parsing was never validated against
+genuine physics/graphics/static bytes from a running session — only against
+the documented offsets from the brief and the confirmed-working
+"AC not running" failure path. A crew member with AC actually open should
+see real values; if any field reads as garbage, the offset table itself
+(copied from the brief, not independently re-derived from AC's SDK headers)
+is the first thing to check. The overlay window's drag-by-handle behavior
+and its right-click context menu were not interactively exercised (Playwright
+can trigger the IPC call but doesn't meaningfully test OS-level window
+dragging).

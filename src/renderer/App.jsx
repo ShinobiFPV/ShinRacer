@@ -13,10 +13,12 @@ import TrafficView from './views/TrafficView'
 import EventsView  from './views/EventsView'
 import CommsView   from './views/CommsView'
 import StatsView   from './views/StatsView'
+import TelemetryView from './views/TelemetryView'
 import ReplayView  from './views/ReplayView'
 import ModsView    from './views/ModsView'
 import LinksView   from './views/LinksView'
 import SettingsView from './views/SettingsView'
+import OverlayApp  from './OverlayApp'
 
 // ── Sidebar nav ───────────────────────────────────────────────────────────────
 const NAV = [
@@ -27,6 +29,7 @@ const NAV = [
   { id:'events',  icon:'📅', label:'Events' },
   { id:'comms',   icon:'🎙️', label:'Comms' },
   { id:'stats',   icon:'📊', label:'Stats' },
+  { id:'telemetry', icon:'📡', label:'Telemetry' },
   { id:'replays', icon:'🎬', label:'Replays' },
   { id:'mods',    icon:'📦', label:'Mods' },
   { id:'links',   icon:'🔗', label:'Links' },
@@ -180,6 +183,7 @@ function Inner() {
                 {view==='events'  && <EventsView />}
                 {view==='comms'   && <CommsView />}
                 {view==='stats'   && <StatsView />}
+                {view==='telemetry' && <TelemetryView />}
                 {view==='replays' && <ReplayView onGoSettings={() => setView('settings')} showToast={showToast} />}
                 {view==='mods'    && <ModsView />}
                 {view==='links'   && <LinksView />}
@@ -201,6 +205,11 @@ function Inner() {
 }
 
 export default function App() {
+  // The overlay window loads this same bundle with a #overlay hash instead
+  // of a fresh route — it renders standalone, with no Sidebar/store/wizard,
+  // since it only needs the telemetry IPC bridge and electron-store directly.
+  if (window.location.hash === '#overlay') return <OverlayApp />
+
   return (
     <AppStoreProvider>
       <TooltipProvider>

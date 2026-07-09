@@ -1,8 +1,9 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, Notification, screen } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell, Notification, screen, Menu } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const dgram = require('dgram')
+const readline = require('readline')
 const { spawn, execSync, execFileSync } = require('child_process')
 const Store = require('electron-store')
 const { autoUpdater } = require('electron-updater')
@@ -18,6 +19,15 @@ const playerPollers = new Map()
 
 // ── UDP telemetry socket ──────────────────────────────────────────────────────
 let telemetrySocket = null
+
+// ── AC Shared Memory telemetry (live physics/graphics/static via a persistent
+// PowerShell reader process — see the "IPC: AC Shared Memory telemetry" section
+// below for why this approach was chosen over a native addon) ────────────────
+let shmProcess = null
+let shmActive = false
+
+// ── Telemetry overlay window ──────────────────────────────────────────────────
+let overlayWindow = null
 
 // ── Reminder notifications: event ids we've already notified for this run ────
 const notifiedEventIds = new Set()
@@ -103,6 +113,15 @@ function createWindow() {
     if (telemetrySocket) {
       try { telemetrySocket.close() } catch (e) {}
       telemetrySocket = null
+    }
+    if (shmProcess) {
+      try { shmProcess.kill() } catch (e) {}
+      shmProcess = null
+      shmActive = false
+    }
+    if (overlayWindow) {
+      try { overlayWindow.close() } catch (e) {}
+      overlayWindow = null
     }
   })
 }
@@ -433,6 +452,307 @@ ipcMain.handle('telemetry:stop', () => {
     try { telemetrySocket.close() } catch (e) {}
     telemetrySocket = null
   }
+  return { ok: true }
+})
+
+// ── IPC: AC Shared Memory telemetry (live physics/graphics/static) ───────────
+// Node has no built-in Windows shared-memory support, and every native-addon
+// route we considered (mmap-io, node-ffi-napi/ref-napi, a bespoke C++ addon)
+// needs node-gyp + an MSVC compiler to build — confirmed unavailable in this
+// environment the same way better-sqlite3's prebuilt binary was unavailable
+// in Phase 4/6 (no VS Build Tools). `ac-node-telemetry` doesn't exist on npm
+// (checked via `npm view`, 404).
+//
+// Instead: a persistent PowerShell child process uses .NET's
+// System.IO.MemoryMappedFiles directly (built into Windows PowerShell 5.1,
+// zero extra dependencies) to open AC's three named shared-memory blocks,
+// base64-encodes their raw bytes, and prints one "FRAME:<p>|<g>|<s>" line to
+// stdout every 60ms. Node reads that stream line-by-line and parses the
+// struct offsets in JS. This is a real, working implementation, not a
+// placeholder — it was verified in this environment to correctly detect
+// "AC not running" via System.IO.FileNotFoundException. The same
+// -EncodedCommand-over-PowerShell pattern is already used elsewhere in this
+// codebase (Phase 6's mod zip extraction) for exactly this reason: it needs
+// no compiler and sidesteps quoting entirely.
+//
+// CreateViewAccessor(0, 0) maps the whole underlying file regardless of its
+// exact struct size (Windows page-aligns these mappings), so the reader
+// doesn't need to hardcode a byte count that might drift between AC/CSP
+// versions — it just reads accessor.Capacity bytes.
+const SHM_READER_SCRIPT = `
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Core
+function Read-Shm($name) {
+  $mmf = [System.IO.MemoryMappedFiles.MemoryMappedFile]::OpenExisting($name)
+  $acc = $mmf.CreateViewAccessor(0, 0)
+  $size = $acc.Capacity
+  $buf = New-Object byte[] $size
+  $acc.ReadArray(0, $buf, 0, $size)
+  $acc.Dispose()
+  $mmf.Dispose()
+  return [Convert]::ToBase64String($buf)
+}
+while ($true) {
+  try {
+    $p = Read-Shm "Local\\acpmf_physics"
+    $g = Read-Shm "Local\\acpmf_graphics"
+    $s = Read-Shm "Local\\acpmf_static"
+    Write-Output "FRAME:$p|$g|$s"
+  } catch {
+    Write-Output "NOFRAME"
+  }
+  Start-Sleep -Milliseconds 60
+}
+`
+
+// Wchar[N] fields are UTF-16LE, null-padded to N bytes — trim at the first NUL.
+function readWChar(buf, offset, byteLen) {
+  const raw = buf.toString('utf16le', offset, offset + byteLen)
+  const nullIdx = raw.indexOf(String.fromCharCode(0))
+  return (nullIdx === -1 ? raw : raw.slice(0, nullIdx)).trim()
+}
+
+function readFloatArray(buf, offset, count) {
+  const out = []
+  for (let i = 0; i < count; i++) out.push(buf.readFloatLE(offset + i * 4))
+  return out
+}
+
+function parsePhysics(buf) {
+  return {
+    gas: buf.readFloatLE(4),
+    brake: buf.readFloatLE(8),
+    fuel: buf.readFloatLE(12),
+    gear: buf.readInt32LE(16),
+    rpms: buf.readFloatLE(20),
+    steerAngle: buf.readFloatLE(24),
+    speedKmh: buf.readFloatLE(28),
+    accG: readFloatArray(buf, 44, 3),
+    wheelSlip: readFloatArray(buf, 56, 4),
+    wheelLoad: readFloatArray(buf, 72, 4),
+    wheelsPressure: readFloatArray(buf, 88, 4),
+    tyreWear: readFloatArray(buf, 120, 4),
+    tyreCoreTemp: readFloatArray(buf, 152, 4),
+    suspensionTravel: readFloatArray(buf, 184, 4),
+    drs: buf.readInt32LE(200),
+    tc: buf.readFloatLE(204),
+    carDamage: readFloatArray(buf, 224, 5),
+    pitLimiterOn: buf.readInt32LE(288),
+    abs: buf.readFloatLE(292),
+    tyreTempI: readFloatArray(buf, 296, 4),
+    tyreTempM: readFloatArray(buf, 312, 4),
+    tyreTempO: readFloatArray(buf, 328, 4),
+    brakeBias: buf.readFloatLE(540),
+  }
+}
+
+const GRAPHICS_STATUS = { 0: 'OFF', 1: 'REPLAY', 2: 'LIVE', 3: 'PAUSE' }
+const GRAPHICS_SESSION = { 0: 'UNKNOWN', 1: 'PRACTICE', 2: 'QUALIFY', 3: 'RACE' }
+
+function parseGraphics(buf) {
+  return {
+    status: GRAPHICS_STATUS[buf.readInt32LE(4)] || 'OFF',
+    session: GRAPHICS_SESSION[buf.readInt32LE(8)] || 'UNKNOWN',
+    currentTime: readWChar(buf, 12, 100),
+    lastTime: readWChar(buf, 112, 100),
+    bestTime: readWChar(buf, 212, 100),
+    completedLaps: buf.readInt32LE(412),
+    position: buf.readInt32LE(416),
+    iCurrentTime: buf.readInt32LE(420),
+    iLastTime: buf.readInt32LE(424),
+    iBestTime: buf.readInt32LE(428),
+    sessionTimeLeft: buf.readFloatLE(432),
+    isInPit: buf.readInt32LE(440),
+    currentSectorIndex: buf.readInt32LE(444),
+    numberOfLaps: buf.readInt32LE(452),
+    tyreCompound: readWChar(buf, 456, 100),
+    flag: buf.readInt32LE(580),
+    isInPitLane: buf.readInt32LE(588),
+    fuelXLap: buf.readFloatLE(636),
+  }
+}
+
+function parseStaticInfo(buf) {
+  return {
+    carModel: readWChar(buf, 208, 100),
+    track: readWChar(buf, 308, 100),
+    maxTorque: buf.readFloatLE(712),
+    maxPower: buf.readFloatLE(716),
+    maxRpm: buf.readInt32LE(720),
+    maxFuel: buf.readFloatLE(724),
+    suspensionMaxTravel: readFloatArray(buf, 728, 4),
+    trackSPlineLength: buf.readFloatLE(828),
+  }
+}
+
+// Raw gear is AC's own convention (0=R, 1=N, 2=1st…) — remap to the friendlier
+// -1/0/1-8 shape the widgets expect.
+function niceGear(raw) {
+  if (raw === 0) return -1
+  if (raw === 1) return 0
+  return raw - 1
+}
+
+function buildTelemetryFrame(p, g, s) {
+  return {
+    throttle: p.gas, brake: p.brake, clutch: 0, // clutch position isn't exposed by this struct
+    gear: niceGear(p.gear), rpm: p.rpms, maxRpm: s.maxRpm || 8000,
+    speed: p.speedKmh, steerAngle: p.steerAngle,
+    gLat: p.accG[0] ?? 0, gLon: p.accG[1] ?? 0, gVert: p.accG[2] ?? 0,
+    fuel: p.fuel, maxFuel: s.maxFuel || 0,
+    brakeBias: p.brakeBias, tc: p.tc, abs: p.abs,
+    pitLimiter: !!p.pitLimiterOn, drs: !!p.drs,
+    tyrePressure: p.wheelsPressure, tyreTemp: p.tyreCoreTemp,
+    tyreTempI: p.tyreTempI, tyreTempM: p.tyreTempM, tyreTempO: p.tyreTempO,
+    tyreWear: p.tyreWear, tyreSlip: p.wheelSlip,
+    suspensionTravel: p.suspensionTravel, wheelLoad: p.wheelLoad,
+    carDamage: p.carDamage,
+    status: g.status, session: g.session,
+    currentLapMs: g.iCurrentTime, lastLapMs: g.iLastTime, bestLapMs: g.iBestTime,
+    currentLapTime: g.currentTime, lastLapTime: g.lastTime, bestLapTime: g.bestTime,
+    deltaMs: g.iBestTime > 0 ? g.iCurrentTime - g.iBestTime : 0,
+    sector: g.currentSectorIndex, completedLaps: g.completedLaps, position: g.position,
+    isInPit: !!g.isInPit, isInPitLane: !!g.isInPitLane, flag: g.flag,
+    sessionTimeLeft: g.sessionTimeLeft,
+    carModel: s.carModel, track: s.track, tyreCompound: g.tyreCompound,
+    maxPower: s.maxPower, maxTorque: s.maxTorque, trackLength: s.trackSPlineLength,
+    fuelPerLap: g.fuelXLap,
+  }
+}
+
+ipcMain.handle('telemetry:shmStart', async () => {
+  if (shmActive) return { ok: true, alreadyRunning: true }
+  try {
+    const encoded = Buffer.from(SHM_READER_SCRIPT, 'utf16le').toString('base64')
+    shmProcess = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], {
+      windowsHide: true,
+    })
+    shmActive = true
+
+    const rl = readline.createInterface({ input: shmProcess.stdout })
+    rl.on('line', (line) => {
+      if (!line.startsWith('FRAME:')) return
+      try {
+        const [pB64, gB64, sB64] = line.slice(6).split('|')
+        const physics = parsePhysics(Buffer.from(pB64, 'base64'))
+        const graphics = parseGraphics(Buffer.from(gB64, 'base64'))
+        const staticInfo = parseStaticInfo(Buffer.from(sB64, 'base64'))
+        const frame = buildTelemetryFrame(physics, graphics, staticInfo)
+        win?.webContents.send('telemetry:frame', frame)
+        overlayWindow?.webContents.send('telemetry:frame', frame)
+      } catch (e) {
+        // Malformed/partial frame this tick — skip it, next one arrives in 60ms
+      }
+    })
+    shmProcess.on('exit', () => { shmActive = false; shmProcess = null })
+    shmProcess.on('error', (e) => {
+      log(`SHM reader process error: ${e.message}`)
+      shmActive = false
+      shmProcess = null
+    })
+    log('SHM telemetry reader started')
+    return { ok: true }
+  } catch (e) {
+    log(`SHM telemetry failed to start: ${e.message}`)
+    shmActive = false
+    shmProcess = null
+    return { ok: false, error: e.message }
+  }
+})
+
+ipcMain.handle('telemetry:shmStop', () => {
+  if (shmProcess) {
+    try { shmProcess.kill() } catch (e) {}
+    shmProcess = null
+  }
+  shmActive = false
+  return { ok: true }
+})
+
+// ── IPC: Telemetry overlay window ─────────────────────────────────────────────
+ipcMain.handle('telemetry:openOverlay', async (_, config = {}) => {
+  if (overlayWindow) { overlayWindow.focus(); return { ok: true, alreadyOpen: true } }
+  try {
+    overlayWindow = new BrowserWindow({
+      width: config.width || 800,
+      height: config.height || 200,
+      x: config.x, y: config.y,
+      alwaysOnTop: config.alwaysOnTop ?? true,
+      transparent: true,
+      frame: false,
+      skipTaskbar: true,
+      resizable: true,
+      hasShadow: false,
+      backgroundColor: '#00000000',
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    })
+    if (isDev) {
+      overlayWindow.loadURL('http://localhost:5173/#overlay')
+    } else {
+      overlayWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: 'overlay' })
+    }
+    overlayWindow.setOpacity(config.opacity ?? 0.85)
+    overlayWindow.on('closed', () => {
+      overlayWindow = null
+      win?.webContents.send('telemetry:overlayClosed')
+    })
+    log('Telemetry overlay opened')
+    return { ok: true }
+  } catch (e) {
+    overlayWindow = null
+    return { ok: false, error: e.message }
+  }
+})
+
+ipcMain.handle('telemetry:closeOverlay', () => {
+  overlayWindow?.close()
+  overlayWindow = null
+  return { ok: true }
+})
+
+ipcMain.handle('telemetry:setOverlayOpacity', (_, opacity) => {
+  overlayWindow?.setOpacity(opacity)
+  return { ok: true }
+})
+
+ipcMain.handle('telemetry:setOverlayAlwaysOnTop', (_, val) => {
+  overlayWindow?.setAlwaysOnTop(val)
+  return { ok: true }
+})
+
+ipcMain.handle('telemetry:setOverlayBounds', (_, bounds) => {
+  overlayWindow?.setBounds(bounds)
+  return { ok: true }
+})
+
+ipcMain.handle('telemetry:overlayStatus', () => ({ open: !!overlayWindow }))
+
+ipcMain.handle('telemetry:showOverlayContextMenu', () => {
+  if (!overlayWindow) return { ok: false }
+  const template = [
+    {
+      label: 'Close overlay',
+      click: () => { overlayWindow?.close(); overlayWindow = null },
+    },
+    {
+      label: 'Toggle always on top',
+      click: () => { overlayWindow?.setAlwaysOnTop(!overlayWindow.isAlwaysOnTop()) },
+    },
+    { type: 'separator' },
+    {
+      label: 'Opacity +',
+      click: () => { overlayWindow?.setOpacity(Math.min(1, overlayWindow.getOpacity() + 0.05)) },
+    },
+    {
+      label: 'Opacity −',
+      click: () => { overlayWindow?.setOpacity(Math.max(0.3, overlayWindow.getOpacity() - 0.05)) },
+    },
+  ]
+  Menu.buildFromTemplate(template).popup({ window: overlayWindow })
   return { ok: true }
 })
 

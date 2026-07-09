@@ -65,7 +65,7 @@ contextBridge.exposeInMainWorld('api', {
     scanTracks: (p)      => ipcRenderer.invoke('ac:scanTracks', p),
   },
 
-  // UDP lap telemetry
+  // UDP lap telemetry + AC Shared Memory live telemetry + overlay window
   telemetry: {
     start: (port) => ipcRenderer.invoke('telemetry:start', port),
     stop:  ()     => ipcRenderer.invoke('telemetry:stop'),
@@ -76,6 +76,27 @@ contextBridge.exposeInMainWorld('api', {
     onError: (cb) => {
       ipcRenderer.on('telemetry:error', (_, msg) => cb(msg))
       return () => ipcRenderer.removeAllListeners('telemetry:error')
+    },
+
+    // Shared-memory live telemetry (physics/graphics/static frames)
+    shmStart: () => ipcRenderer.invoke('telemetry:shmStart'),
+    shmStop:  () => ipcRenderer.invoke('telemetry:shmStop'),
+    onFrame:  (cb) => {
+      ipcRenderer.on('telemetry:frame', (_, data) => cb(data))
+      return () => ipcRenderer.removeAllListeners('telemetry:frame')
+    },
+
+    // Overlay window
+    openOverlay:            (cfg) => ipcRenderer.invoke('telemetry:openOverlay', cfg),
+    closeOverlay:           ()    => ipcRenderer.invoke('telemetry:closeOverlay'),
+    setOverlayOpacity:      (v)   => ipcRenderer.invoke('telemetry:setOverlayOpacity', v),
+    setOverlayAlwaysOnTop:  (v)   => ipcRenderer.invoke('telemetry:setOverlayAlwaysOnTop', v),
+    setOverlayBounds:       (b)   => ipcRenderer.invoke('telemetry:setOverlayBounds', b),
+    overlayStatus:          ()    => ipcRenderer.invoke('telemetry:overlayStatus'),
+    showOverlayContextMenu: ()    => ipcRenderer.invoke('telemetry:showOverlayContextMenu'),
+    onOverlayClosed: (cb) => {
+      ipcRenderer.on('telemetry:overlayClosed', () => cb())
+      return () => ipcRenderer.removeAllListeners('telemetry:overlayClosed')
     },
   },
 
