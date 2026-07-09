@@ -5,7 +5,7 @@ Download Tailscale: https://tailscale.com/download
 William will send you an invite link to join the network.
 
 ## Step 2 — Download ShinRacer
-Go to: https://github.com/ShinobiFPV/AC1Companion/releases/latest
+Go to: https://github.com/ShinobiFPV/ShinRacer/releases/latest
 Download: ShinRacer-Setup-x.x.x.exe
 Run the installer — Windows may show a SmartScreen warning,
 click "More info" → "Run anyway" (the app is unsigned for now).

@@ -210,8 +210,8 @@ Server Manager, Traffic Manager, and the Replay Browser work entirely offline �
 
 ```powershell
 # 1. Clone the repo
-git clone git@github.com:ShinobiFPV/AC1Companion.git
-cd AC1Companion
+git clone https://github.com/ShinobiFPV/ShinRacer.git
+cd ShinRacer
 
 # 2. Install dependencies
 npm install
@@ -231,7 +231,7 @@ First launch runs the setup wizard — it auto-detects your AC install, asks for
 ### For friends (joining the crew)
 
 1. Get a Tailscale invite from William
-2. Download the latest installer from [GitHub Releases](https://github.com/ShinobiFPV/AC1Companion/releases/latest)
+2. Download the latest installer from [GitHub Releases](https://github.com/ShinobiFPV/ShinRacer/releases/latest)
 3. Run `ShinRacer-Setup-x.x.x.exe` (Windows SmartScreen may warn — the app is unsigned for now, click "More info" → "Run anyway")
 4. Follow the setup wizard — handle, color, backend URL (pre-filled, just hit Test Connection)
 5. Done — check the Events tab for upcoming sessions

@@ -6,7 +6,7 @@ import { useSocket } from '../hooks/useSocket'
 import api from '../lib/api'
 
 const win = window.api
-const SETUP_GUIDE_URL = 'https://github.com/ShinobiFPV/AC1Companion/blob/main/docs/GOOGLE_DRIVE_SETUP.md'
+const SETUP_GUIDE_URL = 'https://github.com/ShinobiFPV/ShinRacer/blob/main/docs/GOOGLE_DRIVE_SETUP.md'
 
 const CATEGORY_COLOR = { cars: C.red, tracks: C.green, tools: C.blue }
 const CATEGORY_LABEL = { cars: 'Cars', tracks: 'Tracks', tools: 'Tools' }

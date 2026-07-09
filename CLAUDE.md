@@ -1,6 +1,7 @@
 # AC Companion App — Claude Code Project Brief
 
-> App display name: ShinRacer (repo remains AC1Companion)
+> App display name: ShinRacer
+> Repo: ShinobiFPV/ShinRacer (previously AC1Companion)
 
 ## What this is
 A Windows desktop Electron + React app that serves as a full companion to Assetto Corsa 1 (via Content Manager). It combines:
@@ -809,3 +810,55 @@ is the first thing to check. The overlay window's drag-by-handle behavior
 and its right-click context menu were not interactively exercised (Playwright
 can trigger the IPC call but doesn't meaningfully test OS-level window
 dragging).
+
+## Rename: AC1Companion → ShinRacer
+
+2026-07-09: the project folder was manually renamed from `AC1Companion` to
+`ShinRacer` and the GitHub repo from `ShinobiFPV/AC1Companion` to
+`ShinobiFPV/ShinRacer`. This pass updated the remaining name/metadata strings
+to match — no logic, IPC, file paths, or module names changed.
+
+- Root `package.json`: `name` → `shinracer`, `build.publish.repo` → `ShinRacer`
+  (`productName`, `description`, `build.appId`, `nsis.shortcutName` were
+  already correct from the Phase 6 rebrand).
+- `backend/package.json`: `name` → `shinracer-backend`, `description` →
+  `ShinRacer backend — ShinTech Electronics`.
+- `backend/ac-companion.service`: `Description=` field → `ShinRacer Backend`.
+  The service file name, systemd service name (`ac-companion`), `User=shinobi`,
+  and `WorkingDirectory=/home/shinobi/ac-companion-backend` were left
+  unchanged — the service is already deployed on shinobi under that name.
+- `README.md`: clone URL and command → `https://github.com/ShinobiFPV/ShinRacer.git`
+  / `cd ShinRacer`; the friends-download GitHub Releases link →
+  `ShinobiFPV/ShinRacer/releases/latest`.
+- `docs/FRIEND_SETUP.md`: download URL → `ShinobiFPV/ShinRacer/releases/latest`.
+- This file: top note split into `App display name: ShinRacer` /
+  `Repo: ShinobiFPV/ShinRacer (previously AC1Companion)`.
+- `src/main/main.js`, `src/renderer/index.html`, `src/renderer/App.jsx`,
+  `src/renderer/components/Wizard.jsx`: already read as `ShinRacer`
+  everywhere (log folder, notification titles, window `<title>`, sidebar
+  wordmark, wizard welcome screen) from the Phase 6 rebrand — no changes
+  needed.
+- `.github/workflows/release.yml`: doesn't reference the repo name directly
+  (relies on `package.json`'s `build.publish` block) — no change needed.
+- `scripts/deploy-backend.ps1`: untouched per instructions — it targets
+  shinobi paths and the `ac-companion` service name, both unchanged.
+- `src/renderer/views/ModsView.jsx`: `SETUP_GUIDE_URL` repo path
+  `ShinobiFPV/AC1Companion` → `ShinobiFPV/ShinRacer` (this link was dead
+  post-rename; fixed in a follow-up pass since it's a functional bug, not
+  just a cosmetic name reference).
+
+### Remaining "AC1Companion" / "AC Companion" strings (not auto-fixed — review manually)
+A repo-wide grep (excluding `node_modules`, `.git`, `dist`, `release`) after
+the above changes still finds these; none were touched this pass since the
+task scope was limited to the files listed above:
+
+- `CLAUDE.md:1` — H1 heading `# AC Companion App — Claude Code Project Brief`
+- `CLAUDE.md:419`, `:454`, `:477`, `:487` — historical phase-completion prose
+  (Phase 4/5/8 notes describing the old name and the earlier rebrand) —
+  likely fine to leave as a historical record, but flagging per the task.
+- `.github/release-template.md:1` — `## AC Companion {version}`
+- `src/renderer/views/EventsView.jsx:58` — iCal `PRODID:-//AC Companion//EN`
+- `scripts/deploy-backend.ps1:1,6` — comment header and `Write-Host` banner
+  text say "AC Companion"
+- `backend/server.js:43` — startup `console.log` says "AC Companion backend
+  listening on :{PORT}"

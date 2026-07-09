@@ -1,5 +1,5 @@
 [Unit]
-Description=AC Companion Backend
+Description=ShinRacer Backend
 After=network.target
 
 [Service]

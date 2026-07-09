@@ -1,5 +1,5 @@
 {
-  "name": "ac-server-manager",
+  "name": "shinracer",
   "version": "1.0.0",
   "description": "ShinRacer — Race. Drift. Coordinate.",
   "main": "src/main/main.js",
@@ -19,7 +19,7 @@
     "publish": {
       "provider": "github",
       "owner": "ShinobiFPV",
-      "repo": "AC1Companion",
+      "repo": "ShinRacer",
       "releaseType": "release"
     },
     "win": {

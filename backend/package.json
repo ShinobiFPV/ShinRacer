@@ -1,7 +1,7 @@
 {
-  "name": "ac-companion-backend",
+  "name": "shinracer-backend",
   "version": "1.0.0",
-  "description": "AC Companion shared backend — events, chat, WebRTC signaling, lap stats",
+  "description": "ShinRacer backend — ShinTech Electronics",
   "main": "server.js",
   "engines": {
     "node": ">=18"
