@@ -1748,3 +1748,30 @@ reading plus the clean builds/boot log above, not by clicking through a
 running app. A real `electron-builder`/NSIS packaging run was not attempted
 (blocked by the pre-existing missing `icon.ico`, see above) — only the
 `.nsh` macros were compiled standalone.
+
+## Follow-up: real app icon + a desktop shortcut
+
+2026-07-09, right after Phase 12: the "known pre-existing gap" flagged above
+(`resources/icon.ico` referenced but never created) is closed.
+`scripts/generate-icon.js` hand-encodes a real, valid multi-resolution
+(16/32/48/256px) `.ico` — same zero-dependency PNG-via-`zlib` technique and
+the same blue "SR" pixel-font mark as `pwa/scripts/generate-icons.js`'s
+home-screen icons, so the desktop and mobile apps now share one visual
+identity — see `docs/RELEASING.md`'s "The app icon" section for the full
+writeup. Verified two ways: decoded the `.ico` back (parsed `ICONDIR` +
+all four `ICONDIRENTRY` records, inflated and size-checked every embedded
+PNG) and, separately, actually booted the app and screenshotted a
+correctly-rendered "SR" mark in the real Windows taskbar — not just a
+valid-on-paper file.
+
+A `ShinRacer.lnk` desktop shortcut was also created (`node_modules\electron\
+dist\electron.exe .`, working directory the repo root, no `--dev` flag) —
+this runs the exact production code path `main.js` already has (`isDev` off
+→ loads `dist/index.html` directly, no Vite dev server needed), just via the
+project's own local Electron binary instead of a packaged installer, since
+`electron-builder`'s NSIS output still isn't buildable in this environment
+(no `makensis` network access confirmed, and packaging wasn't attempted this
+pass) — `npm run dev`/`npx vite build` remain the supported way to actually
+run and verify the app here. Re-run `npx vite build` before using the
+shortcut any time renderer source changes, since it loads whatever is
+already in `dist/`, not live source.
