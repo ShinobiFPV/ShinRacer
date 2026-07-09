@@ -2,7 +2,10 @@ import { useState } from 'react'
 import { AppStoreProvider, useStore } from './store/AppStore'
 import { C, GLOBAL_CSS, StatusDot, Toast } from './components/primitives'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import Tooltip, { TooltipProvider } from './components/Tooltip'
 import Wizard from './components/Wizard'
+import ServerWizard from './components/ServerWizard'
+import { deployConfig, presetFromConfig } from './lib/deploy'
 import DeployView  from './views/DeployView'
 import BuildView   from './views/BuildView'
 import GarageView  from './views/GarageView'
@@ -12,6 +15,7 @@ import CommsView   from './views/CommsView'
 import StatsView   from './views/StatsView'
 import ReplayView  from './views/ReplayView'
 import ModsView    from './views/ModsView'
+import LinksView   from './views/LinksView'
 import SettingsView from './views/SettingsView'
 
 // ── Sidebar nav ───────────────────────────────────────────────────────────────
@@ -25,6 +29,7 @@ const NAV = [
   { id:'stats',   icon:'📊', label:'Stats' },
   { id:'replays', icon:'🎬', label:'Replays' },
   { id:'mods',    icon:'📦', label:'Mods' },
+  { id:'links',   icon:'🔗', label:'Links' },
   { id:'settings',icon:'⚙',  label:'Settings' },
 ]
 
@@ -90,10 +95,11 @@ function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backend
 
 // ── Inner app (has store access) ──────────────────────────────────────────────
 function Inner() {
-  const { liveServers, settings, toast, backendUrl, backendOnline, hydrated, showToast,
+  const { liveServers, settings, profiles, saveProfiles, addLiveServer, toast, backendUrl, backendOnline, hydrated, showToast,
     saveSettings, saveIdentity, saveBackendUrl, saveQuickPhrases } = useStore()
   const [view, setView]   = useState('deploy')
   const [buildCfg, setBuildCfg] = useState(null)
+  const [wizardOpen, setWizardOpen] = useState(false)
 
   const goToBuild = (cfg) => { setBuildCfg(cfg || null); setView('build') }
 
@@ -102,6 +108,24 @@ function Inner() {
     await saveIdentity(identity)
     await saveBackendUrl(bUrl)
     await saveQuickPhrases(quickPhrases)
+  }
+
+  // Shared with BuildView's own deploy/save flow via lib/deploy.js — the
+  // wizard never re-implements INI generation or process spawning.
+  const wizardDeploy = async (cfg) => {
+    const res = await deployConfig(cfg, settings)
+    if (res.ok) {
+      addLiveServer(res.server)
+      showToast(`✓ ${cfg.name} is live on :${cfg.port}`)
+      setView('deploy')
+    } else {
+      showToast(`✕ ${res.error}`, C.red)
+    }
+    return res
+  }
+  const wizardSave = async (cfg) => {
+    await saveProfiles([...profiles, presetFromConfig(cfg)])
+    showToast('✓ Saved to Garage')
   }
 
   return (
@@ -124,20 +148,24 @@ function Inner() {
                 {NAV.find(n=>n.id===view)?.label}
               </span>
               {view==='deploy' && (
-                <button onClick={() => goToBuild()}
-                  style={{ marginLeft:'auto', background:C.yellow, color:'#000', border:'none',
-                    borderRadius:5, padding:'5px 16px', fontFamily:C.head, fontWeight:700,
-                    fontSize:13, cursor:'pointer', WebkitAppRegion:'no-drag' }}>
-                  + New server
-                </button>
+                <span style={{ marginLeft:'auto', WebkitAppRegion:'no-drag' }}>
+                  <Tooltip text="Open the server builder to configure and launch a new server" position="left">
+                    <button onClick={() => goToBuild()}
+                      style={{ background:C.yellow, color:'#000', border:'none',
+                        borderRadius:5, padding:'5px 16px', fontFamily:C.head, fontWeight:700,
+                        fontSize:13, cursor:'pointer' }}>
+                      + New server
+                    </button>
+                  </Tooltip>
+                </span>
               )}
             </div>
 
             {/* View */}
             <div style={{ flex:1, overflow:'auto' }}>
               <ErrorBoundary key={view}>
-                {view==='deploy'  && <DeployView onBuild={() => goToBuild()} />}
-                {view==='build'   && <BuildView initialCfg={buildCfg} onDeployed={() => setView('deploy')} />}
+                {view==='deploy'  && <DeployView onBuild={() => goToBuild()} onOpenWizard={() => setWizardOpen(true)} />}
+                {view==='build'   && <BuildView initialCfg={buildCfg} onDeployed={() => setView('deploy')} onOpenWizard={() => setWizardOpen(true)} />}
                 {view==='garage'  && <GarageView onLoad={cfg => goToBuild(cfg)} onDeploy={cfg => goToBuild(cfg)} />}
                 {view==='traffic' && <TrafficView />}
                 {view==='events'  && <EventsView />}
@@ -145,11 +173,17 @@ function Inner() {
                 {view==='stats'   && <StatsView />}
                 {view==='replays' && <ReplayView onGoSettings={() => setView('settings')} showToast={showToast} />}
                 {view==='mods'    && <ModsView />}
+                {view==='links'   && <LinksView />}
                 {view==='settings'&& <SettingsView />}
               </ErrorBoundary>
             </div>
           </div>
         </div>
+      )}
+
+      {wizardOpen && (
+        <ServerWizard onClose={() => setWizardOpen(false)} onDeploy={wizardDeploy} onSave={wizardSave}
+          onGoSettings={() => { setWizardOpen(false); setView('settings') }} />
       )}
 
       {toast && <Toast msg={toast.msg} color={toast.color} key={toast.key} onDone={()=>{}} />}
@@ -160,7 +194,9 @@ function Inner() {
 export default function App() {
   return (
     <AppStoreProvider>
-      <Inner />
+      <TooltipProvider>
+        <Inner />
+      </TooltipProvider>
     </AppStoreProvider>
   )
 }

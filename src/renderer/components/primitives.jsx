@@ -86,9 +86,9 @@ export function Btn({ children, onClick, variant = 'primary', size = 'md', disab
   )
 }
 
-export function Card({ children, style: sx = {}, accent, onClick }) {
+export function Card({ children, style: sx = {}, accent, onClick, onMouseEnter, onMouseLeave }) {
   return (
-    <div onClick={onClick}
+    <div onClick={onClick} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}
       style={{ background: C.surface, border: `1px solid ${accent || C.border}`,
         borderRadius: 8, padding: 18, cursor: onClick ? 'pointer' : 'default', ...sx }}>
       {children}

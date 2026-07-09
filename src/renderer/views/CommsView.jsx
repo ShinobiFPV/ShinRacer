@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { C, Card, SectionHead, Label, Btn, TextInput, Select, Tag, Toggle, OfflineBanner } from '../components/primitives'
+import Tooltip from '../components/Tooltip'
 import { useStore } from '../store/AppStore'
 import { useSocket } from '../hooks/useSocket'
 import { useWebRTC } from '../hooks/useWebRTC'
@@ -76,13 +77,17 @@ function PeerCard({ user, stream, speaking, speakerId, connectionState, onReconn
           title={connectionState || 'connecting'} />
         <span style={{ fontSize: 10, color: C.muted, textTransform: 'capitalize' }}>{connectionState || 'connecting'}</span>
         {isBad && (
-          <Btn size="xs" variant="danger" style={{ marginLeft: 'auto' }} onClick={() => onReconnect(user.id)}>Reconnect</Btn>
+          <Tooltip text="Re-establish voice connection with this peer">
+            <Btn size="xs" variant="danger" style={{ marginLeft: 'auto' }} onClick={() => onReconnect(user.id)}>Reconnect</Btn>
+          </Tooltip>
         )}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 12 }}>🔊</span>
-        <input type="range" min={0} max={1} step={0.05} value={volume} onChange={e => onVolumeChange(+e.target.value)} style={{ flex: 1 }} />
-      </div>
+      <Tooltip text="Adjust how loud this person sounds to you">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12 }}>🔊</span>
+          <input type="range" min={0} max={1} step={0.05} value={volume} onChange={e => onVolumeChange(+e.target.value)} style={{ flex: 1 }} />
+        </div>
+      </Tooltip>
     </Card>
   )
 }
@@ -174,13 +179,17 @@ function VoicePanel({ identity, socket, users, selfId }) {
         <SectionHead children="Devices" />
         <Label muted>Microphone</Label>
         <div style={{ marginBottom: 12 }}>
-          <Select value={micId} onChange={setMicId}
-            options={[{ value: '', label: 'System default' }, ...mics.map(d => ({ value: d.deviceId, label: d.label || 'Microphone' }))]} />
+          <Tooltip text="Choose which microphone to use">
+            <Select value={micId} onChange={setMicId}
+              options={[{ value: '', label: 'System default' }, ...mics.map(d => ({ value: d.deviceId, label: d.label || 'Microphone' }))]} />
+          </Tooltip>
         </div>
         <Label muted>Speaker</Label>
         <div style={{ marginBottom: 12 }}>
-          <Select value={speakerId} onChange={setSpeakerId}
-            options={[{ value: '', label: 'System default' }, ...speakers.map(d => ({ value: d.deviceId, label: d.label || 'Speaker' }))]} />
+          <Tooltip text="Choose which speakers or headset to use">
+            <Select value={speakerId} onChange={setSpeakerId}
+              options={[{ value: '', label: 'System default' }, ...speakers.map(d => ({ value: d.deviceId, label: d.label || 'Speaker' }))]} />
+          </Tooltip>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
           <Label muted style={{ marginBottom: 0 }}>Input level</Label>
@@ -191,23 +200,29 @@ function VoicePanel({ identity, socket, users, selfId }) {
 
       <Card>
         <SectionHead children="Transmit mode" />
-        <Toggle label="Open mic" value={openMic} onChange={setOpenMic} hint="Off = push-to-talk" />
+        <Tooltip text="Push-to-talk: hold your PTT key to transmit. Open mic: always transmitting">
+          <Toggle label="Open mic" value={openMic} onChange={setOpenMic} hint="Off = push-to-talk" />
+        </Tooltip>
         {!openMic && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            background: pttActive ? `${C.green}18` : C.bg, border: `1px solid ${pttActive ? C.green : C.border}`,
-            borderRadius: 6, padding: '8px 12px', marginTop: 4 }}>
-            <div style={{ fontSize: 12, color: C.mutedHi }}>
-              Push-to-talk key: <span style={{ fontFamily: C.mono, color: C.yellow }}>{keyLabel(pttKey)}</span>
+          <Tooltip text="Click to rebind your push-to-talk key">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              background: pttActive ? `${C.green}18` : C.bg, border: `1px solid ${pttActive ? C.green : C.border}`,
+              borderRadius: 6, padding: '8px 12px', marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: C.mutedHi }}>
+                Push-to-talk key: <span style={{ fontFamily: C.mono, color: C.yellow }}>{keyLabel(pttKey)}</span>
+              </div>
+              <Btn size="xs" variant="subtle" onClick={() => setRebinding(true)}>
+                {rebinding ? 'Press a key…' : 'Rebind'}
+              </Btn>
             </div>
-            <Btn size="xs" variant="subtle" onClick={() => setRebinding(true)}>
-              {rebinding ? 'Press a key…' : 'Rebind'}
-            </Btn>
-          </div>
+          </Tooltip>
         )}
         <div style={{ marginTop: 12 }}>
-          <Btn variant={selfMuted ? 'danger' : 'subtle'} style={{ width: '100%' }} onClick={() => setSelfMuted(m => !m)}>
-            {selfMuted ? '🔇 Unmute self' : '🎙️ Mute self'}
-          </Btn>
+          <Tooltip text="Mute your microphone — others will see you as muted">
+            <Btn variant={selfMuted ? 'danger' : 'subtle'} style={{ width: '100%' }} onClick={() => setSelfMuted(m => !m)}>
+              {selfMuted ? '🔇 Unmute self' : '🎙️ Mute self'}
+            </Btn>
+          </Tooltip>
         </div>
       </Card>
 
@@ -289,19 +304,23 @@ function ChatPanel({ identity, socket, quickPhrases }) {
       <div style={{ padding: 12, borderTop: `1px solid ${C.border}` }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
           {quickPhrases.map(p => (
-            <button key={p} onClick={() => send(p)}
-              style={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 5, color: C.mutedHi,
-                fontSize: 11, padding: '6px 8px', textAlign: 'left', fontFamily: C.body }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = C.yellow}
-              onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
-              {p}
-            </button>
+            <Tooltip key={p} text="Click to instantly send this phrase to chat — edit in Settings">
+              <button onClick={() => send(p)}
+                style={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 5, color: C.mutedHi,
+                  fontSize: 11, padding: '6px 8px', textAlign: 'left', fontFamily: C.body }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = C.yellow}
+                onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
+                {p}
+              </button>
+            </Tooltip>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <TextInput value={input} onChange={setInput} placeholder="Message the grid…"
             onKeyDown={e => { if (e.key === 'Enter') send() }} style={{ flex: 1 }} />
-          <Btn onClick={() => send()} disabled={!input.trim()}>Send</Btn>
+          <Tooltip text="Send message (also press Enter)" disabled={!input.trim()}>
+            <Btn onClick={() => send()} disabled={!input.trim()}>Send</Btn>
+          </Tooltip>
         </div>
       </div>
     </div>

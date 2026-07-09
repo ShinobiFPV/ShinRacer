@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { C, Card, SectionHead, Label, Btn, TextInput, Select, Tag, Toggle, OfflineBanner } from '../components/primitives'
+import Tooltip, { useTooltip } from '../components/Tooltip'
 import { useStore } from '../store/AppStore'
 import { useTelemetry } from '../hooks/useTelemetry'
 import { formatLapTime } from '../lib/format'
@@ -105,6 +106,7 @@ function SectorBarChart({ laps }) {
   const W = 640, H = 220, PL = 50, PR = 10, PT = 10, PB = 34
   const iW = W - PL - PR, iH = H - PT - PB
   const [hover, setHover] = useState(null)
+  const { showTooltip, hideTooltip } = useTooltip()
   const palette = [C.mutedHi, C.purple, '#00BCD4', '#FF80AB']
 
   if (!laps.length) return <div style={{ color: C.muted, fontSize: 12, padding: 20, textAlign: 'center' }}>No laps recorded for this session yet</div>
@@ -126,8 +128,13 @@ function SectorBarChart({ laps }) {
   return (
     <div style={{ position: 'relative' }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%' }}>
-        <line x1={PL} x2={W - PR} y1={pbY} y2={pbY} stroke={C.yellow} strokeWidth={1} strokeDasharray="4 3" />
-        <text x={W - PR} y={pbY - 4} textAnchor="end" fontSize={9} fill={C.yellow}>PB: {formatLapTime(bestTotal)}</text>
+        <line x1={PL} x2={W - PR} y1={pbY} y2={pbY} stroke={C.yellow} strokeWidth={1} strokeDasharray="4 3"
+          style={{ cursor: 'default' }}
+          onMouseEnter={e => showTooltip('Your personal best lap time for this session', e.target.getBoundingClientRect(), 'top')}
+          onMouseLeave={hideTooltip} />
+        <text x={W - PR} y={pbY - 4} textAnchor="end" fontSize={9} fill={C.yellow}
+          onMouseEnter={e => showTooltip('Your personal best lap time for this session', e.target.getBoundingClientRect(), 'top')}
+          onMouseLeave={hideTooltip}>PB: {formatLapTime(bestTotal)}</text>
         {ordered.map((l, i) => {
           const x = xFor(i)
           const s1h = yFor(l.s1_ms || 0), s2h = yFor(l.s2_ms || 0), s3h = yFor(l.s3_ms || 0)
@@ -370,17 +377,21 @@ export default function StatsView() {
               <Label muted>Car</Label>
               <TextInput value={liveCar} onChange={setLiveCar} placeholder="ks_toyota_ae86" mono />
             </div>
-            <Btn variant={captureOn ? 'danger' : 'primary'} onClick={() => setCaptureOn(v => !v)} disabled={!liveTrack}>
-              {captureOn ? (listening ? '■ Stop capture' : 'Starting…') : '● Start capture'}
-            </Btn>
+            <Tooltip text={captureOn ? 'Close the telemetry port' : 'Open UDP port 9996 to capture lap times from AC'} disabled={!liveTrack}>
+              <Btn variant={captureOn ? 'danger' : 'primary'} onClick={() => setCaptureOn(v => !v)} disabled={!liveTrack}>
+                {captureOn ? (listening ? '■ Stop capture' : 'Starting…') : '● Start capture'}
+              </Btn>
+            </Tooltip>
           </div>
         </Card>
 
         <div style={{ display: 'flex', gap: 12, alignItems: 'end' }}>
           <div style={{ flex: 1 }}>
             <Label muted>Session</Label>
-            <Select value={selectedSessionId} onChange={setSelectedSessionId}
-              options={[{ value: '', label: '— select a session —' }, ...filteredSessions.map(s => ({ value: s.id, label: sessionLabel(s) }))]} />
+            <Tooltip text="Switch between recorded sessions">
+              <Select value={selectedSessionId} onChange={setSelectedSessionId}
+                options={[{ value: '', label: '— select a session —' }, ...filteredSessions.map(s => ({ value: s.id, label: sessionLabel(s) }))]} />
+            </Tooltip>
           </div>
           <div style={{ width: 220 }}>
             <Label muted>Filter by track</Label>
@@ -409,8 +420,12 @@ export default function StatsView() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <SectionHead children="Session leaderboard" sub={selectedSession ? sessionLabel(selectedSession) : ''} />
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <Btn size="xs" variant="subtle" onClick={() => exportCsv(visibleSessionLaps)} disabled={!visibleSessionLaps.length}>Export CSV</Btn>
-                    <Btn size="xs" variant="subtle" onClick={() => exportJson(selectedSession, visibleSessionLaps)} disabled={!visibleSessionLaps.length}>Export JSON</Btn>
+                    <Tooltip text="Download lap data as a spreadsheet-compatible CSV file" disabled={!visibleSessionLaps.length}>
+                      <Btn size="xs" variant="subtle" onClick={() => exportCsv(visibleSessionLaps)} disabled={!visibleSessionLaps.length}>Export CSV</Btn>
+                    </Tooltip>
+                    <Tooltip text="Download complete session data as JSON" disabled={!visibleSessionLaps.length}>
+                      <Btn size="xs" variant="subtle" onClick={() => exportJson(selectedSession, visibleSessionLaps)} disabled={!visibleSessionLaps.length}>Export JSON</Btn>
+                    </Tooltip>
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20, marginBottom: 16 }}>
@@ -419,14 +434,18 @@ export default function StatsView() {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <Label muted>All laps</Label>
-                  <Toggle label="Include invalid laps" value={includeInvalid} onChange={setIncludeInvalid} />
+                  <Tooltip text="Show laps where you cut the track (marked red)">
+                    <Toggle label="Include invalid laps" value={includeInvalid} onChange={setIncludeInvalid} />
+                  </Tooltip>
                 </div>
                 <LapList laps={visibleSessionLaps} />
               </Card>
             )}
 
             <Card>
-              <SectionHead children="Friends comparison" sub="Best laps per track, relative to you" />
+              <Tooltip text="Compare your best lap against each friend's best on this track" position="bottom">
+                <div><SectionHead children="Friends comparison" sub="Best laps per track, relative to you" /></div>
+              </Tooltip>
               <FriendsComparison leaderboard={leaderboard} selfHandle={identity?.handle} />
             </Card>
           </>

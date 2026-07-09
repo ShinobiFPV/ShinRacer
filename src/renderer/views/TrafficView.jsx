@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { C, Card, SectionHead, Label, Btn, TextInput, Tag, Slider, Toggle, TabBar } from '../components/primitives'
+import Tooltip, { useTooltip } from '../components/Tooltip'
 import { useStore } from '../store/AppStore'
 import { generateTrafficConfigIni, generateSettingsJson, parseTrafficIni } from '../lib/iniUtils'
 
@@ -72,6 +73,7 @@ const INITIAL_PROFILES = [
 function DensityCurve({ schedule, onChange }) {
   const [drag, setDrag] = useState(null)
   const svgRef = useRef(null)
+  const { showTooltip, hideTooltip } = useTooltip()
   const W=680, H=130, PL=28, PR=8, PT=8, PB=24
   const iW=W-PL-PR, iH=H-PT-PB
   const xFor = i => PL + (i/23)*iW
@@ -94,17 +96,19 @@ function DensityCurve({ schedule, onChange }) {
         <Label>24-hour density schedule</Label>
         <div style={{ display:'flex', gap:4 }}>
           {[
-            ['Flat 50%',   () => onChange(Array(24).fill(0.5))],
-            ['Rush peaks', () => onChange([...DEFAULT_SCHEDULE])],
-            ['Night only', () => onChange(Array(24).fill(0).map((_,i) => i>=20||i<=4?0.9:0.05))],
-            ['Max',        () => onChange(Array(24).fill(1))],
-            ['Clear',      () => onChange(Array(24).fill(0))],
-          ].map(([label, fn]) => (
-            <button key={label} onClick={fn}
-              style={{ fontSize:10, padding:'2px 8px', background:C.raised, border:`1px solid ${C.border}`,
-                borderRadius:3, color:C.muted, cursor:'pointer', fontFamily:C.mono }}>
-              {label}
-            </button>
+            ['Flat 50%',   () => onChange(Array(24).fill(0.5)), 'Set every hour to 50% density'],
+            ['Rush peaks', () => onChange([...DEFAULT_SCHEDULE]), 'Pre-fill schedule with morning and evening rush hour peaks'],
+            ['Night only', () => onChange(Array(24).fill(0).map((_,i) => i>=20||i<=4?0.9:0.05)), 'High density only between 8pm and 4am'],
+            ['Max',        () => onChange(Array(24).fill(1)), 'Set every hour to maximum density'],
+            ['Clear',      () => onChange(Array(24).fill(0)), 'Set every hour to zero density'],
+          ].map(([label, fn, tip]) => (
+            <Tooltip key={label} text={tip}>
+              <button onClick={fn}
+                style={{ fontSize:10, padding:'2px 8px', background:C.raised, border:`1px solid ${C.border}`,
+                  borderRadius:3, color:C.muted, cursor:'pointer', fontFamily:C.mono }}>
+                {label}
+              </button>
+            </Tooltip>
           ))}
         </div>
       </div>
@@ -122,7 +126,9 @@ function DensityCurve({ schedule, onChange }) {
           {schedule.map((v,i) => (
             <circle key={i} cx={xFor(i)} cy={yFor(v)} r={drag===i?7:4.5}
               fill={drag===i?C.yellow:C.surface} stroke={C.yellow} strokeWidth={1.5}
-              style={{ cursor:'ns-resize' }} onMouseDown={e => { e.preventDefault(); setDrag(i) }} />
+              style={{ cursor:'ns-resize' }} onMouseDown={e => { e.preventDefault(); setDrag(i) }}
+              onMouseEnter={e => showTooltip('Drag up/down to set traffic density for this hour', e.target.getBoundingClientRect(), 'top')}
+              onMouseLeave={hideTooltip} />
           ))}
           {[0,3,6,9,12,15,18,21].map(h => (
             <text key={h} x={xFor(h)} y={H-6} textAnchor="middle" fontSize={8} fill={C.muted} fontFamily={C.mono}>
@@ -189,17 +195,21 @@ function CarRoster({ acPath, roster, onChange }) {
                   </div>
                   <div>
                     <Label muted>Weight</Label>
-                    <div style={{ display:'flex', gap:5, alignItems:'center' }}>
-                      <input type="range" min={1} max={100} value={car.weight} onChange={e=>update(car.id,'weight',+e.target.value)} style={{flex:1}} />
-                      <span style={{ fontFamily:C.mono, fontSize:11, color:C.yellow, minWidth:22 }}>{car.weight}</span>
-                    </div>
+                    <Tooltip text="Relative spawn probability — higher weight = appears more often">
+                      <div style={{ display:'flex', gap:5, alignItems:'center' }}>
+                        <input type="range" min={1} max={100} value={car.weight} onChange={e=>update(car.id,'weight',+e.target.value)} style={{flex:1}} />
+                        <span style={{ fontFamily:C.mono, fontSize:11, color:C.yellow, minWidth:22 }}>{car.weight}</span>
+                      </div>
+                    </Tooltip>
                   </div>
                   <div>
                     <Label muted>Max on track</Label>
-                    <div style={{ display:'flex', gap:5, alignItems:'center' }}>
-                      <input type="range" min={1} max={30} value={car.maxCount} onChange={e=>update(car.id,'maxCount',+e.target.value)} style={{flex:1}} />
-                      <span style={{ fontFamily:C.mono, fontSize:11, color:C.blue, minWidth:22 }}>{car.maxCount}</span>
-                    </div>
+                    <Tooltip text="Hard cap on how many of this car can exist simultaneously">
+                      <div style={{ display:'flex', gap:5, alignItems:'center' }}>
+                        <input type="range" min={1} max={30} value={car.maxCount} onChange={e=>update(car.id,'maxCount',+e.target.value)} style={{flex:1}} />
+                        <span style={{ fontFamily:C.mono, fontSize:11, color:C.blue, minWidth:22 }}>{car.maxCount}</span>
+                      </div>
+                    </Tooltip>
                   </div>
                 </div>
               )}
@@ -248,26 +258,40 @@ function BehaviorPanel({ csp, onChange }) {
         </Card>
         <Card>
           <SectionHead children="Spawning" sub="[SPAWNING]" />
-          <Slider label="Spawn min distance" value={s.SPAWN_DISTANCE_MIN} min={50} max={400} step={10} format={v=>`${v}m`} onChange={v=>set('SPAWNING','SPAWN_DISTANCE_MIN',v)} color={C.muted} />
-          <Slider label="Spawn max distance" value={s.SPAWN_DISTANCE_MAX} min={100} max={600} step={10} format={v=>`${v}m`} onChange={v=>set('SPAWNING','SPAWN_DISTANCE_MAX',v)} />
-          <Slider label="Despawn distance" value={s.DESPAWN_DISTANCE} min={100} max={800} step={10} format={v=>`${v}m`} onChange={v=>set('SPAWNING','DESPAWN_DISTANCE',v)} color={C.orange} />
+          <Tooltip text="How far ahead AI cars appear before they're visible">
+            <Slider label="Spawn min distance" value={s.SPAWN_DISTANCE_MIN} min={50} max={400} step={10} format={v=>`${v}m`} onChange={v=>set('SPAWNING','SPAWN_DISTANCE_MIN',v)} color={C.muted} />
+          </Tooltip>
+          <Tooltip text="How far ahead AI cars appear and disappear at most">
+            <Slider label="Spawn max distance" value={s.SPAWN_DISTANCE_MAX} min={100} max={600} step={10} format={v=>`${v}m`} onChange={v=>set('SPAWNING','SPAWN_DISTANCE_MAX',v)} />
+          </Tooltip>
+          <Tooltip text="How far behind you AI cars despawn">
+            <Slider label="Despawn distance" value={s.DESPAWN_DISTANCE} min={100} max={800} step={10} format={v=>`${v}m`} onChange={v=>set('SPAWNING','DESPAWN_DISTANCE',v)} color={C.orange} />
+          </Tooltip>
           <Slider label="Respawn cooldown" value={s.RESPAWN_COOLDOWN} min={0} max={30} step={0.5} format={v=>`${v.toFixed(1)}s`} onChange={v=>set('SPAWNING','RESPAWN_COOLDOWN',v)} color={C.muted} />
-          <Slider label="Initial burst" value={s.INITIAL_BURST} min={0} max={80} step={1} format={v=>v} onChange={v=>set('SPAWNING','INITIAL_BURST',v)} hint="Cars spawned immediately at session start" />
+          <Tooltip text="Number of AI cars spawned immediately when the session starts">
+            <Slider label="Initial burst" value={s.INITIAL_BURST} min={0} max={80} step={1} format={v=>v} onChange={v=>set('SPAWNING','INITIAL_BURST',v)} hint="Cars spawned immediately at session start" />
+          </Tooltip>
         </Card>
       </div>
       <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
         <Card accent={`${aggrColor}60`}>
           <SectionHead children="Driver behaviour" sub="[BEHAVIOR]" />
-          <div style={{ marginBottom:16 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
-              <Label>Aggression</Label>
-              <Tag color={aggrColor}>{aggrLabel}</Tag>
+          <Tooltip text="How aggressively AI cars change lanes and close gaps (0 = polite, 1 = dangerous)">
+            <div style={{ marginBottom:16 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
+                <Label>Aggression</Label>
+                <Tag color={aggrColor}>{aggrLabel}</Tag>
+              </div>
+              <input type="range" min={0} max={1} step={0.01} value={b.AGGRESSION}
+                onChange={e=>set('BEHAVIOR','AGGRESSION',+e.target.value)} style={{ width:'100%', accentColor:aggrColor }} />
             </div>
-            <input type="range" min={0} max={1} step={0.01} value={b.AGGRESSION}
-              onChange={e=>set('BEHAVIOR','AGGRESSION',+e.target.value)} style={{ width:'100%', accentColor:aggrColor }} />
-          </div>
-          <Slider label="Lane discipline" value={b.LANE_DISCIPLINE} min={0} max={1} format={v=>`${(v*100).toFixed(0)}%`} onChange={v=>set('BEHAVIOR','LANE_DISCIPLINE',v)} color={C.blue} hint="1.0 = never crosses lines" />
-          <Slider label="Following gap" value={b.FOLLOWING_GAP} min={0.5} max={10} step={0.1} format={v=>`${v.toFixed(1)}s`} onChange={v=>set('BEHAVIOR','FOLLOWING_GAP',v)} />
+          </Tooltip>
+          <Tooltip text="How strictly AI stays in its lane (1 = never crosses lines)">
+            <Slider label="Lane discipline" value={b.LANE_DISCIPLINE} min={0} max={1} format={v=>`${(v*100).toFixed(0)}%`} onChange={v=>set('BEHAVIOR','LANE_DISCIPLINE',v)} color={C.blue} hint="1.0 = never crosses lines" />
+          </Tooltip>
+          <Tooltip text="Target time headway AI maintains behind the car ahead">
+            <Slider label="Following gap" value={b.FOLLOWING_GAP} min={0.5} max={10} step={0.1} format={v=>`${v.toFixed(1)}s`} onChange={v=>set('BEHAVIOR','FOLLOWING_GAP',v)} />
+          </Tooltip>
           <Slider label="Stopping gap" value={b.STOPPING_GAP} min={1} max={20} step={0.5} format={v=>`${v.toFixed(1)}m`} onChange={v=>set('BEHAVIOR','STOPPING_GAP',v)} color={C.muted} />
           <Slider label="Random stop chance" value={b.RANDOM_STOP_CHANCE} min={0} max={0.1} step={0.001}
             format={v=>v===0?'None':`${(v*100).toFixed(1)}%`} onChange={v=>set('BEHAVIOR','RANDOM_STOP_CHANCE',v)} color={C.orange}
@@ -439,10 +463,14 @@ export default function TrafficView() {
         <div style={{ display:'flex', gap:8, marginBottom:14, alignItems:'center' }}>
           <TextInput value={mapFolder} onChange={setMapFolder} placeholder="Path to track folder  (e.g. …\tracks\shuto_revival_project_beta)" mono style={{flex:1}} />
           <Btn size="sm" variant="subtle" onClick={browseMaps}>Browse</Btn>
-          <Btn size="sm" variant="subtle" onClick={loadFromMap} disabled={!mapFolder}>Load existing</Btn>
-          <Btn size="sm" disabled={!mapFolder||saving} onClick={saveToMap}>
-            {saving ? 'Saving…' : 'Save to map'}
-          </Btn>
+          <Tooltip text="Read the traffic_config.ini that shipped with this track" disabled={!mapFolder}>
+            <Btn size="sm" variant="subtle" onClick={loadFromMap} disabled={!mapFolder}>Load existing</Btn>
+          </Tooltip>
+          <Tooltip text="Write traffic_config.ini and settings.json — originals backed up automatically" disabled={!mapFolder||saving}>
+            <Btn size="sm" disabled={!mapFolder||saving} onClick={saveToMap}>
+              {saving ? 'Saving…' : 'Save to map'}
+            </Btn>
+          </Tooltip>
         </div>
 
         {/* Profile strip */}
@@ -459,7 +487,9 @@ export default function TrafficView() {
             </button>
           ))}
           <Btn size="sm" variant="subtle" onClick={newProfile}>+ New</Btn>
-          <Btn size="sm" variant="subtle" onClick={cloneActive}>Clone</Btn>
+          <Tooltip text="Duplicate this profile so you can edit it without losing the original">
+            <Btn size="sm" variant="subtle" onClick={cloneActive}>Clone</Btn>
+          </Tooltip>
           {!['rush','night','drift'].includes(activeId) && (
             <Btn size="sm" variant="danger" onClick={deleteActive}>Delete</Btn>
           )}

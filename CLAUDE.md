@@ -527,3 +527,40 @@ Backend: `npm install` for `googleapis`/`dotenv` really ran (versions pinned abo
 
 ### Not independently verified
 No real Google Cloud project/credentials exist in this environment, so the actual OAuth consent screen, a real token exchange, a real file landing in a real Drive folder, and the `accomp://oauth` redirect arriving from an actual browser were not exercised end-to-end — only the code paths on both sides of that boundary, independently. `scripts/deploy-backend.ps1`'s new `lib/` `mkdir` + three new `scp` lines were verified to parse as valid PowerShell but not run against `shinobi` (would touch the live production backend).
+
+## Phase 7 completion
+
+Phase 7 added an app-wide tooltip system, a "fun" guided Server Builder Wizard,
+and a Useful Links page, on top of the running Phase 1–6 app.
+
+### Track 0 — Tooltip system
+- `src/renderer/components/Tooltip.jsx` (new): `TooltipContext` + `TooltipProvider` (renders the single floating tooltip div, computes placement with auto-flip off any viewport edge, positions the arrow to still point at the target's center even after edge-clamping), `useTooltip()` hook, and a default-exported `<Tooltip text position delay disabled>` wrapper.
+- **Wrapper implementation deviates from the spec's literal "clone the child and attach onMouseEnter/onMouseLeave" suggestion.** `Btn`, `TextInput`, `Toggle`, `Select`, and `Slider` in `primitives.jsx` are plain function components that neither spread arbitrary props onto their root DOM node nor forward refs — cloning extra event props into them would have been silently dropped, and cloning a `ref` onto a non-`forwardRef` component throws in dev. Rather than converting every primitive to `forwardRef` (a much larger, riskier change), `Tooltip` wraps children in a `<span style={{display:'contents'}}>`: this wrapper is invisible to layout (flex/grid sizing on the child, e.g. `style={{flex:1}}` on a `Btn`, passes straight through as if the wrapper weren't there) and still receives bubbled `mouseenter`/`mouseleave` from any descendant. Position is read from `e.target.getBoundingClientRect()` (the actual hovered DOM node), not the wrapper's own rect, since `display:contents` elements report an empty bounding box by spec.
+- **`Card` in `primitives.jsx` gained `onMouseEnter`/`onMouseLeave` passthrough** (previously dropped, same class of bug as above) — needed for `LinksView`'s hover-lift card effect. This is the only primitives.jsx change; nothing else needed touching once the span-wrapper approach was chosen.
+- **SVG exception:** the density-curve drag handles (`TrafficView`) and the PB line (`StatsView`'s `SectorBarChart`) are `<circle>`/`<line>`/`<text>` elements inside an `<svg>` — a `<span>` is not a valid SVG child and would be silently dropped by the parser, hiding whatever it wrapped. Those two spots call `useTooltip()` directly and wire `onMouseEnter`/`onMouseLeave` straight onto the SVG primitive instead of using the `<Tooltip>` wrapper component.
+- `App.jsx`: `TooltipProvider` wraps `Inner` (inside `AppStoreProvider`).
+- Tooltips added to every interactive element listed in the spec, across `BuildView`, `DeployView`, `TrafficView`, `EventsView`, `CommsView`, `StatsView`, `ReplayView`, `ModsView`, `SettingsView`, and the new `LinksView` — copy is specific to what the control does, not a restatement of its label.
+
+### Track 1 — Server Builder Wizard
+- `src/renderer/components/ServerWizard.jsx` (new): full-screen 6-step overlay (session type → track → cars → conditions → rules → launch), progress bar, Esc-to-close, Enter-to-advance, personality copy that varies by the Step 1 session-type choice per spec.
+- **Reuses BuildView's deploy flow instead of duplicating it**, per the explicit constraint: `src/renderer/lib/deploy.js` (new) extracts `deployConfig(cfg, settings)` (INI generation via the existing `generateServerCfg`/`generateEntryList` + `api.server.launch`) and `presetFromConfig(cfg)` out of `BuildView`'s inline `deploy`/`savePreset` functions. `BuildView` now calls these same helpers instead of its old inline versions — behavior identical, logic now lives in one place.
+- `BuildView.jsx` exports `defaultCfg`, `WEATHERS`, `TIMES` (previously module-private) so the wizard's Step 4 weather/time option values line up exactly with what `generateServerCfg` expects, instead of re-declaring a parallel copy that could drift out of sync.
+- Per the spec, `App.jsx` owns `onDeploy`/`onSave` and passes them into `ServerWizard` as props (`wizardDeploy` calls `deployConfig` then `addLiveServer` + switches to the Deploy view on success; `wizardSave` calls `presetFromConfig` + `saveProfiles`) — the wizard itself only reads `settings` from the store (for `acPath`/`serverName`), it never touches `addLiveServer`/`saveProfiles` directly.
+- Entry points: "✨ Quick build" ghost button at the top of `BuildView`'s left column (no dedicated header existed there before — this is now the view's de facto header row), "✨ Build with wizard" ghost button under "Build a server" in `DeployView`'s empty state, and the wizard is rendered once at the `App.jsx` level so either entry point opens the same overlay.
+
+### Track 2 — Useful Links page
+- `src/renderer/views/LinksView.jsx` (new): `PRESET_LINKS` constant (hardcoded, never fetched/stored/sent to a backend, per spec) grouped into the five spec'd categories plus an `Other` category available only to user-added links; search flattens all categories into one grid, otherwise links render as category sections with a `⭐ ShinTech` badge on presets.
+- Preset links can't be deleted but can be hidden: `hiddenPresets` (array of preset ids) persists to electron-store, toggled via a "Hide"/"Show" button on preset cards, with a "Show hidden (N)" checkbox in the header once any exist.
+- User links persist to electron-store under `userLinks` only — no backend involvement, matching the constraint. Add/edit modal validates the URL starts with `http`.
+- `App.jsx`: nav entry `{ id:'links', icon:'🔗', label:'Links' }` inserted between Mods and Settings.
+
+### Noted deviations
+- Tooltip wrapper uses a `display:contents` span instead of `cloneElement` + prop injection (see Track 0 above) — a deliberate compatibility fix, not a shortcut; the spec's context/hook API shape (`showTooltip(text, rect, position)` / `hideTooltip()`) is implemented exactly as specced.
+- Two tooltip sites (density-curve handles, PB chart line) bypass the `<Tooltip>` wrapper and call `useTooltip()` directly because they're SVG elements — this is the documented, intentional escape hatch the hook exists for, not a gap in coverage.
+- `Card`'s new `onMouseEnter`/`onMouseLeave` props are additive and default to `undefined`, so every existing `Card` usage across Phases 1–6 is unaffected.
+
+### Verified this pass
+`npx vite build` compiles clean (137 modules, same pre-existing `path` externalization warning, no new errors or warnings). Ran `npm run dev` for real (Node 24/Electron 28 both available in this environment): Vite served on 5173, Electron came up, and `%APPDATA%\ShinRacer\logs\main-*.log` shows a clean `App started` → `AC detected at D:\SteamLibrary\...` sequence with no errors — since AC detection fires from a `useEffect` inside `AppStoreProvider` after the renderer mounts, this confirms the renderer bundle (including the new `Tooltip`/`ServerWizard`/`LinksView` modules and the `Card` prop change) loaded and rendered without a top-level crash. The dev instance was then stopped cleanly.
+
+### Not independently verified
+No interactive click-through this pass (no automated Electron driver was used, unlike Phase 4/5/6's throwaway Playwright scripts) — tooltip hover timing/positioning/auto-flip, the wizard's full 6-step flow including a real deploy, and the Links add/edit/hide/search UI were verified by code reading and the clean build/boot only, not by driving the UI.

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { C, Card, SectionHead, Label, Btn, TextInput, Select, Tag, OfflineBanner } from '../components/primitives'
+import Tooltip from '../components/Tooltip'
 import { useStore } from '../store/AppStore'
 import { useSocket } from '../hooks/useSocket'
 import { ShareModal } from './DeployView'
@@ -162,7 +163,9 @@ function ProposeForm({ identity, showToast, onClose, onSaved, initialDate, editi
             </div>
           ))}
         </div>
-        <Btn size="sm" variant="subtle" onClick={addModRow}>+ Add mod</Btn>
+        <Tooltip text="Add a required mod that players need to download before joining">
+          <Btn size="sm" variant="subtle" onClick={addModRow}>+ Add mod</Btn>
+        </Tooltip>
       </div>
       <div style={{ marginBottom: 12 }}>
         <Label>Notes</Label>
@@ -236,9 +239,11 @@ function DetailPanel({ event, onClose, onAccept, onEdit, onCancelEvent, onDelete
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Label muted>Required mods</Label>
-                <button onClick={copyMods} style={{ background: 'none', border: 'none', color: C.blue, fontSize: 11, cursor: 'pointer', fontFamily: C.mono }}>
-                  Copy all
-                </button>
+                <Tooltip text="Copy the full mod list to clipboard, one per line">
+                  <button onClick={copyMods} style={{ background: 'none', border: 'none', color: C.blue, fontSize: 11, cursor: 'pointer', fontFamily: C.mono }}>
+                    Copy all
+                  </button>
+                </Tooltip>
               </div>
               <ul style={{ margin: 0, paddingLeft: 18, color: C.mutedHi, fontSize: 12, lineHeight: 1.8 }}>
                 {event.required_mods.map((m, i) => <li key={i}>{m}</li>)}
@@ -262,9 +267,11 @@ function DetailPanel({ event, onClose, onAccept, onEdit, onCancelEvent, onDelete
           hasAccepted ? (
             <div style={{ textAlign: 'center', color: C.green, fontFamily: C.head, fontWeight: 700, fontSize: 13 }}>✓ You're in</div>
           ) : (
-            <Btn style={{ width: '100%' }} onClick={() => onAccept(event.id)} disabled={!identity?.handle}>
-              {isProposer ? 'Confirm attendance' : 'Accept'}
-            </Btn>
+            <Tooltip text="Confirm you're attending — event becomes Happening when someone else accepts" disabled={!identity?.handle}>
+              <Btn style={{ width: '100%' }} onClick={() => onAccept(event.id)} disabled={!identity?.handle}>
+                {isProposer ? 'Confirm attendance' : 'Accept'}
+              </Btn>
+            </Tooltip>
           )
         )}
         {isCancelled && (
@@ -272,15 +279,25 @@ function DetailPanel({ event, onClose, onAccept, onEdit, onCancelEvent, onDelete
         )}
         {status === 'happening' && (
           matchedServer
-            ? <Btn variant="subtle" style={{ width: '100%' }} onClick={() => onGenerateInvite(matchedServer, event.car_restriction)}>Generate invite</Btn>
+            ? (
+              <Tooltip text="Create a server join code for this event's track">
+                <Btn variant="subtle" style={{ width: '100%' }} onClick={() => onGenerateInvite(matchedServer, event.car_restriction)}>Generate invite</Btn>
+              </Tooltip>
+            )
             : <div style={{ textAlign: 'center', color: C.muted, fontSize: 12 }}>No live server for this event</div>
         )}
         <div style={{ display: 'flex', gap: 8 }}>
-          <Btn variant="subtle" size="sm" style={{ flex: 1 }} onClick={() => downloadIcs(event)}>Add to Calendar</Btn>
-          <Btn variant="ghost" size="sm" style={{ flex: 1 }} onClick={() => onEdit(event)}>Edit</Btn>
+          <Tooltip text="Download a .ics file to add this event to Google Calendar, Outlook, etc." >
+            <Btn variant="subtle" size="sm" style={{ flex: 1 }} onClick={() => downloadIcs(event)}>Add to Calendar</Btn>
+          </Tooltip>
+          <Tooltip text="Change event details — acceptances reset if date, track, or time changes">
+            <Btn variant="ghost" size="sm" style={{ flex: 1 }} onClick={() => onEdit(event)}>Edit</Btn>
+          </Tooltip>
         </div>
         {!isCancelled && (
-          <Btn variant="danger" size="sm" onClick={() => onCancelEvent(event.id)}>Cancel event</Btn>
+          <Tooltip text="Mark this event as cancelled — it stays on the calendar but is crossed out">
+            <Btn variant="danger" size="sm" onClick={() => onCancelEvent(event.id)}>Cancel event</Btn>
+          </Tooltip>
         )}
         {confirmDelete ? (
           <div style={{ display: 'flex', gap: 8 }}>
@@ -288,7 +305,9 @@ function DetailPanel({ event, onClose, onAccept, onEdit, onCancelEvent, onDelete
             <Btn variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>Cancel</Btn>
           </div>
         ) : (
-          <Btn variant="danger" size="sm" onClick={() => setConfirmDelete(true)}>Delete event</Btn>
+          <Tooltip text="Permanently remove this event from the calendar">
+            <Btn variant="danger" size="sm" onClick={() => setConfirmDelete(true)}>Delete event</Btn>
+          </Tooltip>
         )}
       </div>
     </div>
@@ -464,11 +483,15 @@ export default function EventsView() {
       {!backendOnline && <OfflineBanner backendUrl={backendUrl} onRetry={recheckBackend} />}
       <div style={{ padding: '16px 24px 0', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Btn size="sm" variant="subtle" onClick={() => changeMonth(-1)}>←</Btn>
+          <Tooltip text="Go to previous month">
+            <Btn size="sm" variant="subtle" onClick={() => changeMonth(-1)}>←</Btn>
+          </Tooltip>
           <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 20, minWidth: 190, textAlign: 'center' }}>
             {MONTH_NAMES[cursor.month]} {cursor.year}
           </div>
-          <Btn size="sm" variant="subtle" onClick={() => changeMonth(1)}>→</Btn>
+          <Tooltip text="Go to next month">
+            <Btn size="sm" variant="subtle" onClick={() => changeMonth(1)}>→</Btn>
+          </Tooltip>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {confirmClearAll ? (
@@ -478,10 +501,14 @@ export default function EventsView() {
             </>
           ) : (
             events.length > 0 && (
-              <Btn size="sm" variant="ghost" style={{ color: C.red }} onClick={() => setConfirmClearAll(true)}>Clear calendar</Btn>
+              <Tooltip text="Delete all events — use with caution">
+                <Btn size="sm" variant="ghost" style={{ color: C.red }} onClick={() => setConfirmClearAll(true)}>Clear calendar</Btn>
+              </Tooltip>
             )
           )}
-          <Btn onClick={() => (showForm ? closeForm() : openProposeForm(''))}>{showForm ? 'Close form' : '+ Propose event'}</Btn>
+          <Tooltip text="Schedule a race or drift session for the crew">
+            <Btn onClick={() => (showForm ? closeForm() : openProposeForm(''))}>{showForm ? 'Close form' : '+ Propose event'}</Btn>
+          </Tooltip>
         </div>
       </div>
 

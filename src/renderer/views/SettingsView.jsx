@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import axios from 'axios'
 import { C, Card, SectionHead, Label, Btn, TextInput } from '../components/primitives'
+import Tooltip from '../components/Tooltip'
 import { useStore, DEFAULT_QUICK_PHRASES } from '../store/AppStore'
 
 const api = window.api
@@ -95,18 +96,30 @@ export default function SettingsView() {
         <Label>AC root folder</Label>
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <TextInput value={local.acPath} onChange={v => set('acPath', v)} placeholder="C:\Program Files (x86)\Steam\steamapps\common\assettocorsa" mono />
-          <Btn size="sm" variant="subtle" onClick={browseAcPath}>Browse</Btn>
-          {local.acPath && <Btn size="sm" variant="subtle" onClick={openAcFolder}>Open</Btn>}
+          <Tooltip text="Find your Assetto Corsa installation folder">
+            <Btn size="sm" variant="subtle" onClick={browseAcPath}>Browse</Btn>
+          </Tooltip>
+          {local.acPath && (
+            <Tooltip text="Open this folder in Windows Explorer">
+              <Btn size="sm" variant="subtle" onClick={openAcFolder}>Open</Btn>
+            </Tooltip>
+          )}
         </div>
 
         <Label>acServer.exe path</Label>
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <TextInput value={local.acServerExe} onChange={v => set('acServerExe', v)} placeholder="…\assettocorsa\server\acServer.exe" mono />
-          <Btn size="sm" variant="subtle" onClick={browseExe}>Browse</Btn>
+          <Tooltip text="Locate acServer.exe — needed to host servers">
+            <Btn size="sm" variant="subtle" onClick={browseExe}>Browse</Btn>
+          </Tooltip>
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
-          {local.acPath && <Btn size="sm" variant="subtle" onClick={openServerFolder}>Open server folder</Btn>}
+          {local.acPath && (
+            <Tooltip text="Open the AC server directory in Windows Explorer">
+              <Btn size="sm" variant="subtle" onClick={openServerFolder}>Open server folder</Btn>
+            </Tooltip>
+          )}
         </div>
       </Card>
 
@@ -134,10 +147,12 @@ export default function SettingsView() {
         <Label>Color</Label>
         <div style={{ display: 'flex', gap: 8 }}>
           {IDENTITY_COLORS.map(c => (
-            <button key={c} onClick={() => setIdentity('color', c)}
-              style={{ width: 26, height: 26, borderRadius: '50%', background: c, cursor: 'pointer',
-                border: identityLocal.color === c ? `2px solid ${C.white}` : `2px solid transparent`,
-                boxShadow: identityLocal.color === c ? `0 0 0 2px ${c}` : 'none' }} />
+            <Tooltip key={c} text="Choose your crew color — shown next to your name in Events and Comms">
+              <button onClick={() => setIdentity('color', c)}
+                style={{ width: 26, height: 26, borderRadius: '50%', background: c, cursor: 'pointer',
+                  border: identityLocal.color === c ? `2px solid ${C.white}` : `2px solid transparent`,
+                  boxShadow: identityLocal.color === c ? `0 0 0 2px ${c}` : 'none' }} />
+            </Tooltip>
           ))}
         </div>
       </Card>
@@ -148,7 +163,9 @@ export default function SettingsView() {
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           <TextInput value={backendUrlLocal} onChange={v => { setBackendUrlLocal(v); setDirty(true); setTestResult(null) }}
             placeholder="http://192.168.1.203:3000" mono style={{ flex: 1 }} />
-          <Btn size="sm" variant="subtle" onClick={testConnection} disabled={testing}>{testing ? 'Testing…' : 'Test connection'}</Btn>
+          <Tooltip text="Check if the ShinRacer backend on shinobi is reachable" disabled={testing}>
+            <Btn size="sm" variant="subtle" onClick={testConnection} disabled={testing}>{testing ? 'Testing…' : 'Test connection'}</Btn>
+          </Tooltip>
         </div>
         {testResult && (
           testResult.ok ? (
@@ -163,15 +180,21 @@ export default function SettingsView() {
         <SectionHead children="Quick-phrase buttons" sub="Shown in the Comms text chat panel" />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
           {quickPhrasesLocal.map((p, i) => (
-            <TextInput key={i} value={p} onChange={v => setQuickPhrase(i, v)} />
+            <Tooltip key={i} text="Edit the one-tap phrases shown in the Comms chat panel">
+              <TextInput value={p} onChange={v => setQuickPhrase(i, v)} />
+            </Tooltip>
           ))}
         </div>
-        <Btn size="sm" variant="subtle" onClick={resetQuickPhrases}>Reset to defaults</Btn>
+        <Tooltip text="Restore the original quick phrases">
+          <Btn size="sm" variant="subtle" onClick={resetQuickPhrases}>Reset to defaults</Btn>
+        </Tooltip>
       </Card>
 
       <Card>
         <SectionHead children="Diagnostics" sub="Main-process logs — app start, server lifecycle, UDP lap events" />
-        <Btn size="sm" variant="subtle" onClick={() => api.logs.openFolder()}>Open log folder</Btn>
+        <Tooltip text="View ShinRacer application logs for troubleshooting">
+          <Btn size="sm" variant="subtle" onClick={() => api.logs.openFolder()}>Open log folder</Btn>
+        </Tooltip>
       </Card>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>

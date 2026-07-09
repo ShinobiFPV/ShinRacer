@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { C, Card, Label, Btn, TextInput, Select, Tag, OfflineBanner } from '../components/primitives'
+import Tooltip from '../components/Tooltip'
 import { useStore } from '../store/AppStore'
 import { useSocket } from '../hooks/useSocket'
 import api from '../lib/api'
@@ -159,22 +160,30 @@ function DetailPanel({ mod, category, installs, settings, identity, onInstalled,
         <div style={{ marginBottom: 14 }}>
           <Btn disabled style={{ width: '100%' }} variant="success">✓ Installed</Btn>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-            <button onClick={install} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}>Reinstall</button>
+            <Tooltip text="Download and reinstall even if already up to date">
+              <button onClick={install} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}>Reinstall</button>
+            </Tooltip>
             <span style={{ fontSize: 11, color: C.muted }}>{formatDate(installed.installedAt)}</span>
           </div>
         </div>
       ) : status === 'update' ? (
         <div style={{ marginBottom: 14 }}>
-          <Btn style={{ width: '100%', background: C.orange }} onClick={install}>⬆ Update</Btn>
+          <Tooltip text="Download the newer version from Drive and reinstall">
+            <Btn style={{ width: '100%', background: C.orange }} onClick={install}>⬆ Update</Btn>
+          </Tooltip>
           <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>
             Installed: {formatDate(installed.installedAt)} · Updated: {formatDate(mod.modifiedTime)}
           </div>
         </div>
       ) : (
-        <Btn style={{ width: '100%', marginBottom: 14 }} onClick={install}>⬇ Install mod</Btn>
+        <Tooltip text="Download and auto-extract to your AC content folder">
+          <Btn style={{ width: '100%', marginBottom: 14 }} onClick={install}>⬇ Install mod</Btn>
+        </Tooltip>
       )}
 
-      <Btn size="sm" variant="ghost" onClick={() => win.mods.openFolder(category)}>Open in Explorer</Btn>
+      <Tooltip text="Open the folder where this mod is installed">
+        <Btn size="sm" variant="ghost" onClick={() => win.mods.openFolder(category)}>Open in Explorer</Btn>
+      </Tooltip>
     </div>
   )
 }
@@ -405,14 +414,16 @@ export default function ModsView() {
         display: 'flex', flexDirection: 'column', padding: '16px 10px' }}>
         <nav style={{ flex: 1 }}>
           {nav.map(n => (
-            <button key={n.id} onClick={() => { setCategory(n.id); setSelected(null) }}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
-                borderRadius: 6, border: 'none', cursor: 'pointer', marginBottom: 2,
-                background: category === n.id ? `${C.yellow}18` : 'transparent',
-                color: category === n.id ? C.yellow : C.muted,
-                fontFamily: C.head, fontWeight: category === n.id ? 700 : 500, fontSize: 13, textAlign: 'left' }}>
-              <span>{n.icon}</span>{n.label}
-            </button>
+            <Tooltip key={n.id} text={n.id === 'uploads' ? "Mods you've submitted — pending review by William" : 'Filter mods by type'}>
+              <button onClick={() => { setCategory(n.id); setSelected(null) }}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
+                  borderRadius: 6, border: 'none', cursor: 'pointer', marginBottom: 2,
+                  background: category === n.id ? `${C.yellow}18` : 'transparent',
+                  color: category === n.id ? C.yellow : C.muted,
+                  fontFamily: C.head, fontWeight: category === n.id ? 700 : 500, fontSize: 13, textAlign: 'left' }}>
+                <span>{n.icon}</span>{n.label}
+              </button>
+            </Tooltip>
           ))}
         </nav>
 
@@ -420,9 +431,11 @@ export default function ModsView() {
           {!googleAuth ? (
             <>
               <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>Sign in to upload mods</div>
-              <Btn size="sm" variant="ghost" onClick={signIn} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <GoogleIcon /> Sign in with Google
-              </Btn>
+              <Tooltip text="Sign in to upload mods to the ShinTech library">
+                <Btn size="sm" variant="ghost" onClick={signIn} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  <GoogleIcon /> Sign in with Google
+                </Btn>
+              </Tooltip>
             </>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -431,7 +444,9 @@ export default function ModsView() {
                 : <div style={{ width: 28, height: 28, borderRadius: '50%', background: C.raised }} />}
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{googleAuth.user.name}</div>
-                <button onClick={signOut} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 10, cursor: 'pointer', padding: 0 }}>Sign out</button>
+                <Tooltip text="Sign out of Google — you can still download mods">
+                  <button onClick={signOut} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 10, cursor: 'pointer', padding: 0 }}>Sign out</button>
+                </Tooltip>
               </div>
             </div>
           )}
@@ -446,8 +461,14 @@ export default function ModsView() {
           <div style={{ flex: 1 }}><TextInput value={search} onChange={setSearch} placeholder="Search mods…" /></div>
           <Select value={sortMode} onChange={setSortMode} style={{ width: 160 }}
             options={[{ value: 'name', label: 'Name A-Z' }, { value: 'recent', label: 'Recently added' }, { value: 'size', label: 'Size' }]} />
-          <Btn size="sm" variant="subtle" onClick={loadMods} title="Refresh">⟳</Btn>
-          {googleAuth && <Btn size="sm" onClick={openUpload}>+ Upload mod</Btn>}
+          <Tooltip text="Re-fetch the mod list from Google Drive">
+            <Btn size="sm" variant="subtle" onClick={loadMods}>⟳</Btn>
+          </Tooltip>
+          {googleAuth && (
+            <Tooltip text="Share a mod with the crew — William will review before it goes live">
+              <Btn size="sm" onClick={openUpload}>+ Upload mod</Btn>
+            </Tooltip>
+          )}
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 20px' }}>

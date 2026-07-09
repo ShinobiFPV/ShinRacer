@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import qrcode from 'qrcode-generator'
 import { C, Tag, Btn, StatusDot, Label, TextInput } from '../components/primitives'
+import Tooltip from '../components/Tooltip'
 import { useStore } from '../store/AppStore'
 import { useSocket } from '../hooks/useSocket'
 import httpApi from '../lib/api'
@@ -344,15 +345,23 @@ function PitBoard({ server, onStop, onViewLogs, onShare }) {
         )}
 
         <div style={{ display: 'flex', gap: 8 }}>
-          <Btn variant="subtle" size="sm" onClick={() => onViewLogs(server)}>View logs</Btn>
-          <Btn variant="ghost" size="sm" onClick={() => onShare(server)}>Share</Btn>
-          <Btn variant="ghost" size="sm" onClick={() => api.shell.openPath(server.logPath?.replace(/[^\\]+$/, '') || '')}>
-            Open log folder
-          </Btn>
-          <Btn variant="danger" size="sm" disabled={stopping} onClick={stop}
-            style={{ marginLeft: 'auto' }}>
-            {stopping ? 'Stopping…' : 'Stop server'}
-          </Btn>
+          <Tooltip text="Stream live output from acServer.exe">
+            <Btn variant="subtle" size="sm" onClick={() => onViewLogs(server)}>View logs</Btn>
+          </Tooltip>
+          <Tooltip text="Generate an invite code friends can use to join this server">
+            <Btn variant="ghost" size="sm" onClick={() => onShare(server)}>Share</Btn>
+          </Tooltip>
+          <Tooltip text="Open the folder containing saved server log files">
+            <Btn variant="ghost" size="sm" onClick={() => api.shell.openPath(server.logPath?.replace(/[^\\]+$/, '') || '')}>
+              Open log folder
+            </Btn>
+          </Tooltip>
+          <Tooltip text="Terminate acServer.exe — players will be disconnected">
+            <Btn variant="danger" size="sm" disabled={stopping} onClick={stop}
+              style={{ marginLeft: 'auto' }}>
+              {stopping ? 'Stopping…' : 'Stop server'}
+            </Btn>
+          </Tooltip>
         </div>
       </div>
     </div>
@@ -360,7 +369,7 @@ function PitBoard({ server, onStop, onViewLogs, onShare }) {
 }
 
 // ── Deploy View ───────────────────────────────────────────────────────────────
-export default function DeployView({ onBuild }) {
+export default function DeployView({ onBuild, onOpenWizard }) {
   const { liveServers, removeLiveServer, showToast, identity } = useStore()
   const { socket } = useSocket(identity)
   const [logServer, setLogServer] = useState(null)
@@ -408,7 +417,9 @@ export default function DeployView({ onBuild }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ padding: '16px 24px 0', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
-        <Btn variant="ghost" size="sm" onClick={openJoinModal}>Join server</Btn>
+        <Tooltip text="Enter an invite code to see connection details">
+          <Btn variant="ghost" size="sm" onClick={openJoinModal}>Join server</Btn>
+        </Tooltip>
       </div>
 
       <div style={{ flex: 1, overflow: 'auto' }}>
@@ -419,6 +430,9 @@ export default function DeployView({ onBuild }) {
             <div style={{ fontFamily: C.head, fontSize: 24, color: C.white }}>No servers running</div>
             <div style={{ fontSize: 14 }}>Build and launch a server to see it here</div>
             <Btn onClick={onBuild} size="lg" style={{ marginTop: 8 }}>Build a server</Btn>
+            <Tooltip text="Answer a few fun questions instead of using the technical form">
+              <Btn onClick={onOpenWizard} variant="ghost" size="sm">✨ Build with wizard</Btn>
+            </Tooltip>
           </div>
         ) : (
           <div style={{ padding: 24 }}>

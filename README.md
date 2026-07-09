@@ -17,6 +17,8 @@ What makes it different from stitching together Discord + a spreadsheet + Conten
 
 That's the ShinTech philosophy in general: self-hosted, DIY, built to be understood and modified by the person running it, not subscribed to. If you're the kind of person who'd rather own a Raspberry Pi than pay for a Discord bot, this is written for you.
 
+Every control in the app has a hover tooltip explaining what it actually does — not a restatement of the label, an explanation of the effect. First time in a tab you haven't touched, just hover around.
+
 ## Features
 
 ### 🏁 Server Manager
@@ -31,6 +33,17 @@ Build and deploy AC dedicated servers without touching a single config file by h
 - One-click deploy: writes config files and spawns `acServer.exe`
 - Pit board cards: live player count, uptime, PID, real-time log streaming
 - stracker UDP plugin toggle
+
+### ✨ Server Builder Wizard
+
+A guided, six-step alternative to the technical Build form, for when you just want to get a server up without thinking about ports and INI keys. Answer a few questions with a bit of personality and it launches (or saves) the exact same config the manual form would have produced.
+
+- Step 1 sets the tone: Race Night, Drift Session, Hotlap Practice, or Cruise — each choice reshapes the copy and defaults in every later step
+- Track and car pickers scan your real AC content, same as the manual Build form
+- Conditions step: pick weather and time of day from icon cards, including gradient day/night previews
+- House rules step: friendly-language driver aid toggles ("Save me from myself" instead of "Traction control"), a driver-count slider with a live vibe label ("Just the boys" → "This is a lot of people"), optional password
+- Final step summarizes the whole config in plain English and either launches immediately or saves it to the Garage first
+- Reachable from a "✨ Quick build" button in the Build tab or "✨ Build with wizard" in the empty Live Servers view
 
 ### 🌆 Traffic Manager
 
@@ -104,6 +117,17 @@ Download and auto-install mods directly from the ShinTech Drive library.
 - Sign in with Google to upload your own mods for William to review and add to the library
 - Live "someone just uploaded a mod" toast for everyone connected
 - No login required just to browse and download — sign-in is only for uploading
+
+### 🔗 Useful Links
+
+A curated jumping-off point to the rest of the AC ecosystem, so new crew members aren't left guessing where to find mods, tools, or setup guides.
+
+- Pre-loaded with ~25 hand-picked links across five categories: Tracks & Cars, Tools & Apps, Communities, YouTube, and Setup & Guides — RaceDepartment, Overtake.gg, Content Manager, CSP, sol, CrewChief, the AC subreddit, and more
+- Preset links can be hidden (not deleted) if you don't need them cluttering the list — toggle them back on any time
+- Add your own links on top, with name/URL/description/category, editable and deletable
+- Live search across every link's name, description, and URL
+- One-click "Visit" (opens in your default browser, never inside the app) and "Copy" for every link
+- Entirely local — the preset library ships in the app itself and your own additions live in local app storage, nothing round-trips to a backend
 
 ### 🧙 First-Run Wizard
 
@@ -273,7 +297,7 @@ Architecture, feature design, UX direction, QA, and deployment.
 **Built with Claude**
 This project was designed in collaboration with [Claude](https://claude.ai) (Anthropic's AI assistant) and built using [Claude Code](https://claude.ai/code) (Anthropic's agentic coding tool).
 
-The development process: William directed all product decisions — what to build, how it should work, and how it should feel. Claude handled code generation across six iterative phases, from initial scaffold through production hardening and the Mod Manager. Claude Code executed each phase given a detailed prompt, with William reviewing, testing, and course-correcting between phases.
+The development process: William directed all product decisions — what to build, how it should work, and how it should feel. Claude handled code generation across seven iterative phases, from initial scaffold through production hardening, the Mod Manager, and the current polish pass — an app-wide tooltip system, the Server Builder Wizard, and the Useful Links page. Claude Code executed each phase given a detailed prompt, with William reviewing, testing, and course-correcting between phases.
 
 This is an example of what's possible when a technically-minded builder uses AI as a force multiplier — not to replace judgment, but to ship faster.
 

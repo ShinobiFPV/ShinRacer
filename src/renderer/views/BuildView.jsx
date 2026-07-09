@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react'
 import { C, Card, SectionHead, Label, Btn, TextInput, Select, Slider, Toggle, Tag, TabBar } from '../components/primitives'
+import Tooltip from '../components/Tooltip'
 import { useStore } from '../store/AppStore'
 import { generateServerCfg, generateEntryList } from '../lib/iniUtils'
+import { deployConfig, presetFromConfig } from '../lib/deploy'
 import path from 'path'  // available via electron context
 
 const api = window.api
 
-const WEATHERS    = ['Clear','Partly Cloudy','Overcast','Light Rain','Heavy Rain','Foggy']
-const TIMES       = ['Dawn (6:00)','Morning (9:00)','Midday (12:00)','Afternoon (15:00)','Dusk (18:00)','Night (21:00)']
+export const WEATHERS    = ['Clear','Partly Cloudy','Overcast','Light Rain','Heavy Rain','Foggy']
+export const TIMES       = ['Dawn (6:00)','Morning (9:00)','Midday (12:00)','Afternoon (15:00)','Dusk (18:00)','Night (21:00)']
 const JUMP_START  = ['None','Pits','DT']
 
-function defaultCfg(serverName) {
+export function defaultCfg(serverName) {
   return {
     name: serverName || 'ShinTech Race Server',
     trackId: '', layoutId: '', trackPath: '',
@@ -50,7 +52,9 @@ function TrackPicker({ acPath, value, onChange }) {
   return (
     <div>
       <div style={{ marginBottom: 10 }}>
-        <TextInput value={filter} onChange={setFilter} placeholder="Filter tracks…" />
+        <Tooltip text="Filter your installed tracks by name">
+          <TextInput value={filter} onChange={setFilter} placeholder="Filter tracks…" />
+        </Tooltip>
       </div>
       {loading && <div style={{ color: C.muted, fontSize: 13 }}>Scanning tracks folder…</div>}
       <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -99,18 +103,22 @@ function CarPicker({ acPath, selected, onChange }) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-        <TextInput value={filter} onChange={setFilter} placeholder="Filter cars…" style={{ flex: 1, marginRight: 8 }} />
+        <Tooltip text="Filter your installed cars by name">
+          <TextInput value={filter} onChange={setFilter} placeholder="Filter cars…" style={{ flex: 1, marginRight: 8 }} />
+        </Tooltip>
         <Tag color={C.blue}>{selected.length} selected</Tag>
       </div>
       {loading && <div style={{ color: C.muted, fontSize: 13 }}>Scanning cars…</div>}
       <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
         {filtered.map(car => (
-          <label key={car} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px',
-            borderRadius: 4, background: selected.includes(car) ? `${C.yellow}12` : 'transparent',
-            border: `1px solid ${selected.includes(car) ? C.yellowDim : 'transparent'}`, cursor: 'pointer' }}>
-            <input type="checkbox" checked={selected.includes(car)} onChange={() => toggle(car)} />
-            <span style={{ fontFamily: C.mono, fontSize: 11 }}>{car}</span>
-          </label>
+          <Tooltip key={car} text="Select which car models players can choose from">
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px',
+              borderRadius: 4, background: selected.includes(car) ? `${C.yellow}12` : 'transparent',
+              border: `1px solid ${selected.includes(car) ? C.yellowDim : 'transparent'}`, cursor: 'pointer' }}>
+              <input type="checkbox" checked={selected.includes(car)} onChange={() => toggle(car)} />
+              <span style={{ fontFamily: C.mono, fontSize: 11 }}>{car}</span>
+            </label>
+          </Tooltip>
         ))}
       </div>
       {selected.length > 0 && (
@@ -129,7 +137,7 @@ function CarPicker({ acPath, selected, onChange }) {
 }
 
 // ── Main Build View ───────────────────────────────────────────────────────────
-export default function BuildView({ initialCfg, onDeployed }) {
+export default function BuildView({ initialCfg, onDeployed, onOpenWizard }) {
   const { settings, profiles, saveProfiles, addLiveServer, showToast } = useStore()
   const [cfg, setCfg]       = useState(initialCfg || defaultCfg(settings.serverName))
   const [tab, setTab]       = useState('track')
@@ -171,43 +179,20 @@ export default function BuildView({ initialCfg, onDeployed }) {
   const deploy = async () => {
     if (!canDeploy) return
     setDeploying(true)
-
-    const id      = `srv_${Date.now()}`
-    const cfgDir  = `${settings.acPath}\\server\\cfg`
-    const cfgPath  = `${cfgDir}\\server_cfg.ini`
-    const entryPath = `${cfgDir}\\entry_list.ini`
-
-    // Write config files
-    const iniResult   = await api.fs.writeFile(cfgPath, iniPreview)
-    const entryResult = await api.fs.writeFile(entryPath, entryPreview)
-
-    if (!iniResult.ok || !entryResult.ok) {
-      showToast(`✕ Write failed: ${iniResult.error || entryResult.error}`, C.red)
+    const res = await deployConfig(cfg, settings)
+    if (!res.ok) {
+      showToast(`✕ ${res.error}`, C.red)
       setDeploying(false)
       return
     }
-
-    // Launch process
-    const result = await api.server.launch({
-      id, acServerPath: settings.acServerExe,
-      serverCfgPath: cfgPath, entryListPath: entryPath,
-    })
-
-    if (!result.ok) {
-      showToast(`✕ Launch failed: ${result.error}`, C.red)
-      setDeploying(false)
-      return
-    }
-
-    addLiveServer({ id, name: cfg.name, config: cfg, startedAt: Date.now(), pid: result.pid, logPath: result.logPath, players: 0 })
+    addLiveServer(res.server)
     showToast(`✓ ${cfg.name} is live on :${cfg.port}`)
     setDeploying(false)
     onDeployed?.()
   }
 
   const savePreset = async () => {
-    const preset = { ...cfg, id: `preset_${Date.now()}`, savedAt: Date.now() }
-    await saveProfiles([...profiles, preset])
+    await saveProfiles([...profiles, presetFromConfig(cfg)])
     showToast('✓ Saved to Garage')
   }
 
@@ -215,6 +200,11 @@ export default function BuildView({ initialCfg, onDeployed }) {
     <div style={{ display: 'flex', height: '100%', gap: 0 }}>
       {/* Left: config */}
       <div style={{ flex: 1, overflow: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex' }}>
+          <Tooltip text="Answer a few fun questions instead of using the technical form below" position="right">
+            <Btn variant="ghost" size="sm" onClick={onOpenWizard}>✨ Quick build</Btn>
+          </Tooltip>
+        </div>
         {/* Server identity */}
         <Card>
           <SectionHead children="Server identity" />
@@ -238,8 +228,10 @@ export default function BuildView({ initialCfg, onDeployed }) {
               <TextInput value={cfg.password} onChange={v => set('password', v)} placeholder="optional" />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-              <Slider label="Max clients" value={cfg.maxClients} min={1} max={24} step={1}
-                format={v => v} onChange={v => set('maxClients', v)} />
+              <Tooltip text="Maximum number of simultaneous players (affects performance)">
+                <Slider label="Max clients" value={cfg.maxClients} min={1} max={24} step={1}
+                  format={v => v} onChange={v => set('maxClients', v)} />
+              </Tooltip>
             </div>
           </div>
         </Card>
@@ -294,12 +286,16 @@ export default function BuildView({ initialCfg, onDeployed }) {
                 </label>
               ))}
               {cfg.sessionQualify && (
-                <Slider label="Qualify duration" value={cfg.qualifyMinutes} min={5} max={60} step={5}
-                  format={v => `${v} min`} onChange={v => set('qualifyMinutes', v)} />
+                <Tooltip text="How long qualifying runs before the race">
+                  <Slider label="Qualify duration" value={cfg.qualifyMinutes} min={5} max={60} step={5}
+                    format={v => `${v} min`} onChange={v => set('qualifyMinutes', v)} />
+                </Tooltip>
               )}
               {cfg.sessionRace && (
-                <Slider label="Race length" value={cfg.raceLength} min={1} max={100} step={1}
-                  format={v => `${v} laps`} onChange={v => set('raceLength', v)} />
+                <Tooltip text="Number of laps in the race session">
+                  <Slider label="Race length" value={cfg.raceLength} min={1} max={100} step={1}
+                    format={v => `${v} laps`} onChange={v => set('raceLength', v)} />
+                </Tooltip>
               )}
               <div>
                 <Label>Jump start penalty</Label>
@@ -314,13 +310,15 @@ export default function BuildView({ initialCfg, onDeployed }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
               <div>
                 {[
-                  { key: 'tc',           label: 'Traction control' },
-                  { key: 'abs',          label: 'ABS' },
-                  { key: 'stability',    label: 'Stability control' },
-                  { key: 'autoclutch',   label: 'Auto clutch' },
-                  { key: 'tyreBlankets', label: 'Tyre blankets' },
+                  { key: 'tc',           label: 'Traction control', tip: 'Allow players to use traction control aids' },
+                  { key: 'abs',          label: 'ABS', tip: 'Allow players to use anti-lock braking' },
+                  { key: 'stability',    label: 'Stability control', tip: 'Allow stability control — disable for realistic driving' },
+                  { key: 'autoclutch',   label: 'Auto clutch', tip: 'Allow players to skip manual clutch control' },
+                  { key: 'tyreBlankets', label: 'Tyre blankets', tip: 'Tyres start at optimal temperature instead of cold' },
                 ].map(a => (
-                  <Toggle key={a.key} label={a.label} value={cfg.allowances[a.key]} onChange={v => setA(a.key, v)} />
+                  <Tooltip key={a.key} text={a.tip}>
+                    <Toggle label={a.label} value={cfg.allowances[a.key]} onChange={v => setA(a.key, v)} />
+                  </Tooltip>
                 ))}
               </div>
             </div>
@@ -332,7 +330,9 @@ export default function BuildView({ initialCfg, onDeployed }) {
                 <div style={{ fontSize: 12, color: C.muted }}>
                   {cfg.maxClients} slot{cfg.maxClients !== 1 ? 's' : ''} · {cfg.cars.length} car model{cfg.cars.length !== 1 ? 's' : ''} selected
                 </div>
-                <Btn size="sm" variant="subtle" onClick={autoFillSlots} disabled={!cfg.cars.length}>Auto-fill</Btn>
+                <Tooltip text="Distribute selected cars evenly across all slots">
+                  <Btn size="sm" variant="subtle" onClick={autoFillSlots} disabled={!cfg.cars.length}>Auto-fill</Btn>
+                </Tooltip>
               </div>
               {!cfg.cars.length && (
                 <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>Select cars in the Cars tab to assign them to slots</div>
@@ -410,11 +410,15 @@ export default function BuildView({ initialCfg, onDeployed }) {
             <div>👥 {cfg.maxClients} slots · :{cfg.port}</div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <Btn variant="subtle" size="sm" onClick={savePreset}>Save to Garage</Btn>
-            <Btn size="md" disabled={!canDeploy || deploying} onClick={deploy}
-              style={{ flex: 1 }}>
-              {deploying ? 'Launching…' : '▶ Launch Server'}
-            </Btn>
+            <Tooltip text="Save this config as a preset to launch again later">
+              <Btn variant="subtle" size="sm" onClick={savePreset}>Save to Garage</Btn>
+            </Tooltip>
+            <Tooltip text="Write config files and start acServer.exe" disabled={!canDeploy || deploying}>
+              <Btn size="md" disabled={!canDeploy || deploying} onClick={deploy}
+                style={{ flex: 1 }}>
+                {deploying ? 'Launching…' : '▶ Launch Server'}
+              </Btn>
+            </Tooltip>
           </div>
         </div>
       </div>

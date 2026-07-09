@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { C, Card, Label, Btn, TextInput, Tag } from '../components/primitives'
+import Tooltip from '../components/Tooltip'
 
 const api = window.api
 const SUGGESTED_TAGS = ['race', 'drift', 'hotlap', 'crash', 'keeper', 'review']
@@ -56,11 +57,13 @@ function ReplayRow({ replay, meta, anno, selected, onSelect, onToggleFavorite })
         )}
       </div>
       {carCount != null && <Tag color={C.muted} size="xs">{carCount} car{carCount !== 1 ? 's' : ''}</Tag>}
-      <button onClick={e => { e.stopPropagation(); onToggleFavorite() }}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18,
-          color: anno.favorite ? C.yellow : C.muted, flexShrink: 0 }}>
-        {anno.favorite ? '★' : '☆'}
-      </button>
+      <Tooltip text="Mark as favorite to find it quickly later">
+        <button onClick={e => { e.stopPropagation(); onToggleFavorite() }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18,
+            color: anno.favorite ? C.yellow : C.muted, flexShrink: 0 }}>
+          {anno.favorite ? '★' : '☆'}
+        </button>
+      </Tooltip>
     </div>
   )
 }
@@ -109,11 +112,13 @@ function DetailPanel({ replay, meta, anno, onUpdateAnnotation, onLaunch, onOpenF
           )}
           <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>{formatDateTime(replay.mtime)}</div>
         </div>
-        <button onClick={() => onUpdateAnnotation({ favorite: !anno.favorite })}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 32,
-            color: anno.favorite ? C.yellow : C.muted }}>
-          {anno.favorite ? '★' : '☆'}
-        </button>
+        <Tooltip text="Mark as favorite to find it quickly later">
+          <button onClick={() => onUpdateAnnotation({ favorite: !anno.favorite })}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 32,
+              color: anno.favorite ? C.yellow : C.muted }}>
+            {anno.favorite ? '★' : '☆'}
+          </button>
+        </Tooltip>
       </div>
 
       {meta && !meta.parsed && (
@@ -144,25 +149,31 @@ function DetailPanel({ replay, meta, anno, onUpdateAnnotation, onLaunch, onOpenF
         <Label>Tags</Label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
           {anno.tags.map(t => (
-            <span key={t} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontFamily: C.mono,
-              color: C.white, background: C.raised, border: `1px solid ${C.border}`, borderRadius: 4, padding: '3px 8px' }}>
-              {t}
-              <button onClick={() => removeTag(t)} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
-            </span>
+            <Tooltip key={t} text="Click to remove this tag">
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontFamily: C.mono,
+                color: C.white, background: C.raised, border: `1px solid ${C.border}`, borderRadius: 4, padding: '3px 8px' }}>
+                {t}
+                <button onClick={() => removeTag(t)} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
+              </span>
+            </Tooltip>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          <TextInput value={tagInput} onChange={setTagInput} placeholder="Add tag…"
-            onKeyDown={e => { if (e.key === 'Enter') addTag() }} />
+          <Tooltip text="Type a tag and press Enter (e.g. race, drift, keeper)">
+            <TextInput value={tagInput} onChange={setTagInput} placeholder="Add tag…"
+              onKeyDown={e => { if (e.key === 'Enter') addTag() }} />
+          </Tooltip>
           <Btn size="sm" variant="subtle" onClick={addTag}>Add</Btn>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {SUGGESTED_TAGS.filter(t => !anno.tags.includes(t)).map(t => (
-            <button key={t} onClick={() => addSuggested(t)}
-              style={{ fontSize: 11, fontFamily: C.mono, color: C.muted, background: 'transparent',
-                border: `1px dashed ${C.border}`, borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}>
-              + {t}
-            </button>
+            <Tooltip key={t} text="Click to add this tag">
+              <button onClick={() => addSuggested(t)}
+                style={{ fontSize: 11, fontFamily: C.mono, color: C.muted, background: 'transparent',
+                  border: `1px dashed ${C.border}`, borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}>
+                + {t}
+              </button>
+            </Tooltip>
           ))}
         </div>
       </div>
@@ -176,8 +187,12 @@ function DetailPanel({ replay, meta, anno, onUpdateAnnotation, onLaunch, onOpenF
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>
-        <Btn onClick={launch}>▶ Launch replay</Btn>
-        <Btn variant="ghost" onClick={onOpenFolder}>Open file location</Btn>
+        <Tooltip text="Open this replay in Assetto Corsa">
+          <Btn onClick={launch}>▶ Launch replay</Btn>
+        </Tooltip>
+        <Tooltip text="Show this replay file in Windows Explorer">
+          <Btn variant="ghost" onClick={onOpenFolder}>Open file location</Btn>
+        </Tooltip>
       </div>
     </div>
   )
@@ -294,7 +309,9 @@ export default function ReplayView({ onGoSettings, showToast }) {
       <div style={{ width: 380, flexShrink: 0, borderRight: `1px solid ${C.border}`,
         display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '16px 16px 0' }}>
-          <TextInput value={search} onChange={setSearch} placeholder="Search track, driver, tag…" />
+          <Tooltip text="Filter by track name, driver, filename, or tag">
+            <TextInput value={search} onChange={setSearch} placeholder="Search track, driver, tag…" />
+          </Tooltip>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '10px 0' }}>
             {[{ id: 'all', label: 'All' }, { id: 'favorites', label: 'Favorites ★' },
               ...allTags.map(t => ({ id: t, label: t }))].map(f => (
@@ -307,6 +324,7 @@ export default function ReplayView({ onGoSettings, showToast }) {
               </button>
             ))}
           </div>
+          <Tooltip text="Change the order replays are listed" position="bottom">
           <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
             {[{ id: 'date', label: 'Date' }, { id: 'track', label: 'Track A-Z' }, { id: 'size', label: 'Size' }].map(s => (
               <button key={s.id} onClick={() => setSortMode(s.id)}
@@ -317,6 +335,7 @@ export default function ReplayView({ onGoSettings, showToast }) {
               </button>
             ))}
           </div>
+          </Tooltip>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 10px 16px' }}>
