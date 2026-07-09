@@ -1,16 +1,16 @@
-# AC Server Manager — Public release script
+# ShinRacer — Public release script
 # Sanitizes and pushes a public-safe export of this repo to the public
-# ShinobiFPV/ac-server-manager repo, straight from this Windows machine
+# ShinobiFPV/ShinRacer repo, straight from this Windows machine
 # (no Pi involved — this project only ever ran the Electron app here).
 # Run from project root: .\scripts\publish-public.ps1 [-Message "commit message"]
 
 param(
-    [string]$Message = "AC Server Manager update"
+    [string]$Message = "ShinRacer update"
 )
 
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
-$RepoUrl = "git@github.com:ShinobiFPV/ac-server-manager.git"
-$ExportDir = Join-Path $env:TEMP "ac-server-manager-public-export"
+$RepoUrl = "git@github.com:ShinobiFPV/ShinRacer.git"
+$ExportDir = Join-Path $env:TEMP "shinracer-public-export"
 
 Set-Location $ProjectRoot
 
@@ -56,4 +56,4 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "Done: https://github.com/ShinobiFPV/ac-server-manager" -ForegroundColor Green
+Write-Host "Done: https://github.com/ShinobiFPV/ShinRacer" -ForegroundColor Green

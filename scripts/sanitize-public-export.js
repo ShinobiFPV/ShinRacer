@@ -1,5 +1,5 @@
 // Strips personal identifiers from a copied export directory before it's
-// pushed to the public ac-server-manager repo. Run by publish-public.ps1,
+// pushed to the public ShinRacer repo. Run by publish-public.ps1,
 // not directly. Order matters: multi-word/context-specific patterns run
 // before the bare `shinobi` word swap, so a specific replacement doesn't
 // get double-mangled by the generic one that follows it (same convention

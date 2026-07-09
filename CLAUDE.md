@@ -244,12 +244,12 @@ identity: {
 
 ## Publishing (public export)
 `scripts/publish-public.ps1` pushes a sanitized copy of this repo straight
-from this Windows machine to the public `ShinobiFPV/ac-server-manager` repo
+from this Windows machine to the public `ShinobiFPV/ShinRacer` repo
 — no Pi involved, unlike imq2/shinagent's publish flow, since this project
 never runs anywhere but here. It robocopies the tree (excluding `.git`,
 `.claude`, `node_modules`, `dist*`, `release`, `CLAUDE.md`, uploaded files,
 the local SQLite DB, and the two publish scripts themselves) into
-`%TEMP%\ac-server-manager-public-export`, runs
+`%TEMP%\shinracer-public-export`, runs
 `scripts/sanitize-public-export.js` to scrub the owner's Pi hostname
 (`shinobi`) and LAN IP (`192.168.1.203`) from every `.js`/`.jsx`/`.json`/
 `.md`/`.html`/`.service`/`.ps1` file, then force-pushes it as a single
