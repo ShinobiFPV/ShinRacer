@@ -862,3 +862,37 @@ task scope was limited to the files listed above:
   text say "AC Companion"
 - `backend/server.js:43` — startup `console.log` says "AC Companion backend
   listening on :{PORT}"
+
+## README rewrite: crew tone
+
+2026-07-09: `README.md` was rewritten top to bottom for tone only — same
+technical coverage, same structure, every feature still documented, but
+written like it's being hyped to a friend before race night instead of
+presented like a software manual. No source files changed, GitHub About
+field text was produced separately (not committed to any file — it's set
+directly in the repo's GitHub settings).
+
+- Every section got a new header in the same spirit as the old one
+  (`Overview` → `What is this?`, `Features` → `What it does`,
+  `Getting Started` → `Let's go`, etc.) — section order and content
+  coverage are unchanged, only the header wording and prose voice.
+- All commands, config snippets (`cfg.ini`, the ASCII architecture diagram,
+  the tech-stack table), URLs, and filenames are byte-for-byte the same as
+  before — only the surrounding sentences changed. Nothing was simplified
+  to the point of being technically wrong.
+- The Credits section keeps every existing attribution (Claude, Claude
+  Code, Anthropic, the full technology and community credit lists) — the
+  wrapping paragraph was rewritten warmer, but the underlying claim about
+  who did what (William directed, Claude Code wrote the code) didn't
+  change.
+- License section left completely untouched, as instructed — legal text
+  stays formal regardless of the rest of the document's tone.
+- **Deviation:** the task's instructions assumed each feature section still
+  had a screenshot placeholder to preserve ("paths, alt text, captions can
+  have personality but filenames don't change"). There are none — Phase 5's
+  README pass shipped without screenshots, and Phase 6 explicitly declined
+  to reintroduce placeholder images since none were ever actually captured
+  (see the Phase 6 completion notes above). This rewrite followed the
+  README's actual current state rather than the task's assumption and did
+  not add new screenshot placeholders, to avoid reintroducing exactly the
+  broken-image-link pattern Phase 6 deliberately removed.

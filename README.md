@@ -5,155 +5,154 @@
 ╚══════════════════════════════════════════════╝
 ```
 
+**Built by the crew. For the crew.**
+*No subscriptions. No accounts. No nonsense.*
+
 ![Platform](https://img.shields.io/badge/platform-Windows-blue) ![Electron](https://img.shields.io/badge/electron-28-47848F) ![Node](https://img.shields.io/badge/node-24-green) ![License](https://img.shields.io/badge/license-MIT-yellow) ![Status](https://img.shields.io/badge/status-active-brightgreen) ![Built with Claude](https://img.shields.io/badge/built%20with-Claude-blueviolet)
 
-## Overview
+## What is this?
 
-ShinRacer is a full desktop companion app for Assetto Corsa 1, built to run alongside Content Manager on Windows. It handles the parts of running a private racing crew that Content Manager doesn't: standing up dedicated servers without hand-editing INI files, configuring CSP AI traffic and sol WeatherFX for open-world maps, coordinating race nights, running voice comms, tracking lap times, showing a live telemetry dash (with a draggable always-on-top overlay), and browsing replays — all from one app, one design system, one running process.
+ShinRacer is the app your AC friend group never knew it needed but won't be able to race without.
 
-It's built for a specific crew, not the general public. William (callsign `shinobi`) and a small group of racing and drifting friends run this on a private Tailscale network, with a Raspberry Pi 5 at the center acting as the shared backend for events, chat, and stats. There's no login system because there doesn't need to be one — everyone on the network is already someone who's supposed to be there.
+One app. Everything the crew needs. Server up in 30 seconds, traffic dialed in for a 2am Shutoko run, race night on the calendar, everyone in voice, lap times already logged before you've tabbed back out. No Discord bots stitched to a spreadsheet. No third-party SaaS holding your data hostage. It all runs on a Raspberry Pi in shinobi's setup and a private Tailscale network — nobody outside the crew even knows it exists, and there's no login screen because there doesn't need to be one.
 
-What makes it different from stitching together Discord + a spreadsheet + Content Manager + a track's default traffic config: everything talks to everything else already. Propose an event, and when it goes live you can generate a join invite straight from its detail panel. Launch a server, and the Comms tab is one click away. Complete a session, and your lap times are already in the Stats view before you've alt-tabbed back. No third-party SaaS, no monthly fees, no data leaving the network it was created on.
+Hover anything you don't recognize — every control explains what it actually does, not just what its label already told you. And it doesn't look like a spreadsheet with buttons bolted on: true black, sharp edges, electric blue, gauges built to read at a glance. Gold means exactly three things — your personal best, a favorited replay, first place on the board. Everywhere else, you'll just feel it.
 
-That's the ShinTech philosophy in general: self-hosted, DIY, built to be understood and modified by the person running it, not subscribed to. If you're the kind of person who'd rather own a Raspberry Pi than pay for a Discord bot, this is written for you.
-
-Every control in the app has a hover tooltip explaining what it actually does — not a restatement of the label, an explanation of the effect. First time in a tab you haven't touched, just hover around.
-
-Visually, ShinRacer is built to feel like an instrument cluster, not a dashboard toy — true black backgrounds, sharp zero-radius corners, an electric blue primary accent, and Bebas Neue/Barlow Condensed display type throughout. Gold is reserved for exactly three things: your personal-best lap, favorited replays, and the top rank on a leaderboard. Everywhere else, status reads through color alone — blue for active, green for online, red for stop.
-
-## Features
+## What it does
 
 ### 🏁 Server Manager
 
-Build and deploy AC dedicated servers without touching a single config file by hand. Point it at your AC install, pick a track and cars, and it generates real `server_cfg.ini` / `entry_list.ini` files and launches `acServer.exe` directly.
+Your server. Up. Without touching a single config file.
 
-- Visual track and car selector (scans your actual AC content folders)
-- Session config: practice/qualify/race with lap counts and duration
-- Driver aids per server: TC, ABS, stability, autoclutch, tyre blankets
-- Entry list editor: per-slot car/skin/driver name/GUID assignment
-- Live INI preview: watch `server_cfg.ini` and `entry_list.ini` update in real time as you configure
-- One-click deploy: writes config files and spawns `acServer.exe`
-- Pit board cards: live player count, uptime, PID, real-time log streaming
-- stracker UDP plugin toggle
+- Track and car picker that actually scans your AC folders — no typing paths
+- Practice, qualify, race — set lap counts and durations and go
+- Driver aids per server: TC, ABS, stability, autoclutch, tyre blankets, your call
+- Entry list editor — car/skin/driver/GUID per slot, no guesswork
+- Watch `server_cfg.ini` and `entry_list.ini` build themselves in real time as you configure
+- One click and `acServer.exe` is running
+- Pit board cards: live player count, uptime, PID, logs streaming as they happen
+- Flip on the stracker plugin with a single toggle
 
 ### ✨ Server Builder Wizard
 
-A guided, six-step alternative to the technical Build form, for when you just want to get a server up without thinking about ports and INI keys. Answer a few questions with a bit of personality and it launches (or saves) the exact same config the manual form would have produced.
+Don't want to think about ports and INI keys? Answer a few questions instead.
 
-- Step 1 sets the tone: Race Night, Drift Session, Hotlap Practice, or Cruise — each choice reshapes the copy and defaults in every later step
-- Track and car pickers scan your real AC content, same as the manual Build form
-- Conditions step: pick weather and time of day from icon cards, including gradient day/night previews
-- House rules step: friendly-language driver aid toggles ("Save me from myself" instead of "Traction control"), a driver-count slider with a live vibe label ("Just the boys" → "This is a lot of people"), optional password
-- Final step summarizes the whole config in plain English and either launches immediately or saves it to the Garage first
-- Reachable from a "✨ Quick build" button in the Build tab or "✨ Build with wizard" in the empty Live Servers view
+- Step 1 sets the whole vibe — Race Night, Drift Session, Hotlap Practice, or Cruise — and every step after adapts to it
+- Track and car pickers pull from your real AC content, same as the full Build form
+- Pick weather and time of day off icon cards, with live day/night previews
+- House rules in plain English — "Save me from myself" instead of "Traction control" — plus a driver-count slider that tells you when it's "Just the boys" versus "This is a lot of people"
+- Last step reads your whole config back in plain English, then launches it or saves it to the Garage
+- One click away: "✨ Quick build" in the Build tab, or "✨ Build with wizard" when Live Servers is empty
 
 ### 🌆 Traffic Manager
 
-A full editor for CSP AI Traffic and sol WeatherFX configs on open-world maps like Shutoko Revival Project — the kind of tuning that's normally a lot of manual INI editing and trial-and-error reloads.
+Shutoko at 2am with actual traffic feels different. ShinRacer makes that easy to set up.
 
-- Load existing `traffic_config.ini` from any track folder
-- Behaviour panel: aggression, speed limits, lane discipline, gaps, spawn distances — every CSP `[BEHAVIOR]` and `[SPAWNING]` key
-- Car roster: model/skin/weight/max-count per spawn entry, with a live probability breakdown bar
-- 24h density schedule: draggable SVG curve, maps directly to sol WeatherFX `DENSITY_HOUR_XX` keys
-- Named profiles: Rush Hour, Quiet Night, Drift Night, plus fully custom profiles
-- Save writes `traffic_config.ini` + `settings.json` with a timestamped backup of whatever was there before
+- Load any track's existing `traffic_config.ini` straight into the editor
+- Full behaviour control — aggression, speed limits, lane discipline, gaps, spawn distances, every CSP `[BEHAVIOR]`/`[SPAWNING]` key there is
+- Build your car roster — model, skin, weight, max count — with a live probability breakdown so you know what's actually going to spawn
+- Drag a 24-hour density curve straight onto sol WeatherFX's `DENSITY_HOUR_XX` keys
+- Rush Hour, Quiet Night, Drift Night — or build your own profile from scratch
+- Hit save and it backs up whatever was there before, timestamped, no questions asked
 
 ### 📅 Events Calendar
 
-Coordinate race nights without a group chat full of "who's in?" messages. Propose an event, and it becomes official once someone besides you accepts.
+Stop spamming the group chat trying to organise a race night. Propose it, track who's in, done.
 
-- Month calendar with color-coded event dots (Proposed / Happening / Past)
-- Propose events: name, type, track, cars, required mods list, optional poster image upload
-- Accept flow: an event moves from Proposed to Happening once at least one other person accepts
-- Edit, cancel, or delete any event — friends-only, no ownership restrictions
-- iCal export: download a `.ics` to add to any calendar app
-- Friend invite codes: generate a 6-character code plus a QR code to share server access
-- 24-hour reminder notifications via Electron's Notification API
-- Clear-calendar admin function
+- Month view, color-coded dots for Proposed / Happening / Past
+- Propose an event — name, type, track, cars, required mods, poster image if you've got one
+- One other person accepts and it's locked in — Proposed becomes Happening
+- Edit, cancel, or delete anything — nobody owns an event, it's a crew calendar
+- Export to `.ics` and drop it straight into whatever calendar app you actually use
+- Generate an invite code and QR on the spot to pull a friend straight into a live server
+- 24-hour heads-up notifications so nobody forgets
+- One button clears the whole calendar when you need a clean slate
 
 ### 🎙️ Comms Hub
 
-Voice and text in one panel — no Discord server required.
+Voice comms built in. No Discord. No bots. No latency from a server in another country. Just your crew.
 
-- WebRTC peer-to-peer voice (full mesh, no relay server needed over Tailscale)
-- Device selection: microphone and speaker dropdowns with a live input level meter
-- Push-to-talk (rebindable key) or open mic toggle
-- Per-peer volume sliders, persisted across sessions
-- Speaking indicators with a pulse animation
-- Connection state per peer — connected / connecting / failed — with auto-reconnect
-- Text chat with history (last 100 messages, persisted on the backend)
-- 8 quick-phrase buttons, fully editable in Settings (defaults: "Returning to pits", "I've wrecked, I'm out", and more)
+- Full-mesh WebRTC voice, peer to peer — Tailscale handles the routing, no relay server needed
+- Pick your mic and speakers, watch a live input meter to make sure you're actually being heard
+- Push-to-talk (rebind the key) or leave the mic open
+- Per-peer volume sliders that remember your settings next time
+- A pulse on whoever's actually talking
+- Connection state per peer, with auto-reconnect when someone drops
+- Text chat with real history — last 100 messages, always there when you open the tab
+- 8 quick-phrase buttons for when you don't want to talk — "Returning to pits," "I've wrecked, I'm out," and more, all editable
 
 ### 📊 Lap Stats
 
-Real telemetry straight from AC's own UDP broadcast — captured, stored, and compared, no third-party plugin required.
+Find out exactly how much faster you actually are. Or slower. We don't judge.
 
-- Live UDP capture on port 9996 (enabled in AC's `cfg/cfg.ini`)
-- Sector timing: S1/S2/S3 per lap, shown as a stacked bar chart with a personal-best line
-- Session leaderboard: rank all drivers by best lap
-- Friends comparison: personal best per track, delta highlighted
-- Invalid-lap flagging straight from the UDP flags byte, with a toggle to include/exclude them
-- Export to CSV or JSON per session
-- Recording indicator with a live lap counter
+- Captured live off AC's own UDP broadcast on port 9996 — no plugin, no third-party tool
+- Every lap split into S1/S2/S3, stacked into a bar chart with your personal best drawn right across it
+- Full session leaderboard, ranked by best lap
+- Side-by-side comparison against your friends, deltas highlighted so you know exactly where you're losing time
+- Invalid laps flagged straight from AC's own data, with a toggle to hide or show them
+- Export a session to CSV or JSON whenever you want the raw numbers
+- A live "Recording" badge and lap counter so you know it's actually working
 
 ### 📡 Live Telemetry
 
-Real-time dash and a standalone always-on-top overlay, both fed straight from AC's own Shared Memory API — no third-party dashboard app required.
+Live data. Every sensor AC exposes. Tyres, g-force, delta, damage — all of it on screen while you drive.
 
-- 15 widgets across 5 categories: Motion (speed gauge, RPM/gear bar, big gear display, G-force circle, input trace), Controls (throttle/brake bars, steering angle), Tyres (tyre map with temps/wear, tyre pressures, suspension travel), Session (lap timing panel, fuel bar, status bar, damage panel), and a compact Minimal speed+gear readout
-- LIVE tab: a 12-column responsive grid of your active widgets
-- CONFIGURE tab: check widgets on/off by category, drag-to-reorder, size per widget (sm/md/lg), 5 built-in presets (Full Dash, Tyre Map, Corner, Timing, Minimal) or fully custom layouts
-- OVERLAY tab: launches a second, frameless, transparent, always-on-top window you can drag anywhere (even over AC itself), with its own preset, opacity slider, snap-to-corner, and a right-click context menu
-- DEMO MODE: if AC isn't running (or hasn't been open for >500ms), every widget falls back to a simulated 90-second lap automatically, so the whole screen is explorable without ever launching the sim
-- Telemetry never leaves your machine — nothing here touches the backend
+- 15 widgets, 5 categories — Motion (speed, RPM/gear, big gear readout, g-force circle, input trace), Controls (throttle/brake, steering angle), Tyres (temps, wear, pressures, suspension travel), Session (lap timing, fuel, status, damage), and a stripped-down Minimal readout
+- LIVE tab: your widgets, laid out in a grid that reflows to fit
+- CONFIGURE tab: toggle what you want, drag to reorder, size each widget, or just load one of 5 presets — Full Dash, Tyre Map, Corner, Timing, Minimal
+- OVERLAY tab: pop a second window — frameless, see-through, always on top, drag it anywhere, even right over AC itself
+- AC not running? You still get a full simulated lap so you can poke around the whole screen before you've even launched the sim
+- Nothing here ever touches the backend — it stays on your machine
 
 ### 🎬 Replay Browser
 
-Browse, tag, and launch AC replays without digging through File Explorer.
+That lap you hit last night? It's in here. Tagged, saved, and one click from reliving it.
 
-- Scans `Documents\Assetto Corsa\replay\` automatically
-- Binary header parsing: extracts track, layout, car models, and driver names straight from the `.acreplay` file
-- Favorites, tags, and notes per replay, persisted locally
-- Suggested tags: race, drift, hotlap, crash, keeper, review
+- Scans `Documents\Assetto Corsa\replay\` automatically, no digging through File Explorer
+- Pulls track, layout, cars, and driver names straight out of the replay file itself
+- Favorite it, tag it, leave yourself a note — all saved locally
+- Suggested tags ready to go: race, drift, hotlap, crash, keeper, review
 - Search and filter by track, driver, tag, or filename
 - Sort by date, track, or file size
-- Launch directly into AC with the `-replay` flag
-- Metadata cache with mtime-based invalidation, so re-scans stay fast
+- Launch straight into AC, no extra steps
+- Re-scans stay fast — metadata's cached and only rebuilt when a file actually changes
 
 ### 📦 Mod Manager
 
-Download and auto-install mods directly from the ShinTech Drive library.
+The crew's mod collection, in the app. Click install. Done. No zip files. No dragging folders.
 
-- Browse Cars, Tracks, and Tools pulled live from a shared Google Drive folder
-- One-click install: downloads and extracts straight into your AC content folders
-- Update badges when a mod on Drive is newer than what you have installed
-- Sign in with Google to upload your own mods for William to review and add to the library
-- Live "someone just uploaded a mod" toast for everyone connected
-- No login required just to browse and download — sign-in is only for uploading
+- Browse Cars, Tracks, and Tools straight out of the shared Drive folder
+- One click downloads and drops it right into your AC content folders
+- A badge tells you the moment something you've got installed is out of date
+- Sign in with Google to upload your own finds for William to add to the shelf
+- Everyone connected gets a toast the second a new mod lands
+- Browsing and downloading need no login at all — sign-in's only for uploading
 
 ### 🔗 Useful Links
 
-A curated jumping-off point to the rest of the AC ecosystem, so new crew members aren't left guessing where to find mods, tools, or setup guides.
+Everywhere the crew actually goes for mods, tools, and guides — one tab, not a pinned Discord message from eight months ago.
 
-- Pre-loaded with ~25 hand-picked links across five categories: Tracks & Cars, Tools & Apps, Communities, YouTube, and Setup & Guides — RaceDepartment, Overtake.gg, Content Manager, CSP, sol, CrewChief, the AC subreddit, and more
-- Preset links can be hidden (not deleted) if you don't need them cluttering the list — toggle them back on any time
-- Add your own links on top, with name/URL/description/category, editable and deletable
+- ~25 links, hand-picked, across five categories: Tracks & Cars, Tools & Apps, Communities, YouTube, and Setup & Guides — RaceDepartment, Overtake.gg, Content Manager, CSP, sol, CrewChief, the AC subreddit, and more
+- Don't need one? Hide it. It's not gone, just out of the way — bring it back whenever
+- Add your own on top — name, URL, description, category — edit or delete anytime
 - Live search across every link's name, description, and URL
-- One-click "Visit" (opens in your default browser, never inside the app) and "Copy" for every link
-- Entirely local — the preset library ships in the app itself and your own additions live in local app storage, nothing round-trips to a backend
+- One click to visit (opens in your real browser, never trapped in the app) or copy the link
+- Fully local — the built-in list ships with the app, your additions live on your machine, nothing phones home
 
 ### 🧙 First-Run Wizard
 
-Zero-friction setup for new crew members — no README required to get running.
+New to the crew? Four steps and you're in. The app finds your AC install. You pick a handle. We handle the rest.
 
-- Auto-detects your AC install from default Steam library paths
-- Adaptive steps: skips server config entirely if `acServer.exe` isn't found (client-only mode, for friends who race but don't host)
-- Identity setup: handle + color, previewed live
-- Backend connection: pre-filled URL, auto-tests on mount
-- Quick-phrase customization
-- Saves nothing until you hit the final "Done" step
+- Finds your AC install on its own from the usual Steam paths
+- No server to host? No problem — it skips the server-config steps entirely and sets you up as a client
+- Pick a handle and a color, see it live before you commit
+- Backend URL's already filled in — just hit test and confirm it connects
+- Set up your quick-phrases while you're at it
+- Nothing saves until you hit "Done" on the last screen
 
-## Architecture
+## How it works
+
+The heavy lifting runs on a Pi 5 in shinobi's setup. Everyone else just runs the app.
 
 ```
 ┌─────────────────────────────────┐
@@ -185,13 +184,15 @@ Zero-friction setup for new crew members — no README required to get running.
 └─────────────────────────────────┘
 ```
 
-**The Electron app** is the whole client experience — React renderer for UI, a Node.js main process for everything that needs real OS access: spawning and monitoring `acServer.exe`, listening for AC's UDP telemetry broadcast, reading AC's Shared Memory blocks for the Live Telemetry screen (via a persistent PowerShell child process — no native compiled dependency required), reading/writing AC's own config files, and handling `accomp://` protocol links for invite round-trips. The renderer never touches Node directly — it talks to the main process over Electron's IPC through a `contextBridge`-exposed API.
+**The app on your machine** does everything that needs real OS access: spawns and watches `acServer.exe`, listens for AC's UDP telemetry, reads AC's shared memory straight for the Live Telemetry tab, touches your AC config files, and catches `accomp://` links so invites just work. The interface itself never touches any of that directly — it all goes through Electron's IPC bridge.
 
-**The backend** is a small always-on Node service that every client points at, over Tailscale or LAN. It's the one thing that has to be shared: it holds the events calendar, chat history, WebRTC signaling, lap stats, and invite codes in a single SQLite database, and relays realtime events over Socket.io. It runs on a Raspberry Pi 5 (`shinobi`) as a systemd service, but there's nothing Pi-specific about it — any always-on Linux box (or Windows machine) on the network works.
+**The backend** is the one thing that has to be shared — a small always-on Node service holding the events calendar, chat history, WebRTC signaling, lap stats, and invite codes in a single SQLite database, pushing realtime updates over Socket.io. It lives on shinobi's Pi 5 as a systemd service, but there's nothing Pi-specific about it — any always-on box on the network does the job.
 
-Server Manager, Traffic Manager, Live Telemetry, and the Replay Browser work entirely offline — they only touch your local AC install and filesystem (and in Telemetry's case, AC's shared memory). Events, Comms, and Stats need the backend, since those are the genuinely shared, multiplayer parts of the app. Mod Manager downloads/browsing need the backend too (it proxies Google Drive), but only uploading needs a Google sign-in.
+Server Manager, Traffic Manager, Live Telemetry, and the Replay Browser don't need the backend at all — that's just you and your AC install. Events, Comms, and Stats do, because those are the parts that are actually shared. Mod Manager needs it too for browsing and downloads (it's just proxying Drive) — signing in only matters if you're uploading.
 
-## Tech Stack
+## Under the hood
+
+Since you asked:
 
 | Layer | Technology |
 |-------|-----------|
@@ -207,9 +208,11 @@ Server Manager, Traffic Manager, Live Telemetry, and the Replay Browser work ent
 | Deployment | Raspberry Pi 5 + systemd |
 | Build | electron-builder, GitHub Actions |
 
-## Getting Started
+## Let's go
 
-### For the host (William)
+### If you're hosting (shinobi)
+
+You need Node 24. You probably already have it. Past that:
 
 **Prerequisites**
 - Windows 10/11 x64
@@ -238,39 +241,41 @@ npm run dev        # dev mode, hot reload
 npm run build       # production installer
 ```
 
-First launch runs the setup wizard — it auto-detects your AC install, asks for a handle/color, and connects to the backend you just deployed.
+First launch runs the setup wizard — it finds your AC install, asks for a handle and color, and hooks straight into the backend you just stood up.
 
-### For friends (joining the crew)
+### If you're joining the crew
+
+William sent you here. Good. Do this:
 
 1. Get a Tailscale invite from William
-2. Download the latest installer from [GitHub Releases](https://github.com/ShinobiFPV/ShinRacer/releases/latest)
-3. Run `ShinRacer-Setup-x.x.x.exe` (Windows SmartScreen may warn — the app is unsigned for now, click "More info" → "Run anyway")
-4. Follow the setup wizard — handle, color, backend URL (pre-filled, just hit Test Connection)
-5. Done — check the Events tab for upcoming sessions
+2. Grab the latest installer: [GitHub Releases](https://github.com/ShinobiFPV/ShinRacer/releases/latest)
+3. Run `ShinRacer-Setup-x.x.x.exe` — Windows might throw a SmartScreen warning since it's unsigned for now. Click "More info" → "Run anyway."
+4. Run through the setup wizard — handle, color, hit Test Connection on the backend (it's pre-filled)
+5. You're in. Check Events for what's coming up.
 
-Full step-by-step instructions: **[docs/FRIEND_SETUP.md](docs/FRIEND_SETUP.md)**
+The whole thing takes about 5 minutes.
 
-## Backend deployment
+Full step-by-step: **[docs/FRIEND_SETUP.md](docs/FRIEND_SETUP.md)**
 
-The backend runs on `shinobi` (a Raspberry Pi 5) as a `systemd` service, so it's always up when someone wants to check Events or jump into Comms.
+## Deploying the backend
 
-One-command deploy:
+One command. 15 seconds. Done:
 
 ```powershell
 .\scripts\deploy-backend.ps1
 ```
 
-The script copies the backend source files over `scp`, runs `npm install --omit=dev` remotely, restarts the `ac-companion` systemd service, and prints a health check from the freshly restarted service.
+It copies the backend source over `scp`, runs `npm install --omit=dev` on the Pi, restarts the `ac-companion` systemd service, and prints back a health check so you know it actually came up clean.
 
-First-time setup on a new Pi is manual: copy the backend files, `npm install`, then install `backend/ac-companion.service` into `/etc/systemd/system/` and `systemctl enable --now ac-companion`.
+Setting up a brand-new Pi is the only manual part: copy the backend files over, `npm install`, drop `backend/ac-companion.service` into `/etc/systemd/system/`, then `systemctl enable --now ac-companion`. After that, it's the one command above, forever.
 
 Health check endpoint: `GET /api/health`
 
-## AC Telemetry setup
+## Getting live telemetry
 
-ShinRacer reads telemetry from AC two different ways, for two different screens:
+ShinRacer pulls telemetry out of AC two different ways, for two different screens.
 
-**Lap Stats** (session history, leaderboards, exports) reads AC's UDP telemetry broadcast and needs one-time setup. Enable it in `cfg.ini`:
+**Lap Stats** needs one quick change — two lines in a config file. That's it.
 
 ```ini
 [LIVE_TELEMETRY]
@@ -279,7 +284,7 @@ APP_ID=race_stats
 UDP_PORT=9996
 ```
 
-This file lives at one of two places, depending on whether you're running vanilla AC or through Content Manager:
+Find `cfg.ini` here, depending on whether you're running vanilla AC or through Content Manager:
 
 ```
 %LOCALAPPDATA%\AcTools Content Manager\data\cfg\cfg.ini
@@ -289,35 +294,28 @@ or
 Documents\Assetto Corsa\cfg\cfg.ini
 ```
 
-**Live Telemetry** (the LIVE/CONFIGURE/OVERLAY dash) needs no setup at all — it reads AC's Shared Memory blocks directly the moment AC is running, no `cfg.ini` change required. Just open the Telemetry tab; if AC isn't running yet, it shows a simulated demo lap until it is.
+**Live Telemetry** — the LIVE/CONFIGURE/OVERLAY dash — needs nothing at all. It reads AC's shared memory the second AC is running. Just open the tab. If AC's not up yet, you'll get a simulated lap until it is.
 
-## Traffic Manager setup (SRP example)
+## Setting up SRP traffic
 
-Setting up traffic on Shutoko Revival Project, start to finish:
+Shutoko with no traffic is a different experience. Here's how to set it up properly:
 
 1. Open the **Traffic Manager** tab
-2. Click **Browse** and navigate to your track folder, e.g.:
+2. Hit **Browse** and point it at your track folder, e.g.:
    ```
    Steam\steamapps\common\assettocorsa\content\tracks\shuto_revival_project_beta
    ```
-3. Click **Load existing** — the app reads the `traffic_config.ini` that ships with the map
-4. Select the **Drift Night** profile, or clone it and customize
-5. Adjust the car roster to match whatever JDM car mods you actually have installed
-6. Set density peaks on the schedule curve for your usual session time
-7. Click **Save to map** — originals are backed up automatically to `data/traffic/backup/`
+3. Click **Load existing** — it reads whatever `traffic_config.ini` already ships with the map
+4. Pick the **Drift Night** profile, or clone it and make it yours
+5. Swap in whatever JDM car mods you've actually got installed
+6. Set your density peaks for whenever you actually race
+7. Hit **Save to map** — the original gets backed up automatically, timestamped, in `data/traffic/backup/`
 
 ## Credits
 
-**Design & Development**
-William (shinobi) — ShinTech Electronics
-Architecture, feature design, UX direction, QA, and deployment.
+ShinRacer was built by William (shinobi) over a series of late nights with a lot of help from [Claude](https://claude.ai) (Anthropic's AI) and [Claude Code](https://claude.ai/code), which wrote the vast majority of the actual code. William's job was knowing what to build, how it should feel, and making sure it actually worked when it landed on real hardware. Claude's job was everything else.
 
-**Built with Claude**
-This project was designed in collaboration with [Claude](https://claude.ai) (Anthropic's AI assistant) and built using [Claude Code](https://claude.ai/code) (Anthropic's agentic coding tool).
-
-The development process: William directed all product decisions — what to build, how it should work, and how it should feel. Claude handled code generation across nine iterative phases, from initial scaffold through production hardening, the Mod Manager, an app-wide tooltip system with the Server Builder Wizard and Useful Links page, a full visual redesign to the current cold, high-contrast look, and finally the Live Telemetry screen with its always-on-top overlay. Claude Code executed each phase given a detailed prompt, with William reviewing, testing, and course-correcting between phases.
-
-This is an example of what's possible when a technically-minded builder uses AI as a force multiplier — not to replace judgment, but to ship faster.
+If you've ever wondered what it looks like when a builder uses AI as a genuine force multiplier rather than a gimmick — this is it.
 
 **Key technologies**
 - [Electron](https://electronjs.org) — desktop shell
@@ -343,4 +341,5 @@ MIT License — see [LICENSE](LICENSE) file.
 This project is not affiliated with Kunos Simulazioni or Assetto Corsa. All game content, trademarks, and intellectual property belong to their respective owners.
 
 ---
-*Built by ShinTech Electronics · Powered by Claude*
+*Built for the crew by the crew · ShinTech Electronics*
+*Powered by Claude*
