@@ -50,6 +50,15 @@ try {
       installed_at TEXT, version_date TEXT,
       PRIMARY KEY (file_id, handle)
     );
+
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id TEXT PRIMARY KEY,
+      handle TEXT,
+      endpoint TEXT UNIQUE,
+      p256dh TEXT,
+      auth TEXT,
+      created_at TEXT
+    );
   `)
 } catch (e) {
   console.error('Failed to initialize database schema:', e)
@@ -232,4 +241,26 @@ const modInstalls = {
   },
 }
 
-module.exports = { db, events, stats, chat, invites, modInstalls }
+// ── Push subscriptions (PWA Web Push) ────────────────────────────────────────
+const pushSubs = {
+  // `endpoint` is UNIQUE, so re-subscribing the same browser (e.g. after a
+  // service worker update rotates nothing but the caller retries) replaces
+  // the row instead of accumulating duplicates.
+  save({ id, handle, endpoint, p256dh, auth, created_at }) {
+    db.prepare(`INSERT INTO push_subscriptions (id, handle, endpoint, p256dh, auth, created_at)
+      VALUES (@id, @handle, @endpoint, @p256dh, @auth, @created_at)
+      ON CONFLICT(endpoint) DO UPDATE SET handle=@handle, p256dh=@p256dh, auth=@auth`
+    ).run({ id, handle, endpoint, p256dh, auth, created_at })
+  },
+  getAll() {
+    return db.prepare(`SELECT * FROM push_subscriptions`).all()
+  },
+  getByHandle(handle) {
+    return db.prepare(`SELECT * FROM push_subscriptions WHERE handle = ?`).all(handle)
+  },
+  delete(endpoint) {
+    db.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ?`).run(endpoint)
+  },
+}
+
+module.exports = { db, events, stats, chat, invites, modInstalls, pushSubs }

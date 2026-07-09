@@ -5,6 +5,7 @@ const path    = require('path')
 const { google } = require('googleapis')
 const drive  = require('../lib/drive')
 const oauth  = require('../lib/oauth')
+const push   = require('../lib/push')
 const { modInstalls } = require('../db')
 
 const upload = multer({ dest: path.join(__dirname, '..', 'uploads') })
@@ -60,7 +61,10 @@ module.exports = function createModsRouter(io) {
 
   router.get('/auth/url', (req, res) => {
     try {
-      res.json({ ok: true, data: { url: oauth.getAuthUrl() } })
+      // The Electron app calls this with no query params (defaults to
+      // accomp://oauth); the PWA passes its own ?redirectUri= since it needs
+      // a URL Google will actually redirect a browser back to.
+      res.json({ ok: true, data: { url: oauth.getAuthUrl(req.query.redirectUri) } })
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message })
     }
@@ -68,9 +72,9 @@ module.exports = function createModsRouter(io) {
 
   router.post('/auth/callback', async (req, res) => {
     try {
-      const { code } = req.body
+      const { code, redirectUri, codeVerifier } = req.body
       if (!code) return res.status(400).json({ ok: false, error: 'code required' })
-      const { tokens, userInfo } = await oauth.exchangeCode(code)
+      const { tokens, userInfo } = await oauth.exchangeCode(code, { redirectUri, codeVerifier })
       res.json({
         ok: true,
         data: { tokens, user: { name: userInfo.name, email: userInfo.email, picture: userInfo.picture } },
@@ -111,6 +115,8 @@ module.exports = function createModsRouter(io) {
 
       io.emit('mod:uploaded', { name, category, uploadedBy: userInfo.name, fileId: created.id })
       res.json({ ok: true, data: { fileId: created.id, name: created.name } })
+      push.sendToAll({ title: 'New mod uploaded', body: `${userInfo.name} added "${name}" to ${category}` })
+        .catch(e => console.error('Push send failed for mod upload:', e.message))
     } catch (e) {
       res.status(502).json({ ok: false, error: `Upload failed: ${e.message}` })
     } finally {

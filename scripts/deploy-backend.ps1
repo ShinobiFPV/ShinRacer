@@ -15,8 +15,12 @@ scp backend\routes\stats.js shinobi@192.168.1.203:/home/shinobi/ac-companion-bac
 scp backend\routes\chat.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
 scp backend\routes\invites.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
 scp backend\routes\mods.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
+scp backend\routes\push.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
+scp backend\routes\auth.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
 scp backend\lib\drive.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/lib/
 scp backend\lib\oauth.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/lib/
+scp backend\lib\push.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/lib/
+scp backend\nginx\shinracer.conf shinobi@192.168.1.203:/tmp/shinracer.conf
 Write-Host "--- Step 1 complete ---" -ForegroundColor Green
 Write-Host "--- Step 2: npm install on shinobi ---" -ForegroundColor Cyan
 ssh shinobi@192.168.1.203 "cd /home/shinobi/ac-companion-backend && npm install --omit=dev --silent"

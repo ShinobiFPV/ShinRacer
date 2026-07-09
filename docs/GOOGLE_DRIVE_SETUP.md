@@ -34,6 +34,31 @@ via OAuth. This is a one-time setup William needs to do on the Pi.
    ```
 4. Create it, then download the client secret (or just copy the **Client ID** and **Client Secret** shown after creation) — you'll paste these into `backend/.env` below.
 
+## 3b. PWA redirect URI (Phase 10 addendum)
+
+The Companion PWA signs in with the same OAuth client as above, but from a
+browser instead of the Electron app — so it needs its own redirect URI added
+to the same client, since Google requires an exact match and a browser can't
+be redirected to `accomp://oauth`.
+
+Back in **APIs & Services → Credentials**, open the OAuth client from step 3
+and add these to **Authorized redirect URIs** (in addition to `accomp://oauth`,
+which stays for the Electron app):
+
+```
+http://192.168.1.203/auth/callback
+http://shinracer.local/auth/callback
+```
+
+Only add the `shinracer.local` one if you've actually set up mDNS for that
+hostname — an unused redirect URI in the list is harmless, but there's no
+need to add one you're not using. If you later put the PWA behind a real
+domain with HTTPS, add `https://yourdomain.com/auth/callback` here too.
+
+Then set `GOOGLE_OAUTH_REDIRECT_URI_PWA` in `backend/.env` to whichever one
+the PWA is actually reachable at (see step 5 below) — this is what
+`GET /api/auth/config` hands back to the PWA to build its sign-in URL with.
+
 ## 4. Folder IDs
 
 Open each folder in Drive and copy the ID from the URL bar:
@@ -62,15 +87,17 @@ GOOGLE_DRIVE_UPLOADS_FOLDER_ID=<Uploads folder ID>
 GOOGLE_OAUTH_CLIENT_ID=<from step 3>
 GOOGLE_OAUTH_CLIENT_SECRET=<from step 3>
 GOOGLE_OAUTH_REDIRECT_URI=accomp://oauth
+GOOGLE_OAUTH_REDIRECT_URI_PWA=<one of the URIs added in step 3b>
 ```
 
 This file lives only on the Pi and is never committed to git or bundled into
 the Electron app (`.env` and `.env.*` are gitignored everywhere in this repo).
 
-The same six `GOOGLE_*` variable names are also present, blank, in the repo's
-root `.env.example` and `backend/package.json`'s `dotenv` dependency loads
-this file automatically on backend startup (`require('dotenv').config()` in
-`server.js`).
+The same variable names are also present, blank, in the repo's root
+`.env.example`, and `backend/package.json`'s `dotenv` dependency loads this
+file automatically on backend startup (`require('dotenv').config()` in
+`server.js`). The PWA's own VAPID push-notification keys are a separate
+concern — see [docs/PWA_SETUP.md](PWA_SETUP.md) for those.
 
 ## 6. Restart the backend
 

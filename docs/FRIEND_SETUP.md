@@ -20,3 +20,15 @@ Check the Events tab to see what's coming up.
 Join Comms to talk to the crew.
 
 Note: Server hosting and Lap Stats require Assetto Corsa installed.
+
+## Option B — Mobile / PWA (no install needed)
+If you're on mobile or just want to check events and chat:
+1. Join Tailscale (Step 1 above still required)
+2. Open http://192.168.1.203 in your browser
+3. Tap Add to Home Screen
+4. Done — ShinRacer is on your home screen
+
+The PWA walks you through its own onboarding the first time you open it —
+handle, backend connection, and an optional Google sign-in (needed for
+comms, accepting events, and mod uploads; browsing events, mods, and links
+works without signing in at all). Full walkthrough: [PWA_SETUP.md](PWA_SETUP.md).

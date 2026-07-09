@@ -896,3 +896,267 @@ directly in the repo's GitHub settings).
   README's actual current state rather than the task's assumption and did
   not add new screenshot placeholders, to avoid reintroducing exactly the
   broken-image-link pattern Phase 6 deliberately removed.
+
+## Phase 10: Companion PWA
+
+Phase 10 added a mobile-first PWA (`pwa/`) — a completely separate React/Vite
+app from the Electron one, served by nginx on shinobi alongside the existing
+Express backend — plus the backend additions it needed (push notifications,
+a PWA-specific OAuth redirect flow) and its own deploy script.
+
+### Track 0 — Backend additions
+- `backend/db.js`: `push_subscriptions` table + a `pushSubs` module
+  (`save`/`getAll`/`getByHandle`/`delete`), following the existing
+  table/module shape exactly. `endpoint` is `UNIQUE` with an
+  `ON CONFLICT ... DO UPDATE`, so a browser re-subscribing (e.g. after a
+  service worker update) replaces its row instead of accumulating duplicates.
+- `backend/lib/push.js` (new): configures `web-push`'s VAPID details once at
+  require-time from env, and exports `sendToAll`/`sendToHandle` — both
+  delete a subscription row automatically on a `410`/`404` response (the
+  push service telling us the endpoint is gone for good) rather than
+  leaving a dead row that fails forever. This lives in `lib/`, not inlined
+  in `server.js`, specifically so `routes/events.js` and `routes/mods.js`
+  can both call it without a circular `require` back into `server.js`.
+- `backend/routes/push.js` (new): `GET /vapid-public-key` (not in the
+  original spec's route list, but `pushManager.subscribe()` on the client
+  needs the VAPID *public* key as its `applicationServerKey` and there's no
+  other way for the PWA to get it — the public half is safe to serve, only
+  the private key must stay server-side), `POST /subscribe`,
+  `DELETE /subscribe`, and a debug-only `POST /test` that proves the full
+  subscribe → deliver round-trip for Settings' "Test notification" button.
+- `backend/routes/auth.js` (new): `GET /api/auth/config` returns
+  `{ clientId, redirectUri }` for the PWA to build its own Google OAuth URL
+  client-side — the client secret never leaves the backend.
+- `backend/lib/oauth.js`: `createOAuthClient`/`getAuthUrl`/`exchangeCode` all
+  gained an optional `redirectUri` (Google requires the token-exchange
+  redirect_uri to exactly match the one used to build the auth URL, and the
+  PWA's is a real `http://` URL, not Electron's fixed `accomp://oauth`
+  scheme), and `exchangeCode` gained an optional `codeVerifier` for the
+  PWA's PKCE flow — `undefined` for the Electron flow, which
+  google-auth-library correctly treats as "not PKCE." `routes/mods.js`'s
+  existing `/auth/url` and `/auth/callback` (already used by the Electron
+  Mod Manager) were extended to pass these through rather than duplicated
+  into a second set of routes — same endpoints, two callers.
+- `backend/server.js`: wires up `pushRouter`/`authRouter`, and adds an
+  hourly `setInterval` that pushes a "starts soon" notification for any
+  `happening` event within 24h (`remindedEventIds` is an in-memory `Set`,
+  same restart-tolerant tradeoff the Electron app's own reminder `Set`
+  already accepted — see Phase 4's notes). `routes/events.js`'s POST
+  handler and `routes/mods.js`'s upload handler both fire a
+  `push.sendToAll(...)` after responding (fire-and-forget, so a slow push
+  service never holds up the actual request) for "new event proposed" and
+  "mod uploaded."
+- `backend/package.json`: added `web-push@^3.6.7` (the only new backend
+  dependency, per spec).
+- Incidental fix while touching `server.js`: its startup `console.log` still
+  said `"AC Companion backend listening on :{PORT}"` — a leftover the rename
+  pass had flagged as "found but not fixed" — changed to `"ShinRacer backend
+  listening..."` while already in the file for an unrelated reason.
+
+### Track 1 — PWA scaffold
+- `pwa/` is a fully independent app: its own `package.json`
+  (`shinracer-pwa`), its own `vite.config.js` (dev proxy to the backend,
+  `vite-plugin-pwa` for service-worker generation), its own `index.html`
+  and `src/main.jsx`. Nothing under `pwa/` imports anything from `src/` (the
+  Electron app) — the constraint's "share the backend only" is real, not
+  just documentation. Where the two apps need the same values (brand color
+  tokens, the preset links list), `pwa/` carries its own literal copy
+  (`pwa/src/lib/colors.js`, `pwa/src/lib/presetLinks.js`) rather than
+  reaching across the build boundary — the two apps build and deploy on
+  completely different schedules, so an import would silently couple them.
+- `vite-plugin-pwa` generates the service worker (`generateSW` strategy) —
+  per the constraint, no hand-written `sw.js` exists, since the plugin would
+  silently overwrite one anyway. `manifest: false` in the plugin config
+  because `pwa/public/manifest.json` already ships hand-authored to the
+  exact spec'd shape (including the `shortcuts` array) — the plugin still
+  reads and respects it for precaching purposes.
+- Routing is `react-router-dom` v6, exactly the route list from the spec.
+  `App.jsx` gates every route except `/onboarding` and `/auth/callback`
+  behind `isOnboarded()` (see Track 2 below for why that's a separate flag
+  from "has an identity").
+
+### Track 2 — Auth model: identity vs. onboarding vs. Google sign-in
+Three genuinely separate pieces of state, which the spec's onboarding flow
+implies but doesn't name explicitly:
+- **Onboarding completion** (`shinracer_onboarded` in localStorage) — gates
+  whether `/onboarding` is shown at all. A guest completes onboarding with
+  *no* identity, so this can't be "has an identity" the way it might first
+  seem — it's tracked as its own flag.
+- **Identity** (`shinracer_identity` — `{ handle, color }`) — what Events/
+  Comms need to attribute a proposal, acceptance, or chat message to
+  someone. Only ever set by a successful Google sign-in in the PWA (unlike
+  the Electron app, which has a manual handle+color picker in Settings) —
+  a guest never gets one. `AuthCallbackPage` derives `handle` from the
+  Google profile name and a `color` via a deterministic
+  `hashToColor(handle)` (a small hash into an 8-color palette,
+  `pwa/src/lib/colors.js`) — a judgment call, since the spec's onboarding
+  steps never include a manual color swatch picker the way Electron's
+  Settings does, and inventing one wasn't asked for.
+- **Google sign-in** (`shinracer_auth` — tokens + Google profile) — gates
+  mod uploads specifically. Expiry is handled the same way Phase 6 handled
+  it in Electron: invalidate and reprompt, no silent refresh-token exchange
+  (`useAuth`'s `isTokenExpired` check clears `shinracer_auth` and flips
+  `isLoggedIn` to `false` rather than trying to refresh).
+- PKCE (`pwa/src/lib/auth.js`): `generatePKCE()` uses
+  `crypto.getRandomValues` + `crypto.subtle.digest('SHA-256', ...)` (both
+  standard browser APIs, no library). The verifier and the redirect_uri
+  actually used are stashed in `sessionStorage` (not `localStorage` — it
+  only needs to survive the redirect round-trip) alongside a `returnTo`
+  path, so `AuthCallbackPage` knows whether to route back into onboarding's
+  step 4 (`?step=done`) or back to wherever sign-in was triggered from
+  (Settings, Mods) after a plain page navigation wipes all in-memory React
+  state.
+
+### Track 3 — Views
+All nine routed views exist: `OnboardingPage` (4 steps — Welcome, Backend
+URL, Sign-in-or-guest with the limitations checklist, Done), `EventsPage`
+(month-scoped card list, not a calendar grid — too small on mobile, per
+spec) + `EventDetailPage` (Accept/Edit/Cancel/iCal export, with `ProposeForm`
+exported from `EventsPage.jsx` and reused for both propose and edit — same
+pattern the Electron `EventsView` used in Phase 3), `CommsPage` (Voice/Chat
+tabs, hold-to-talk via `onTouchStart`/`onTouchEnd` plus `onMouseDown`/
+`onMouseUp` so it's also usable from a desktop browser, `useWebRTC.js`
+copied verbatim from the Electron app since `RTCPeerConnection` is a native
+browser API either way), `ModsPage` (download-only, no install-tracking —
+there's no local AC path on a phone), `StatsPage` (read-only, a simplified
+per-lap bar chart rather than the Electron app's stacked S1/S2/S3 chart),
+`LinksPage` (same preset list, long-press-to-copy via a small
+`useLongPress` hook backed by a touch timer, `onContextMenu` as the desktop
+equivalent), and `SettingsPage` (identity, backend URL, notifications,
+about). `BottomNav.jsx` + `BottomNav.css` handle the mobile-bottom /
+desktop-sidebar responsive swap at the 768px breakpoint from the spec.
+
+### Track 4 — Manifest, icons, service worker
+- `pwa/public/manifest.json` matches the spec's exact JSON.
+- **Icon generation deviation:** the spec offered "inline SVG rendered to
+  canvas at build time, OR create simple SVG icon files" — but
+  `manifest.json`'s icons are declared `type: "image/png"`, and no
+  canvas/image-rendering library is available in this environment (the same
+  native-dependency gap already documented for `better-sqlite3` in Phases
+  4/6 and `mmap-io`/`node-ffi-napi` in Phase 9 — none has a prebuilt binary
+  for this Node/win32 combination). Rather than ship broken `.png`
+  references or silently swap the manifest to SVG (which not all platforms'
+  install prompts accept), `pwa/scripts/generate-icons.js` hand-encodes real
+  PNG files using only Node's built-in `zlib.deflateSync` for the DEFLATE
+  compression IDAT chunks need, plus a small hand-rolled CRC32 — no external
+  dependency at all. Content is a simple 5×7-bitmap-font "SR" mark in
+  `C.blue` on `C.bg`, not actual rendered Bebas Neue glyphs. All three
+  outputs (`icon-192.png`, `icon-512.png`, `icon-maskable.png`) were
+  verified this pass by decoding them back (inflating the IDAT chunk and
+  checking the byte count matches `height × (1 + width × 3)` exactly) — real,
+  valid, correctly-sized PNGs, just placeholder artwork. Swap in real
+  branded icon files before this ships to actual users if that matters;
+  `generate-icons.js` is there to rerun if the mark itself changes in the
+  meantime.
+- `pwa/public/offline.html`: static, inline-styled (no external CSS/font
+  dependency that might itself be offline), matches spec content exactly.
+- Service worker: `vite-plugin-pwa`'s `generateSW` strategy, configured in
+  `vite.config.js` — cache-first for the app shell/JS/CSS/Google Fonts,
+  network-first (5s timeout, falls back to cache) for `/api/*` except mod
+  downloads (streamed files too large/pointless to cache), `navigateFallback:
+  '/offline.html'` for the "both network and cache failed" case, with
+  `/auth/callback` denylisted from that fallback since a failed navigation
+  there needs to actually reach the callback page's own error handling, not
+  silently become the offline page.
+
+### Track 5 — nginx + deploy
+- `backend/nginx/shinracer.conf` matches the spec's config exactly.
+- `scripts/deploy-pwa.ps1` (new) follows the same strict single-line
+  PowerShell rule as every other deploy script in this repo (no `if`
+  blocks, no backticks, no here-strings) — verified by parsing (not
+  executing) it via `[scriptblock]::Create()`, the same technique Phase 4
+  used for `deploy-backend.ps1`.
+- `scripts/deploy-backend.ps1`: added `scp` lines for `routes/push.js`,
+  `routes/auth.js`, `lib/push.js`, and the nginx conf. The spec's own
+  "Deploy script additions" section only named `push.js` and the nginx
+  conf explicitly, but `routes/auth.js` and `lib/push.js` are just as new
+  and just as required for the deployed backend to actually have these
+  routes — omitting them would silently ship a backend missing half of what
+  this phase built, the same reasoning Phase 4 used to justify including
+  `routes/invites.js` in that deploy script even though it postdated the
+  original file list.
+
+### Track 6 — Docs
+- `docs/PWA_SETUP.md` (new): the full setup guide — nginx (links to
+  `NGINX_SETUP.md`), VAPID key generation, the Google Cloud Console redirect
+  URI addition (links to `GOOGLE_DRIVE_SETUP.md`'s new addendum rather than
+  duplicating the steps), deploying, and getting installed on a phone
+  (Tailscale + iOS/Android "Add to Home Screen" instructions).
+- `docs/NGINX_SETUP.md` (new): nginx install + site config + what each
+  block does + a troubleshooting section.
+- `docs/GOOGLE_DRIVE_SETUP.md`: new "3b. PWA redirect URI" section between
+  the existing OAuth client step and the folder-IDs step, plus
+  `GOOGLE_OAUTH_REDIRECT_URI_PWA` added to the `.env` block in step 5.
+- `README.md`: new "For the crew on mobile" section, placed after the
+  feature list per spec, written in the same crew-hype voice the rest of
+  the README already uses (not the more manual-toned draft text in the
+  spec's own example) — reusing the spec's *content* (Tailscale + a link +
+  Add to Home Screen) but matching the voice actually used throughout this
+  file after the README rewrite pass above it in this document.
+- `docs/FRIEND_SETUP.md`: new "Option B — Mobile / PWA" section, written to
+  match *that* file's own plain, numbered-steps tone (it wasn't part of the
+  README's tone-rewrite pass, so introducing the hype voice into just one
+  section of it would read as inconsistent within the same document).
+- Root `.env.example`: added `GOOGLE_OAUTH_REDIRECT_URI_PWA` and the three
+  `VAPID_*` vars, matching what `backend/.env` needs per the docs above.
+
+### Constraints honored
+- Nothing under `pwa/` imports from `src/` — verified by grep, zero hits.
+- No `window.api` anywhere in `pwa/` — every backend interaction goes
+  through `axios`/`socket.io-client` directly (`pwa/src/lib/api.js`), as
+  the constraint required.
+- `deploy-pwa.ps1` and the `deploy-backend.ps1` additions were parse-checked
+  against the strict single-line rule.
+- `vite-plugin-pwa` generates the service worker — no manual `sw.js`.
+- Touch targets: every interactive element in the new primitives
+  (`pwa/src/components/primitives.jsx`) and views has a minimum 44px
+  dimension (`Btn` heights are 40/48/56px, `FAB`/PTT circle is 56/80px,
+  nav items are `flex: 1` × 44px+).
+- External links (`LinksPage`, `SettingsPage`'s About section) all open via
+  `window.open(url, '_blank', 'noopener')` or `target="_blank" rel="noopener
+  noreferrer"`.
+- Guest mode is explicit everywhere it matters: `CommsPage` shows a "sign in
+  to join comms" empty state instead of a broken/empty voice+chat UI,
+  `EventDetailPage`'s Accept button reads "Sign in to accept" and is
+  disabled rather than silently failing, `ModsPage` shows a "sign in to
+  upload" prompt in place of the FAB.
+- VAPID keys and `pwa/.env` are not committed — `.gitignore`'s existing
+  `.env` / `.env.*` patterns (with no leading `/`, so they match at any
+  depth) already cover `backend/.env` and would cover `pwa/.env` too if one
+  ever existed; no gitignore change was needed for this, verified with
+  `git check-ignore`.
+
+### Noted deviations
+- **Icon PNGs are a hand-encoded placeholder mark**, not rendered brand
+  artwork — see Track 4 above for the full reasoning and what was verified.
+- **`GET /api/push/vapid-public-key` and `GET /api/auth/config`** are both
+  additions beyond the spec's literal route list — both are things the
+  client-side flows (`pushManager.subscribe()`, building the Google auth
+  URL) cannot function without, so treating them as omissions to fix rather
+  than scope to avoid.
+- **Propose (not just Accept) is gated behind identity** in
+  `EventsPage`/`EventDetailPage`, even though the spec's guest-limitations
+  checklist only explicitly lists "Accept events (needs identity)." A
+  proposal needs a `proposed_by` handle the same way an acceptance needs
+  one — treated as an oversight in the checklist rather than a deliberate
+  allowance for anonymous proposals.
+- **Identity color is deterministic (hashed from the Google name), not
+  manually chosen** — the onboarding spec's steps never include a color
+  picker the way Electron's Settings does, so inventing one wasn't in scope,
+  but Comms/Events still need *some* per-user color to render.
+- **`StatsPage`'s lap chart is a plain per-lap bar of total lap time**, not
+  the Electron app's stacked S1/S2/S3 chart — deliberately simplified per
+  the spec's own "simplified SVG chart (same data, smaller)" instruction.
+
+### Not independently verified
+This environment has no Google Cloud project, no VAPID keys, no actual
+`shinobi` Pi to deploy to, and no real mobile device — so the following are
+verified only by code reading plus the checks noted in each track above, not
+by running them end-to-end: the real Google PKCE round-trip through an
+actual browser redirect, a real push notification arriving on a real device,
+`deploy-pwa.ps1`/`deploy-backend.ps1`'s new lines actually running against
+`shinobi`, and nginx actually reverse-proxying a live backend. What *was*
+verified: every new backend file passes `node --check`; both deploy scripts
+parse as valid PowerShell; all three generated PNG icons decode back to
+valid, correctly-sized image data; see the next task's notes for the
+`pwa/` build/install verification.

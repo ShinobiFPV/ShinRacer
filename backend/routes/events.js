@@ -3,6 +3,7 @@ const multer  = require('multer')
 const path    = require('path')
 const { v4: uuidv4 } = require('uuid')
 const { events } = require('../db')
+const push = require('../lib/push')
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, path.join(__dirname, '..', 'uploads')),
@@ -43,7 +44,12 @@ module.exports = function createEventsRouter(io) {
         created_at: new Date().toISOString(),
         required_mods: JSON.stringify(b.required_mods ? JSON.parse(b.required_mods) : []),
       }
-      res.json({ ok: true, data: events.create(event) })
+      const created = events.create(event)
+      res.json({ ok: true, data: created })
+      // Fire-and-forget after responding — a slow/unreachable push service
+      // shouldn't hold up the propose request itself.
+      push.sendToAll({ title: `New event: ${created.name}`, body: `${created.track} · ${created.date}` })
+        .catch(e => console.error('Push send failed for new event:', e.message))
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message })
     }

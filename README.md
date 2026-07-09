@@ -150,6 +150,18 @@ New to the crew? Four steps and you're in. The app finds your AC install. You pi
 - Set up your quick-phrases while you're at it
 - Nothing saves until you hit "Done" on the last screen
 
+## For the crew on mobile
+
+Not everyone needs the full desktop app. The ShinRacer PWA gets your friends
+in without installing anything — events, comms, mods, and stats, right in
+their browser, sitting on their home screen like it's a real app.
+
+**On Tailscale?** Open `http://192.168.1.203`, tap Share → Add to Home Screen,
+done. No App Store. No Play Store. Just a link.
+
+Full mobile setup, VAPID push notifications, and the nginx config that
+serves it: **[docs/PWA_SETUP.md](docs/PWA_SETUP.md)**.
+
 ## How it works
 
 The heavy lifting runs on a Pi 5 in shinobi's setup. Everyone else just runs the app.
