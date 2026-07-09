@@ -97,14 +97,17 @@ Find out exactly how much faster you actually are. Or slower. We don't judge.
 
 ### 📡 Live Telemetry
 
-Live data. Every sensor AC exposes. Tyres, g-force, delta, damage — all of it on screen while you drive.
+Live data. Every sensor the sim exposes. Tyres, g-force, delta, damage — all of it on screen while you drive. And it's not just AC anymore.
 
-- 15 widgets, 5 categories — Motion (speed, RPM/gear, big gear readout, g-force circle, input trace), Controls (throttle/brake, steering angle), Tyres (temps, wear, pressures, suspension travel), Session (lap timing, fuel, status, damage), and a stripped-down Minimal readout
+- **Six games, one dash**: AC1, ACC, AC Evo, and AC Rally over shared memory, FH5 and FH6 over UDP — auto-detected, no manual switching required
+- 17 widgets across 5 categories — Motion (speed, RPM/gear, gear readout, g-force circle, input trace, boost gauge, power/torque), Controls (throttle/brake, steering angle), Tyres (temps, wear, pressures, suspension travel, brake temp where the game exposes it), Session (lap timing, fuel, status, damage, gap ahead/behind), and a stripped-down Minimal readout
+- A colored game badge in the LIVE header always shows which sim you're actually reading from — AC1, ACC, AC EVO, AC RALLY, FH5, FH6, or DEMO
 - LIVE tab: your widgets, laid out in a grid that reflows to fit
 - CONFIGURE tab: toggle what you want, drag to reorder, size each widget, or just load one of 5 presets — Full Dash, Tyre Map, Corner, Timing, Minimal
-- OVERLAY tab: pop a second window — frameless, see-through, always on top, drag it anywhere, even right over AC itself
-- AC not running? You still get a full simulated lap so you can poke around the whole screen before you've even launched the sim
-- Nothing here ever touches the backend — it stays on your machine
+- OVERLAY tab: pop a second window — frameless, see-through, always on top, drag it anywhere, even right over the game itself
+- Nothing running yet? You still get a full simulated lap so you can poke around the whole screen before you've even launched a sim
+- AC Evo's shared-memory API is early access and can shift between patches — ShinRacer falls back gracefully per-field and flags it with an orange banner rather than showing garbage
+- Nothing here ever touches the backend — it stays on your machine. Full per-game setup: **[docs/TELEMETRY_SETUP.md](docs/TELEMETRY_SETUP.md)**
 
 ### 🎛️ The Cluster Fucker
 
@@ -222,7 +225,7 @@ The heavy lifting runs on a Pi 5 in shinobi's setup. Everyone else just runs the
 │  │   Main Process (Node.js)  │  │
 │  │   acServer.exe spawner    │  │
 │  │   UDP telemetry (9996)    │  │
-│  │   AC Shared Memory reader │  │
+│  │   Multi-game telemetry    │  │
 │  │   accomp:// URL handler   │  │
 │  └───────────────────────────┘  │
 └──────────────┬──────────────────┘
@@ -239,7 +242,7 @@ The heavy lifting runs on a Pi 5 in shinobi's setup. Everyone else just runs the
 └─────────────────────────────────┘
 ```
 
-**The app on your machine** does everything that needs real OS access: spawns and watches `acServer.exe`, listens for AC's UDP telemetry, reads AC's shared memory straight for the Live Telemetry tab, touches your AC config files, and catches `accomp://` links so invites just work. The interface itself never touches any of that directly — it all goes through Electron's IPC bridge.
+**The app on your machine** does everything that needs real OS access: spawns and watches `acServer.exe`, listens for AC's UDP telemetry, auto-detects and reads live telemetry from whichever of the six supported sims is actually running (shared memory for the AC family, UDP for Forza) for the Live Telemetry tab, touches your AC config files, and catches `accomp://` links so invites just work. The interface itself never touches any of that directly — it all goes through Electron's IPC bridge.
 
 **The backend** is the one thing that has to be shared — a small always-on Node service holding the events calendar, chat history, WebRTC signaling, lap stats, host registrations, roles, and invite codes in a single SQLite database, pushing realtime updates over Socket.io. It lives on shinobi's Pi 5 as a systemd service, but there's nothing Pi-specific about it — any always-on box on the network does the job. The same Pi also serves the mobile PWA over nginx (not pictured above, for diagram simplicity) — same backend, separate codebase, separate deploy.
 
@@ -261,6 +264,7 @@ Since you asked:
 | Database | SQLite via better-sqlite3 |
 | Voice | WebRTC (browser APIs, peer-to-peer mesh) |
 | Auth | Google Sign-In (OAuth 2.0 + ID tokens), role-based access via `roles.json` |
+| Telemetry | Shared memory (AC1, ACC, AC Evo, AC Rally) + UDP Data Out (FH5, FH6), one canonical frame shape |
 | Mod library | Google Drive API + OAuth (googleapis) |
 | Keystroke dispatch | robotjs (PowerShell SendKeys fallback) |
 | Mobile app | PWA (React + Vite, service worker via vite-plugin-pwa), served through nginx |
@@ -369,7 +373,7 @@ or
 Documents\Assetto Corsa\cfg\cfg.ini
 ```
 
-**Live Telemetry** — the LIVE/CONFIGURE/OVERLAY dash — needs nothing at all. It reads AC's shared memory the second AC is running. Just open the tab. If AC's not up yet, you'll get a simulated lap until it is.
+**Live Telemetry** — the LIVE/CONFIGURE/OVERLAY dash — auto-detects whichever supported game is running (AC1, ACC, AC Evo, AC Rally, or FH5/FH6) and needs no setup for most of them. Just open the tab. If nothing's running yet, you'll get a simulated lap until it is. Forza needs one in-game setting flipped on; full breakdown per game: **[docs/TELEMETRY_SETUP.md](docs/TELEMETRY_SETUP.md)**.
 
 ## Setting up SRP traffic
 
