@@ -1,249 +1,342 @@
-# AC Server Manager — ShinTech Edition
-
-Windows desktop companion app for Assetto Corsa — build, deploy, and run
-dedicated servers; edit CSP AI Traffic + sol WeatherFX configs; and coordinate
-race nights with friends via a shared Events calendar, WebRTC voice + text
-Comms hub, and live Lap Stats.
-
-Built with Electron + React + Vite, backed by a small Node/Express service for
-the multiplayer features. No Python dependency required.
-
----
-
-## Prerequisites
-
-- **Node.js 18+** — https://nodejs.org
-- **Assetto Corsa** installed via Steam
-- `acServer.exe` present at `…\assettocorsa\server\acServer.exe`
-  (ships with AC; or grab it from the AC dedicated server package on Steam Tools)
-- *(Optional, for Events/Comms/Stats)* a backend host reachable by everyone
-  who'll use those features — see [Backend](#backend-events--comms--stats)
-  below. A Raspberry Pi or any always-on machine on your LAN/Tailscale works.
-
----
-
-## Dev setup
-
-```powershell
-# Clone / copy project folder to your machine, then:
-cd ac-server-manager
-npm install
-npm run dev
+```
+╔══════════════════════════════════════════════════════╗
+║   AC COMPANION  ·  ShinTech Electronics               ║
+║   Race. Drift. Coordinate.                            ║
+╚══════════════════════════════════════════════════════╝
 ```
 
-This starts Vite (renderer, port 5173) and Electron simultaneously.
-On first launch you'll get a short setup wizard — it auto-detects your AC
-install from default Steam paths, asks for a handle/color, and (optionally)
-a backend URL. You can skip anything and fill it in later from Settings.
+![Platform](https://img.shields.io/badge/platform-Windows-blue) ![Electron](https://img.shields.io/badge/electron-28-47848F) ![Node](https://img.shields.io/badge/node-24-green) ![License](https://img.shields.io/badge/license-MIT-yellow) ![Status](https://img.shields.io/badge/status-active-brightgreen) ![Built with Claude](https://img.shields.io/badge/built%20with-Claude-blueviolet)
 
----
+## Overview
 
-## Build `.exe`
+AC Companion is a full desktop companion app for Assetto Corsa 1, built to run alongside Content Manager on Windows. It handles the parts of running a private racing crew that Content Manager doesn't: standing up dedicated servers without hand-editing INI files, configuring CSP AI traffic and sol WeatherFX for open-world maps, coordinating race nights, running voice comms, tracking lap times, and browsing replays — all from one app, one design system, one running process.
 
-```powershell
-npm run build
-```
+It's built for a specific crew, not the general public. William (callsign `shinobi`) and a small group of racing and drifting friends run this on a private Tailscale network, with a Raspberry Pi 5 at the center acting as the shared backend for events, chat, and stats. There's no login system because there doesn't need to be one — everyone on the network is already someone who's supposed to be there.
 
-Output: `dist-electron/AC Server Manager Setup.exe`
-Installer is NSIS, one-click, installs to `Program Files\AC Server Manager`.
-Requests admin elevation (needed to write AC server cfg files and spawn processes).
+What makes it different from stitching together Discord + a spreadsheet + Content Manager + a track's default traffic config: everything talks to everything else already. Propose an event, and when it goes live you can generate a join invite straight from its detail panel. Launch a server, and the Comms tab is one click away. Complete a session, and your lap times are already in the Stats view before you've alt-tabbed back. No third-party SaaS, no monthly fees, no data leaving the network it was created on.
 
----
-
-## Backend (Events / Comms / Stats)
-
-Live Servers, Build, Garage, Traffic Manager, and Settings all work fully
-offline. Events, Comms, and Stats are shared features — everyone in your
-group points their app at the same backend, which relays events, chat,
-WebRTC signaling, and lap telemetry between clients.
-
-```powershell
-cd backend
-npm install
-node server.js
-```
-
-Runs on port 3000 by default (`PORT` env var to override), stores data in a
-local SQLite file, and serves uploaded event posters as static files. Point
-every client's Settings → Backend URL (or the setup wizard's Backend step)
-at `http://<host>:3000`.
-
-`scripts/deploy-backend.ps1` is a ready-to-adapt example for pushing the
-backend to a remote host over `scp`/`ssh` and running it as a `systemd`
-service (`backend/ac-companion.service`) — edit the host/user placeholders
-at the top for your own setup.
-
-**Note:** `better-sqlite3` compiles a native module on install. Prebuilt
-binaries cover most common Node/OS combinations; if `npm install` fails
-building it, you'll need a C++ toolchain (on Windows: Visual Studio Build
-Tools with the "Desktop development with C++" workload).
-
----
-
-## Project structure
-
-```
-ac-server-manager/
-├── src/
-│   ├── main/
-│   │   ├── main.js              ← Electron main process (IPC, server/telemetry/protocol handling)
-│   │   └── preload.js           ← Secure IPC bridge (contextBridge)
-│   └── renderer/
-│       ├── App.jsx              ← Root shell + nav + first-run gate
-│       ├── main.jsx             ← React entry
-│       ├── index.html
-│       ├── components/
-│       │   ├── primitives.jsx   ← Design tokens + shared components
-│       │   ├── Wizard.jsx       ← First-run setup wizard
-│       │   └── ErrorBoundary.jsx
-│       ├── store/
-│       │   └── AppStore.jsx     ← React context + electron-store persistence
-│       ├── hooks/
-│       │   ├── useSocket.js     ← Shared Socket.io connection
-│       │   ├── useWebRTC.js     ← Voice chat mesh
-│       │   └── useTelemetry.js  ← UDP lap data
-│       ├── lib/
-│       │   ├── api.js           ← Backend REST client
-│       │   ├── iniUtils.js      ← INI/JSON generators + parser for AC + traffic configs
-│       │   └── format.js        ← Lap time formatting
-│       └── views/
-│           ├── DeployView.jsx   ← Live servers, pit boards, log streaming, invite/join links
-│           ├── BuildView.jsx    ← Server config wizard, entry list editor, INI preview
-│           ├── GarageView.jsx   ← Saved presets
-│           ├── TrafficView.jsx  ← CSP AI Traffic + sol WeatherFX editor
-│           ├── EventsView.jsx   ← Shared events calendar
-│           ├── CommsView.jsx    ← Voice + text chat hub
-│           ├── StatsView.jsx    ← Lap times, sessions, leaderboards
-│           └── SettingsView.jsx ← AC path, identity, backend URL, quick phrases
-├── backend/
-│   ├── server.js                ← Express + Socket.io entry
-│   ├── db.js                    ← SQLite schema + query helpers
-│   ├── socket.js                ← Chat relay, WebRTC signaling, presence
-│   └── routes/                  ← events, stats, chat, invites REST APIs
-├── resources/
-│   └── icon.ico
-├── scripts/
-│   └── deploy-backend.ps1       ← Example remote backend deploy script
-├── package.json
-├── vite.config.js
-└── README.md
-```
-
----
+That's the ShinTech philosophy in general: self-hosted, DIY, built to be understood and modified by the person running it, not subscribed to. If you're the kind of person who'd rather own a Raspberry Pi than pay for a Discord bot, this is written for you.
 
 ## Features
 
-### Live Servers
-- Pit board cards showing player count, uptime, port, PID
-- Real-time log streaming direct from `acServer.exe` stdout
-- Stop server (SIGTERM + Windows `taskkill /F` fallback)
-- Open log folder in Explorer
-- **Share an invite**: generates a join code + QR code + `/connect` command for a
-  running server, with a live expiry countdown and revoke
-- **Join a server**: enter a friend's invite code (or scan/open the link) to see
-  connection details and jump into Content Manager
+### 🏁 Server Manager
 
-### Build
-- Browses your actual `content/tracks` and `content/cars` folders
-- Generates `server_cfg.ini` and `entry_list.ini` — live preview in right panel
-- Entry list editor: per-slot car/skin/driver/GUID, with an auto-fill button
-- Sessions: Practice / Qualifying / Race with configurable lengths
-- Driver aids: TC, ABS, stability, autoclutch, tyre blankets per-server
-- Optional stracker plugin block
-- Writes config files then spawns `acServer.exe` directly
+Build and deploy AC dedicated servers without touching a single config file by hand. Point it at your AC install, pick a track and cars, and it generates real `server_cfg.ini` / `entry_list.ini` files and launches `acServer.exe` directly.
 
-### Garage
-- Saved server presets, load to edit or launch instantly
-- Persisted via `electron-store` (survives app restarts)
+- Visual track and car selector (scans your actual AC content folders)
+- Session config: practice/qualify/race with lap counts and duration
+- Driver aids per server: TC, ABS, stability, autoclutch, tyre blankets
+- Entry list editor: per-slot car/skin/driver name/GUID assignment
+- Live INI preview: watch `server_cfg.ini` and `entry_list.ini` update in real time as you configure
+- One-click deploy: writes config files and spawns `acServer.exe`
+- Pit board cards: live player count, uptime, PID, real-time log streaming
+- stracker UDP plugin toggle
 
-### Traffic Manager
-Edits CSP AI traffic config + sol WeatherFX density schedule for open-world maps like Shutoko Revival Project.
+![Live server pit boards](docs/screenshots/deploy-view.png)
+*Live Servers — pit board cards with real-time player count and log streaming*
 
-**Behaviour & Spawning tab**
-- Max cars, spawn/despawn distances, respawn cooldown, initial burst
-- Aggression (colour-coded Polite → Dangerous), lane discipline, following gap
-- Speed range, speed limit multiplier, brake distance multiplier
-- Overtaking, horn, headlights toggles
-- Quick-set presets: Sunday Driver / City Commuter / Midnight Runner / Tactical Chaos
+![Server build wizard](docs/screenshots/build-view.png)
+*Server Builder — track/car selection with live INI preview*
 
-**Car Roster tab**
-- Per-car: model ID (dropdown from your actual cars folder), skin, weight, max-on-track
-- Live spawn probability bar showing weighted breakdown
-- Add / remove / disable cars freely
+![Entry list editor](docs/screenshots/build-view-entry-list.png)
+*Server Builder — per-slot entry list editor with auto-fill*
 
-**Density Schedule tab**
-- SVG 24h curve — drag any of the 24 hour handles to set density
-- Quick-sets: Flat 50% / Rush Peaks / Night Only / Max / Clear
-- Hour grid with mini progress bars, colour-coded by time type
+### 🌆 Traffic Manager
 
-**File Preview tab**
-- Shows exact `traffic_config.ini` and `settings.json` with syntax highlighting
-- Copy to clipboard
-- "Save to map" writes both files to `{trackFolder}\data\traffic\`, backing up originals to `data\traffic\backup\` with timestamp
-- "Load existing" reads an already-configured map's files back into the editor
+A full editor for CSP AI Traffic and sol WeatherFX configs on open-world maps like Shutoko Revival Project — the kind of tuning that's normally a lot of manual INI editing and trial-and-error reloads.
 
-### Events (requires backend)
-- Month calendar, propose/accept flow — an event moves from Proposed to
-  Happening once someone besides the proposer accepts
-- Poster upload, required-mods list, car class/restriction, notes
-- Edit, cancel, delete, and "Add to Calendar" (.ics export)
-- Generate a server invite straight from a happening event's detail panel,
-  when a live server matches its track
+- Load existing `traffic_config.ini` from any track folder
+- Behaviour panel: aggression, speed limits, lane discipline, gaps, spawn distances — every CSP `[BEHAVIOR]` and `[SPAWNING]` key
+- Car roster: model/skin/weight/max-count per spawn entry, with a live probability breakdown bar
+- 24h density schedule: draggable SVG curve, maps directly to sol WeatherFX `DENSITY_HOUR_XX` keys
+- Named profiles: Rush Hour, Quiet Night, Drift Night, plus fully custom profiles
+- Save writes `traffic_config.ini` + `settings.json` with a timestamped backup of whatever was there before
 
-### Comms (requires backend)
-- WebRTC mesh voice chat — device selectors, input level meter, per-peer
-  volume, speaking indicators, push-to-talk (rebindable) or open mic
-- Text chat with message history, editable quick-phrase buttons, join/leave
-  system messages
+![Traffic behaviour panel](docs/screenshots/traffic-behavior.png)
+*Traffic Manager — behaviour and spawning controls*
 
-### Stats (requires backend)
-- Ingests AC's UDP lap telemetry directly (`[LIVE_TELEMETRY]` in `cfg.ini`)
-- Personal bests, session leaderboard, per-lap S1/S2/S3 bar chart with a PB line
-- CSV/JSON export, invalid-lap flagging
+![Traffic density schedule](docs/screenshots/traffic-schedule.png)
+*Traffic Manager — 24h density schedule curve*
 
-### Settings
-- Auto-detects AC from default Steam paths, with manual path overrides
-- Identity (handle + color), backend URL with a connection test, quick-phrase editor
-- Main-process log folder shortcut
+![Traffic car roster](docs/screenshots/traffic-roster.png)
+*Traffic Manager — car roster with live spawn probability*
+
+### 📅 Events Calendar
+
+Coordinate race nights without a group chat full of "who's in?" messages. Propose an event, and it becomes official once someone besides you accepts.
+
+- Month calendar with color-coded event dots (Proposed / Happening / Past)
+- Propose events: name, type, track, cars, required mods list, optional poster image upload
+- Accept flow: an event moves from Proposed to Happening once at least one other person accepts
+- Edit, cancel, or delete any event — friends-only, no ownership restrictions
+- iCal export: download a `.ics` to add to any calendar app
+- Friend invite codes: generate a 6-character code plus a QR code to share server access
+- 24-hour reminder notifications via Electron's Notification API
+- Clear-calendar admin function
+
+![Events calendar](docs/screenshots/events-calendar.png)
+*Events Calendar — month view with status-colored event dots*
+
+![Event detail panel](docs/screenshots/events-detail.png)
+*Events Calendar — detail panel with accept/invite actions*
+
+![Propose event form](docs/screenshots/events-propose.png)
+*Events Calendar — propose form with poster upload and required mods*
+
+### 🎙️ Comms Hub
+
+Voice and text in one panel — no Discord server required.
+
+- WebRTC peer-to-peer voice (full mesh, no relay server needed over Tailscale)
+- Device selection: microphone and speaker dropdowns with a live input level meter
+- Push-to-talk (rebindable key) or open mic toggle
+- Per-peer volume sliders, persisted across sessions
+- Speaking indicators with a pulse animation
+- Connection state per peer — connected / connecting / failed — with auto-reconnect
+- Text chat with history (last 100 messages, persisted on the backend)
+- 8 quick-phrase buttons, fully editable in Settings (defaults: "Returning to pits", "I've wrecked, I'm out", and more)
+
+![Comms voice panel](docs/screenshots/comms-voice.png)
+*Comms — voice panel with per-peer volume and speaking indicators*
+
+![Comms text chat](docs/screenshots/comms-chat.png)
+*Comms — text chat with quick-phrase buttons*
+
+### 📊 Lap Stats
+
+Real telemetry straight from AC's own UDP broadcast — captured, stored, and compared, no third-party plugin required.
+
+- Live UDP capture on port 9996 (enabled in AC's `cfg/cfg.ini`)
+- Sector timing: S1/S2/S3 per lap, shown as a stacked bar chart with a personal-best line
+- Session leaderboard: rank all drivers by best lap
+- Friends comparison: personal best per track, delta highlighted
+- Invalid-lap flagging straight from the UDP flags byte, with a toggle to include/exclude them
+- Export to CSV or JSON per session
+- Recording indicator with a live lap counter
+
+![Lap stats chart](docs/screenshots/stats-chart.png)
+*Lap Stats — stacked sector-time chart with PB line*
+
+![Friends comparison](docs/screenshots/stats-comparison.png)
+*Lap Stats — friends comparison with delta highlighting*
+
+### 🎬 Replay Browser
+
+Browse, tag, and launch AC replays without digging through File Explorer.
+
+- Scans `Documents\Assetto Corsa\replay\` automatically
+- Binary header parsing: extracts track, layout, car models, and driver names straight from the `.acreplay` file
+- Favorites, tags, and notes per replay, persisted locally
+- Suggested tags: race, drift, hotlap, crash, keeper, review
+- Search and filter by track, driver, tag, or filename
+- Sort by date, track, or file size
+- Launch directly into AC with the `-replay` flag
+- Metadata cache with mtime-based invalidation, so re-scans stay fast
+
+![Replay browser list](docs/screenshots/replays-list.png)
+*Replay Browser — list view with search, filters, and favorites*
+
+![Replay detail panel](docs/screenshots/replays-detail.png)
+*Replay Browser — detail panel with tagging and notes*
+
+### 🧙 First-Run Wizard
+
+Zero-friction setup for new crew members — no README required to get running.
+
+- Auto-detects your AC install from default Steam library paths
+- Adaptive steps: skips server config entirely if `acServer.exe` isn't found (client-only mode, for friends who race but don't host)
+- Identity setup: handle + color, previewed live
+- Backend connection: pre-filled URL, auto-tests on mount
+- Quick-phrase customization
+- Saves nothing until you hit the final "Done" step
+
+![Wizard welcome screen](docs/screenshots/wizard-welcome.png)
+*First-Run Wizard — welcome screen*
+
+![Wizard identity step](docs/screenshots/wizard-identity.png)
+*First-Run Wizard — identity setup with live preview*
+
+## Architecture
+
+```
+┌─────────────────────────────────┐
+│   ScarlettWitch (Windows 11)    │
+│                                 │
+│  ┌───────────────────────────┐  │
+│  │   Electron + React App    │  │
+│  │   (AC Companion)          │  │
+│  └────────────┬──────────────┘  │
+│               │ IPC             │
+│  ┌────────────▼──────────────┐  │
+│  │   Main Process (Node.js)  │  │
+│  │   acServer.exe spawner    │  │
+│  │   UDP telemetry (9996)    │  │
+│  │   accomp:// URL handler   │  │
+│  └───────────────────────────┘  │
+└──────────────┬──────────────────┘
+               │ HTTP + WebSocket
+               │ (Tailscale / LAN)
+┌──────────────▼──────────────────┐
+│   shinobi (Raspberry Pi 5)      │
+│                                 │
+│  ┌───────────────────────────┐  │
+│  │   Node.js + Express       │  │
+│  │   Socket.io               │  │
+│  │   SQLite (ac_companion.db)│  │
+│  └───────────────────────────┘  │
+└─────────────────────────────────┘
+```
+
+**The Electron app** is the whole client experience — React renderer for UI, a Node.js main process for everything that needs real OS access: spawning and monitoring `acServer.exe`, listening for AC's UDP telemetry broadcast, reading/writing AC's own config files, and handling `accomp://` protocol links for invite round-trips. The renderer never touches Node directly — it talks to the main process over Electron's IPC through a `contextBridge`-exposed API.
+
+**The backend** is a small always-on Node service that every client points at, over Tailscale or LAN. It's the one thing that has to be shared: it holds the events calendar, chat history, WebRTC signaling, lap stats, and invite codes in a single SQLite database, and relays realtime events over Socket.io. It runs on a Raspberry Pi 5 (`shinobi`) as a systemd service, but there's nothing Pi-specific about it — any always-on Linux box (or Windows machine) on the network works.
+
+Server Manager, Traffic Manager, and the Replay Browser work entirely offline — they only touch your local AC install and filesystem. Events, Comms, and Stats need the backend, since those are the genuinely shared, multiplayer parts of the app.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Desktop shell | Electron 28 |
+| UI | React 18 + Vite 5 |
+| Styling | Inline styles, custom design system (no CSS framework) |
+| Backend | Node.js 24 + Express |
+| Realtime | Socket.io 4 |
+| Database | SQLite via better-sqlite3 |
+| Voice | WebRTC (browser APIs, peer-to-peer mesh) |
+| Networking | Tailscale (or LAN) |
+| Deployment | Raspberry Pi 5 + systemd |
+| Build | electron-builder, GitHub Actions |
+
+## Getting Started
+
+### For the host (William)
+
+**Prerequisites**
+- Windows 10/11 x64
+- Node.js 24+ ([nodejs.org](https://nodejs.org))
+- Assetto Corsa installed via Steam
+- A Raspberry Pi (or any always-on Linux box) for the backend
+- Tailscale on all devices ([tailscale.com](https://tailscale.com))
+
+**Steps**
+
+```powershell
+# 1. Clone the repo
+git clone git@github.com:ShinobiFPV/AC1Companion.git
+cd AC1Companion
+
+# 2. Install dependencies
+npm install
+cd backend && npm install && cd ..
+
+# 3. Deploy the backend to your Pi (edit host/user in the script first)
+.\scripts\deploy-backend.ps1
+
+# 4. Run the app
+npm run dev        # dev mode, hot reload
+# or
+npm run build       # production installer
+```
+
+First launch runs the setup wizard — it auto-detects your AC install, asks for a handle/color, and connects to the backend you just deployed.
+
+### For friends (joining the crew)
+
+1. Get a Tailscale invite from William
+2. Download the latest installer from [GitHub Releases](https://github.com/ShinobiFPV/AC1Companion/releases/latest)
+3. Run `AC-Companion-Setup-x.x.x.exe` (Windows SmartScreen may warn — the app is unsigned for now, click "More info" → "Run anyway")
+4. Follow the setup wizard — handle, color, backend URL (pre-filled, just hit Test Connection)
+5. Done — check the Events tab for upcoming sessions
+
+Full step-by-step instructions: **[docs/FRIEND_SETUP.md](docs/FRIEND_SETUP.md)**
+
+## Backend deployment
+
+The backend runs on `shinobi` (a Raspberry Pi 5) as a `systemd` service, so it's always up when someone wants to check Events or jump into Comms.
+
+One-command deploy:
+
+```powershell
+.\scripts\deploy-backend.ps1
+```
+
+The script copies the backend source files over `scp`, runs `npm install --omit=dev` remotely, restarts the `ac-companion` systemd service, and prints a health check from the freshly restarted service.
+
+First-time setup on a new Pi is manual: copy the backend files, `npm install`, then install `backend/ac-companion.service` into `/etc/systemd/system/` and `systemctl enable --now ac-companion`.
+
+Health check endpoint: `GET /api/health`
+
+## AC Telemetry setup
+
+Lap Stats reads AC's own UDP telemetry broadcast — no plugin needed. Enable it in `cfg.ini`:
+
+```ini
+[LIVE_TELEMETRY]
+ENABLE=1
+APP_ID=race_stats
+UDP_PORT=9996
+```
+
+This file lives at one of two places, depending on whether you're running vanilla AC or through Content Manager:
+
+```
+%LOCALAPPDATA%\AcTools Content Manager\data\cfg\cfg.ini
+```
+or
+```
+Documents\Assetto Corsa\cfg\cfg.ini
+```
+
+## Traffic Manager setup (SRP example)
+
+Setting up traffic on Shutoko Revival Project, start to finish:
+
+1. Open the **Traffic Manager** tab
+2. Click **Browse** and navigate to your track folder, e.g.:
+   ```
+   Steam\steamapps\common\assettocorsa\content\tracks\shuto_revival_project_beta
+   ```
+3. Click **Load existing** — the app reads the `traffic_config.ini` that ships with the map
+4. Select the **Drift Night** profile, or clone it and customize
+5. Adjust the car roster to match whatever JDM car mods you actually have installed
+6. Set density peaks on the schedule curve for your usual session time
+7. Click **Save to map** — originals are backed up automatically to `data/traffic/backup/`
+
+## Credits
+
+**Design & Development**
+William (shinobi) — ShinTech Electronics
+Architecture, feature design, UX direction, QA, and deployment.
+
+**Built with Claude**
+This project was designed in collaboration with [Claude](https://claude.ai) (Anthropic's AI assistant) and built using [Claude Code](https://claude.ai/code) (Anthropic's agentic coding tool).
+
+The development process: William directed all product decisions — what to build, how it should work, and how it should feel. Claude handled code generation across five iterative phases, from initial scaffold through production hardening. Claude Code executed each phase given a detailed prompt, with William reviewing, testing, and course-correcting between phases.
+
+This is an example of what's possible when a technically-minded builder uses AI as a force multiplier — not to replace judgment, but to ship faster.
+
+**Key technologies**
+- [Electron](https://electronjs.org) — desktop shell
+- [React](https://react.dev) — UI
+- [Socket.io](https://socket.io) — realtime communication
+- [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) — database
+- [Vite](https://vitejs.dev) — build tooling
+- [electron-builder](https://electron.build) — packaging
+- [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) — invite QR codes
+
+**Community**
+- The Assetto Corsa modding community for track and car content
+- CSP (Custom Shaders Patch) by x4fab
+- sol by Peter Boese
+- Shutoko Revival Project team
+- Content Manager by AcTools
+
+## License
+
+MIT License — see [LICENSE](LICENSE) file.
+
+This project is not affiliated with Kunos Simulazioni or Assetto Corsa. All game content, trademarks, and intellectual property belong to their respective owners.
 
 ---
-
-## Traffic config files explained
-
-### `traffic_config.ini`
-Read by CSP (Custom Shaders Patch). Controls:
-- `[TRAFFIC]` — ACTIVE, MAX_CARS, VARIATION
-- `[BEHAVIOR]` — speeds, aggression, gaps, toggles
-- `[SPAWNING]` — distances, burst, cooldown
-- `[SCHEDULE]` — DENSITY_HOUR_00 … DENSITY_HOUR_23 (read by sol WeatherFX)
-- `[CAR_00]` … `[CAR_XX]` — spawn list with weights
-
-### `settings.json`
-Read by sol / WeatherFX. Mirrors behavior keys + densitySchedule array.
-
----
-
-## Example: SRP Traffic Setup
-
-1. Point Traffic Manager at your SRP track folder
-   e.g. `…\assettocorsa\content\tracks\shuto_revival_project_beta`
-2. Click **Load existing** — the app reads whatever CSP config ships with the map
-3. Switch to the **Drift Night** profile (or clone and tweak)
-4. Adjust car roster to whatever JDM cars you have installed
-5. Set density peaks for your session time
-6. Click **Save to map** — originals are backed up automatically
-
----
-
-## Known limitations
-
-- "Connect in AC" on a joined invite opens this app's own `accomp://`
-  protocol handler, which confirms the link but doesn't yet hand off to
-  Content Manager automatically — copy the printed `/connect` command into
-  CM's console for now
-- No authentication — Events/Comms/Stats are designed for a closed
-  friends-only group on a shared LAN or Tailscale network, not the open internet
-
----
-
-*ShinTech Electronics · AC Server Manager*
+*Built by ShinTech Electronics · Powered by Claude*

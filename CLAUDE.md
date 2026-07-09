@@ -462,3 +462,9 @@ then closing the one gap found (this doc) and verifying the app actually runs.
 
 ### Verified this pass
 `npx vite build` compiles clean (132 modules, no errors — the one pre-existing `path`-externalized warning is from `BuildView.jsx`, unrelated to Phase 5). `node --check` passes on `main.js`/`preload.js`. Ran `npm run dev` for real: Vite served on 5173, multiple `electron.exe` processes came up (main/renderer/GPU/utility) and stayed up, the app's own `%APPDATA%\AC Server Manager\logs\main-*.log` shows a clean `App started` → `AC detected at D:\SteamLibrary\...` sequence with no errors, and the dev console had no exceptions. Instance was then stopped cleanly. Not driven interactively (no click-through of the Replay Browser or a live installer build) — that would need a manual pass with real replay files and either a tagged release or `npm run release:dry`.
+
+### Track 3 — Public README (documentation-only pass)
+- `README.md` rewritten in full for public GitHub release: banner, badges, a 3-4 paragraph overview, one section per major feature with screenshot placeholders (no PNGs generated — see below), an architecture diagram, tech stack table, host/friend getting-started paths, backend deploy summary, AC telemetry setup, an SRP traffic walkthrough, and a Credits section crediting Claude/Claude Code by name alongside William's own direction of the project.
+- `docs/screenshots/README.md` added: the full expected-filename table plus capture instructions, so the screenshot set can be produced consistently later without re-deriving which view/state each one needs.
+- No source files, backend code, or scripts were touched — documentation only, per spec.
+- Follow-up: a root `LICENSE` file (MIT, copyright William Kew / ShinTech Electronics) was added in a separate pass right after, so the README's License section link now resolves.
