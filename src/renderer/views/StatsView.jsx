@@ -60,7 +60,7 @@ function BestsTable({ bests }) {
             <tr key={i} style={{ borderTop: `1px solid ${C.border}` }}>
               <td style={{ padding: '6px 10px', fontFamily: C.mono }}>{b.track}</td>
               <td style={{ padding: '6px 10px', fontFamily: C.mono, color: C.mutedHi }}>{b.car}</td>
-              <td style={{ padding: '6px 10px', fontFamily: C.mono, color: C.yellow, fontWeight: 700 }}>{formatLapTime(b.lap_time_ms)}</td>
+              <td style={{ padding: '6px 10px', fontFamily: C.mono, color: C.blue, fontWeight: 700 }}>{formatLapTime(b.lap_time_ms)}</td>
               <td style={{ padding: '6px 10px', fontFamily: C.mono, color: C.muted }}>{formatLapTime(b.s1_ms)}</td>
               <td style={{ padding: '6px 10px', fontFamily: C.mono, color: C.muted }}>{formatLapTime(b.s2_ms)}</td>
               <td style={{ padding: '6px 10px', fontFamily: C.mono, color: C.muted }}>{formatLapTime(b.s3_ms)}</td>
@@ -89,7 +89,7 @@ function SessionLeaderboard({ laps }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {rows.map((r, i) => (
         <div key={r.handle} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px',
-          background: i === 0 ? `${C.yellow}12` : C.bg, border: `1px solid ${i === 0 ? C.yellowDim : C.border}`, borderRadius: 5 }}>
+          background: i === 0 ? `${C.yellow}12` : C.bg, border: `1px solid ${i === 0 ? `${C.yellow}80` : C.border}`, borderRadius: 0 }}>
           <span style={{ fontFamily: C.mono, color: i === 0 ? C.yellow : C.muted, width: 20 }}>{i + 1}</span>
           <span style={{ flex: 1, fontFamily: C.head, fontWeight: 600 }}>{r.handle}</span>
           <span style={{ fontFamily: C.mono, color: C.mutedHi }}>{formatLapTime(r.lap_time_ms)}</span>
@@ -107,7 +107,7 @@ function SectorBarChart({ laps }) {
   const iW = W - PL - PR, iH = H - PT - PB
   const [hover, setHover] = useState(null)
   const { showTooltip, hideTooltip } = useTooltip()
-  const palette = [C.mutedHi, C.purple, '#00BCD4', '#FF80AB']
+  const palette = [C.mutedHi, '#8E44AD', '#00BCD4', '#FF80AB']
 
   if (!laps.length) return <div style={{ color: C.muted, fontSize: 12, padding: 20, textAlign: 'center' }}>No laps recorded for this session yet</div>
 
@@ -142,8 +142,8 @@ function SectorBarChart({ laps }) {
           return (
             <g key={l.id} onMouseEnter={() => setHover(l)} onMouseLeave={() => setHover(null)} style={{ cursor: 'pointer' }}>
               <rect x={x - 1} y={baseY - s1h - s2h - s3h - 3} width={barW + 2} height={2} fill={driverColors[l.handle]} />
-              <rect x={x} y={baseY - s3h} width={barW} height={s3h} fill={C.green} />
-              <rect x={x} y={baseY - s3h - s2h} width={barW} height={s2h} fill={C.yellow} />
+              <rect x={x} y={baseY - s3h} width={barW} height={s3h} fill={C.muted} />
+              <rect x={x} y={baseY - s3h - s2h} width={barW} height={s2h} fill={C.textSec} />
               <rect x={x} y={baseY - s3h - s2h - s1h} width={barW} height={s1h} fill={C.blue} />
             </g>
           )
@@ -151,18 +151,18 @@ function SectorBarChart({ laps }) {
       </svg>
       {hover && (
         <div style={{ position: 'absolute', top: 4, right: 4, background: C.bg, border: `1px solid ${C.border}`,
-          borderRadius: 6, padding: '8px 12px', fontSize: 11, fontFamily: C.mono, color: C.mutedHi, pointerEvents: 'none' }}>
-          <div style={{ color: C.white, fontWeight: 700, marginBottom: 4 }}>{hover.handle} · Lap {hover.lap_number ?? '—'}</div>
+          borderRadius: 0, padding: '8px 12px', fontSize: 11, fontFamily: C.mono, color: C.mutedHi, pointerEvents: 'none' }}>
+          <div style={{ color: C.textPrimary, fontWeight: 700, marginBottom: 4 }}>{hover.handle} · Lap {hover.lap_number ?? '—'}</div>
           <div><span style={{ color: C.blue }}>S1</span> {formatLapTime(hover.s1_ms)}</div>
-          <div><span style={{ color: C.yellow }}>S2</span> {formatLapTime(hover.s2_ms)}</div>
-          <div><span style={{ color: C.green }}>S3</span> {formatLapTime(hover.s3_ms)}</div>
-          <div style={{ marginTop: 3, color: C.white }}>Total {formatLapTime(hover.lap_time_ms)}</div>
+          <div><span style={{ color: C.textSec }}>S2</span> {formatLapTime(hover.s2_ms)}</div>
+          <div><span style={{ color: C.muted }}>S3</span> {formatLapTime(hover.s3_ms)}</div>
+          <div style={{ marginTop: 3, color: C.textPrimary }}>Total {formatLapTime(hover.lap_time_ms)}</div>
         </div>
       )}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8, fontSize: 11, color: C.mutedHi }}>
         {handles.map(h => (
           <div key={h} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: driverColors[h] }} />
+            <span style={{ width: 8, height: 8, borderRadius: 0, background: driverColors[h] }} />
             {h}
           </div>
         ))}
@@ -213,11 +213,11 @@ function FriendsComparison({ leaderboard, selfHandle }) {
                 const delta = self && r.handle !== selfHandle ? r.best_ms - self.best_ms : null
                 return (
                   <div key={r.handle} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 10px',
-                    background: r.handle === selfHandle ? `${C.yellow}10` : C.bg, border: `1px solid ${C.border}`, borderRadius: 5 }}>
-                    <span style={{ flex: 1, fontFamily: C.head, fontWeight: 600, color: r.handle === selfHandle ? C.yellow : C.white }}>{r.handle}</span>
+                    background: r.handle === selfHandle ? `${C.blue}10` : C.bg, border: `1px solid ${C.border}`, borderRadius: 0 }}>
+                    <span style={{ flex: 1, fontFamily: C.head, color: r.handle === selfHandle ? C.blue : C.textPrimary }}>{r.handle}</span>
                     <span style={{ fontFamily: C.mono }}>{formatLapTime(r.best_ms)}</span>
                     {delta != null && (
-                      <span style={{ fontFamily: C.mono, fontSize: 11, color: delta < 0 ? C.green : C.red, minWidth: 64, textAlign: 'right' }}>
+                      <span style={{ fontFamily: C.mono, fontSize: 11, color: delta < 0 ? C.blue : C.red, minWidth: 64, textAlign: 'right' }}>
                         {delta < 0 ? '−' : '+'}{(Math.abs(delta) / 1000).toFixed(2)}s
                       </span>
                     )}
@@ -242,7 +242,7 @@ function TelemetrySnippet() {
         {open ? '▾' : '▸'} Enable AC telemetry
       </button>
       {open && (
-        <div style={{ marginTop: 8, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: 12, textAlign: 'left' }}>
+        <div style={{ marginTop: 8, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, padding: 12, textAlign: 'left' }}>
           <pre style={{ margin: 0, fontFamily: C.mono, fontSize: 11, color: C.mutedHi, whiteSpace: 'pre-wrap' }}>{TELEMETRY_SNIPPET}</pre>
           <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
             <Btn size="xs" variant="subtle" onClick={() => navigator.clipboard.writeText(TELEMETRY_SNIPPET)}>Copy snippet</Btn>
@@ -257,9 +257,9 @@ function TelemetrySnippet() {
 function EmptyLapsState() {
   return (
     <Card style={{ padding: '50px 20px', textAlign: 'center' }}>
-      <div style={{ fontSize: 40, marginBottom: 12 }}>⏱️</div>
-      <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 16, marginBottom: 6 }}>No laps yet</div>
-      <div style={{ color: C.muted, fontSize: 13, marginBottom: 16 }}>Turn on live capture above once AC is broadcasting telemetry.</div>
+      <div style={{ fontSize: 32, marginBottom: 12 }}>⏱️</div>
+      <div style={{ fontFamily: C.head, fontSize: 20, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>No laps yet</div>
+      <div style={{ fontFamily: C.body, color: C.muted, fontSize: 13, marginBottom: 16 }}>Turn on live capture above once AC is broadcasting telemetry.</div>
       <TelemetrySnippet />
     </Card>
   )
@@ -400,7 +400,7 @@ export default function StatsView() {
           {captureOn && listening && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 7 }}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.red, animation: 'pulse 1s infinite' }} />
-              <Tag color={C.red}>Recording</Tag>
+              <span style={{ fontFamily: C.head, fontSize: 15, letterSpacing: 1, color: C.red }}>REC</span>
               <span style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{rawLaps.length} lap{rawLaps.length !== 1 ? 's' : ''}</span>
             </div>
           )}

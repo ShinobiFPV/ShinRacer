@@ -13,7 +13,7 @@ const DEFAULT_SETTINGS = {
   setupComplete: false,
 }
 
-const DEFAULT_IDENTITY = { handle: '', color: '#F5C518' }
+const DEFAULT_IDENTITY = { handle: '', color: '#0066FF' }
 export const DEFAULT_BACKEND_URL =
   (typeof __BACKEND_URL__ !== 'undefined' ? __BACKEND_URL__ : null) || 'http://192.168.1.203:3000'
 export const DEFAULT_QUICK_PHRASES = [

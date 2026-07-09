@@ -38,11 +38,11 @@ const DEFAULT_ROSTER = [
 
 const BUILTIN_PROFILES = [
   { id:'rush',  name:'Rush Hour',   color:C.red,    description:'Dense commuter, moderate aggression' },
-  { id:'night', name:'Quiet Night', color:C.purple, description:'Low density, fast movers, long gaps' },
-  { id:'drift', name:'Drift Night', color:C.yellow, description:'Shutoko weekend — spirited evening traffic' },
+  { id:'night', name:'Quiet Night', color:C.blue,   description:'Low density, fast movers, long gaps' },
+  { id:'drift', name:'Drift Night', color:C.orange, description:'Shutoko weekend — spirited evening traffic' },
 ]
 
-function makeProfile(id, name, color='#3D8EF0', description='') {
+function makeProfile(id, name, color=C.blue, description='') {
   return {
     id, name, color, description,
     csp: JSON.parse(JSON.stringify(DEFAULT_CSP)),
@@ -57,12 +57,12 @@ const INITIAL_PROFILES = [
            BEHAVIOR: { ...DEFAULT_CSP.BEHAVIOR, AGGRESSION:0.4, SPEED_LIMIT_MULT:1.1, FOLLOWING_GAP:1.8 } },
     schedule: DEFAULT_SCHEDULE.map((v,i) => (i>=7&&i<=9||i>=16&&i<=18) ? Math.min(1,v*1.5) : v),
   },
-  { ...makeProfile('night', 'Quiet Night', C.purple, 'Low density, fast movers'),
+  { ...makeProfile('night', 'Quiet Night', C.blue, 'Low density, fast movers'),
     csp: { ...JSON.parse(JSON.stringify(DEFAULT_CSP)), TRAFFIC: { ACTIVE:true, MAX_CARS:20, VARIATION:0.4 },
            BEHAVIOR: { ...DEFAULT_CSP.BEHAVIOR, MAX_SPEED_KMH:120, AGGRESSION:0.5, FOLLOWING_GAP:4.0 } },
     schedule: DEFAULT_SCHEDULE.map(v => v*0.4),
   },
-  { ...makeProfile('drift', 'Drift Night', C.yellow, 'Shutoko weekend vibes'),
+  { ...makeProfile('drift', 'Drift Night', C.orange, 'Shutoko weekend vibes'),
     csp: { ...JSON.parse(JSON.stringify(DEFAULT_CSP)), TRAFFIC: { ACTIVE:true, MAX_CARS:35, VARIATION:0.5 },
            BEHAVIOR: { ...DEFAULT_CSP.BEHAVIOR, MAX_SPEED_KMH:120, AGGRESSION:0.7, LANE_DISCIPLINE:0.5, OVERTAKING:true } },
     schedule: DEFAULT_SCHEDULE.map((v,i) => i>=20||i<=3 ? v*1.8 : v*0.3),
@@ -105,14 +105,14 @@ function DensityCurve({ schedule, onChange }) {
             <Tooltip key={label} text={tip}>
               <button onClick={fn}
                 style={{ fontSize:10, padding:'2px 8px', background:C.raised, border:`1px solid ${C.border}`,
-                  borderRadius:3, color:C.muted, cursor:'pointer', fontFamily:C.mono }}>
+                  borderRadius: 0, color:C.muted, cursor:'pointer', fontFamily:C.mono }}>
                 {label}
               </button>
             </Tooltip>
           ))}
         </div>
       </div>
-      <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:7, overflow:'hidden', userSelect:'none' }}>
+      <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius: 0, overflow:'hidden', userSelect:'none' }}>
         <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width:'100%', display:'block', cursor:drag!==null?'ns-resize':'default' }}
           onMouseMove={onMouseMove} onMouseUp={() => setDrag(null)} onMouseLeave={() => setDrag(null)}>
           {[0.25,0.5,0.75,1].map(g => (
@@ -121,17 +121,17 @@ function DensityCurve({ schedule, onChange }) {
               <text x={PL-3} y={yFor(g)+3} textAnchor="end" fontSize={7} fill={C.muted}>{g*100}%</text>
             </g>
           ))}
-          <path d={`${pathD} L ${xFor(23)} ${yFor(0)} L ${xFor(0)} ${yFor(0)} Z`} fill={`${C.yellow}1A`} />
-          <path d={pathD} fill="none" stroke={C.yellow} strokeWidth={1.8} strokeLinejoin="round" />
+          <path d={`${pathD} L ${xFor(23)} ${yFor(0)} L ${xFor(0)} ${yFor(0)} Z`} fill={`${C.blue}18`} />
+          <path d={pathD} fill="none" stroke={C.blue} strokeWidth={1.8} strokeLinejoin="round" />
           {schedule.map((v,i) => (
             <circle key={i} cx={xFor(i)} cy={yFor(v)} r={drag===i?7:4.5}
-              fill={drag===i?C.yellow:C.surface} stroke={C.yellow} strokeWidth={1.5}
+              fill={drag===i?C.blue:C.surface} stroke={C.blue} strokeWidth={1.5}
               style={{ cursor:'ns-resize' }} onMouseDown={e => { e.preventDefault(); setDrag(i) }}
               onMouseEnter={e => showTooltip('Drag up/down to set traffic density for this hour', e.target.getBoundingClientRect(), 'top')}
               onMouseLeave={hideTooltip} />
           ))}
           {[0,3,6,9,12,15,18,21].map(h => (
-            <text key={h} x={xFor(h)} y={H-6} textAnchor="middle" fontSize={8} fill={C.muted} fontFamily={C.mono}>
+            <text key={h} x={xFor(h)} y={H-6} textAnchor="middle" fontSize={7} fill={C.muted} fontFamily={C.mono}>
               {String(h).padStart(2,'0')}h
             </text>
           ))}
@@ -158,7 +158,7 @@ function CarRoster({ acPath, roster, onChange }) {
   const remove = (id) => onChange(roster.filter(c=>c.id!==id))
   const add    = () => onChange([...roster, { id:`rc${Date.now()}`, model:'', skin:'', weight:10, maxCount:5, enabled:true }])
 
-  const COLORS = [C.yellow, C.blue, C.green, C.orange, C.purple, C.red, '#00BCD4', '#FF80AB']
+  const COLORS = [C.blue, C.green, C.orange, C.red, '#00BCD4', '#FF80AB', '#8E44AD', '#00CCAA']
 
   return (
     <div>
@@ -167,7 +167,7 @@ function CarRoster({ acPath, roster, onChange }) {
           const pct = car.enabled && totalW > 0 ? ((car.weight/totalW)*100).toFixed(0) : 0
           return (
             <div key={car.id} style={{ background:C.bg, border:`1px solid ${car.enabled?C.border:C.border+'40'}`,
-              borderRadius:7, padding:'10px 12px', opacity:car.enabled?1:0.55 }}>
+              borderRadius: 0, padding:'10px 12px', opacity:car.enabled?1:0.55 }}>
               <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom: car.enabled ? 10 : 0 }}>
                 <input type="checkbox" checked={car.enabled} onChange={e=>update(car.id,'enabled',e.target.checked)} />
                 <span style={{ flex:1, fontFamily:C.mono, fontSize:11, color:C.mutedHi }}>{car.model||<span style={{color:C.muted}}>no model</span>}</span>
@@ -180,8 +180,8 @@ function CarRoster({ acPath, roster, onChange }) {
                     <Label muted>Model</Label>
                     {knownCars.length > 0 ? (
                       <select value={car.model} onChange={e=>update(car.id,'model',e.target.value)}
-                        style={{ width:'100%', background:C.surface, border:`1px solid ${C.border}`, borderRadius:4,
-                          color:C.white, padding:'5px 8px', fontSize:11, fontFamily:C.mono, outline:'none' }}>
+                        style={{ width:'100%', background:C.surface, border:`1px solid ${C.border}`, borderRadius: 0,
+                          color:C.textPrimary, padding:'5px 8px', fontSize:11, fontFamily:C.mono, outline:'none' }}>
                         <option value="">— select —</option>
                         {knownCars.filter(c=>filter?c.includes(filter):true).map(c=><option key={c}>{c}</option>)}
                       </select>
@@ -198,7 +198,7 @@ function CarRoster({ acPath, roster, onChange }) {
                     <Tooltip text="Relative spawn probability — higher weight = appears more often">
                       <div style={{ display:'flex', gap:5, alignItems:'center' }}>
                         <input type="range" min={1} max={100} value={car.weight} onChange={e=>update(car.id,'weight',+e.target.value)} style={{flex:1}} />
-                        <span style={{ fontFamily:C.mono, fontSize:11, color:C.yellow, minWidth:22 }}>{car.weight}</span>
+                        <span style={{ fontFamily:C.mono, fontSize:11, color:C.orange, minWidth:22 }}>{car.weight}</span>
                       </div>
                     </Tooltip>
                   </div>
@@ -221,7 +221,7 @@ function CarRoster({ acPath, roster, onChange }) {
       {totalW > 0 && (
         <div style={{ marginTop:14 }}>
           <Label muted>Spawn distribution</Label>
-          <div style={{ display:'flex', height:12, borderRadius:3, overflow:'hidden', gap:1 }}>
+          <div style={{ display:'flex', height:12, borderRadius: 0, overflow:'hidden', gap:1 }}>
             {roster.filter(c=>c.enabled&&c.weight>0).map((c,i) => (
               <div key={c.id} title={`${c.model}: ${((c.weight/totalW)*100).toFixed(1)}%`}
                 style={{ flex:c.weight, background:COLORS[i%COLORS.length], transition:'flex .2s' }} />
@@ -312,10 +312,10 @@ function BehaviorPanel({ csp, onChange }) {
             { label:'🚨 Tactical chaos', fn:()=>onChange({...csp,BEHAVIOR:{...b,MAX_SPEED_KMH:180,AGGRESSION:0.95,LANE_DISCIPLINE:0.1,FOLLOWING_GAP:0.8,RANDOM_STOP_CHANCE:0.005}}) },
           ].map(p => (
             <button key={p.label} onClick={p.fn} style={{ width:'100%', background:C.bg, border:`1px solid ${C.border}`,
-              borderRadius:5, padding:'8px 12px', textAlign:'left', color:C.white, marginBottom:6,
-              fontFamily:C.head, fontWeight:600, fontSize:13 }}
-              onMouseEnter={e=>e.currentTarget.style.borderColor=C.yellow}
-              onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+              borderLeft:`2px solid ${C.border}`, borderRadius: 0, padding:'8px 12px', textAlign:'left', color:C.textPrimary, marginBottom:6,
+              fontFamily:C.head, fontSize:14 }}
+              onMouseEnter={e=>e.currentTarget.style.borderLeftColor=C.blue}
+              onMouseLeave={e=>e.currentTarget.style.borderLeftColor=C.border}>
               {p.label}
             </button>
           ))}
@@ -334,11 +334,11 @@ function FilePreview({ profile, mapName }) {
   const content = tab==='ini' ? ini : json
 
   const hl = (text) => text.split('\n').map((line,i) => {
-    if (line.startsWith(';')) return <div key={i} style={{color:C.muted}}>{line||'\u00A0'}</div>
-    if (line.startsWith('[')) return <div key={i} style={{color:C.yellow}}>{line}</div>
+    if (line.startsWith(';')) return <div key={i} style={{color:C.muted, fontStyle:'italic'}}>{line||'\u00A0'}</div>
+    if (line.startsWith('[')) return <div key={i} style={{color:C.whiteHot, textTransform:'uppercase'}}>{line}</div>
     if (line.includes('=')) {
       const ei = line.indexOf('=')
-      return <div key={i}><span style={{color:'#7EC8E3'}}>{line.slice(0,ei)}</span><span style={{color:C.muted}}>=</span><span style={{color:'#A8E6A3'}}>{line.slice(ei+1)}</span></div>
+      return <div key={i}><span style={{color:C.textSec}}>{line.slice(0,ei)}</span><span style={{color:C.muted}}>=</span><span style={{color:C.blue}}>{line.slice(ei+1)}</span></div>
     }
     return <div key={i} style={{color:C.mutedHi}}>{line||'\u00A0'}</div>
   })
@@ -348,8 +348,8 @@ function FilePreview({ profile, mapName }) {
       <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center' }}>
         {['ini','json'].map(t=>(
           <button key={t} onClick={()=>setTab(t)}
-            style={{ padding:'4px 14px', border:`1px solid ${tab===t?C.yellow:C.border}`, borderRadius:4,
-              background:tab===t?`${C.yellow}18`:'transparent', color:tab===t?C.yellow:C.muted,
+            style={{ padding:'4px 14px', border:`1px solid ${tab===t?C.blue:C.border}`, borderRadius: 0,
+              background:tab===t?`${C.blue}18`:'transparent', color:tab===t?C.blue:C.muted,
               fontFamily:C.mono, fontSize:11, cursor:'pointer' }}>
             {t==='ini'?'traffic_config.ini':'settings.json'}
           </button>
@@ -361,7 +361,7 @@ function FilePreview({ profile, mapName }) {
           {copied?'✓ Copied':'Copy'}
         </Btn>
       </div>
-      <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:6, padding:'12px 14px',
+      <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius: 0, padding:'12px 14px',
         fontFamily:C.mono, fontSize:11, lineHeight:1.85, maxHeight:520, overflowY:'auto' }}>
         {hl(content)}
       </div>
@@ -400,7 +400,7 @@ export default function TrafficView() {
 
   const deleteActive = () => {
     const builtins = ['rush','night','drift']
-    if (builtins.includes(activeId)) { showToast('Cannot delete built-in profile','#E74C3C'); return }
+    if (builtins.includes(activeId)) { showToast('Cannot delete built-in profile', C.red); return }
     setProfiles(prev=>prev.filter(p=>p.id!==activeId))
     setActiveId('drift')
   }
@@ -448,14 +448,14 @@ export default function TrafficView() {
       <div style={{ padding:'16px 24px 0', flexShrink:0 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
           <div>
-            <div style={{ fontFamily:C.head, fontWeight:700, fontSize:22, lineHeight:1 }}>
-              <span style={{color:C.yellow}}>Traffic</span> Manager
+            <div style={{ fontFamily:C.head, fontSize:26, letterSpacing:1, lineHeight:1, textTransform:'uppercase' }}>
+              <span style={{color:C.blue}}>Traffic</span> Manager
             </div>
             <div style={{ fontSize:11, color:C.muted, marginTop:3, fontFamily:C.mono }}>{mapName}</div>
           </div>
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
             <Tag color={C.blue}>CSP AI Traffic</Tag>
-            <Tag color={C.purple}>sol WeatherFX</Tag>
+            <Tag color={C.orange}>sol WeatherFX</Tag>
           </div>
         </div>
 
@@ -477,11 +477,11 @@ export default function TrafficView() {
         <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center', marginBottom:16 }}>
           {profiles.map(p=>(
             <button key={p.id} onClick={()=>setActiveId(p.id)}
-              style={{ display:'flex', alignItems:'center', gap:7, padding:'6px 14px', borderRadius:6,
-                border:`2px solid ${p.id===activeId?p.color:C.border}`,
+              style={{ display:'flex', alignItems:'center', gap:7, padding:'6px 14px', borderRadius: 0,
+                border:`1px solid ${C.border}`, borderLeft:`3px solid ${p.id===activeId?p.color:C.border}`,
                 background:p.id===activeId?`${p.color}18`:C.surface,
                 color:p.id===activeId?p.color:C.muted,
-                fontFamily:C.head, fontWeight:700, fontSize:13, cursor:'pointer', transition:'all .15s' }}>
+                fontFamily:C.head, fontSize:14, cursor:'pointer', transition:'all .15s' }}>
               <span style={{ width:7, height:7, borderRadius:'50%', background:p.color }} />
               {p.name}
             </button>
@@ -525,13 +525,13 @@ export default function TrafficView() {
             <DensityCurve schedule={active.schedule} onChange={schedule=>updateActive({schedule})} />
             <div style={{ marginTop:20, display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:4 }}>
               {active.schedule.map((v,i)=>(
-                <div key={i} style={{ background:C.bg, borderRadius:4, padding:'5px 8px',
+                <div key={i} style={{ background:C.bg, borderRadius: 0, padding:'5px 8px',
                   display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                  <span style={{ fontFamily:C.mono, fontSize:10, color:i<6||i>=21?C.purple:(i>=7&&i<=9||i>=16&&i<=18)?C.red:C.muted }}>
+                  <span style={{ fontFamily:C.mono, fontSize:10, color:i<6||i>=21?C.blue:(i>=7&&i<=9||i>=16&&i<=18)?C.red:C.muted }}>
                     {String(i).padStart(2,'0')}h
                   </span>
                   <div style={{ display:'flex', alignItems:'center', gap:4 }}>
-                    <div style={{ width:28, height:3, borderRadius:2, background:C.border, overflow:'hidden' }}>
+                    <div style={{ width:28, height:3, borderRadius: 0, background:C.border, overflow:'hidden' }}>
                       <div style={{ width:`${v*100}%`, height:'100%', background:v>0.7?C.red:v>0.4?C.orange:C.green }} />
                     </div>
                     <span style={{ fontFamily:C.mono, fontSize:9, color:C.mutedHi }}>{Math.round(v*100)}%</span>

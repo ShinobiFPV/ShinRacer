@@ -16,9 +16,9 @@ export default function GarageView({ onLoad, onDeploy }) {
     return (
       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
         height:'100%', gap:12, color: C.muted }}>
-        <div style={{ fontSize:48 }}>🚗</div>
-        <div style={{ fontFamily:C.head, fontSize:22, color:C.white }}>Garage is empty</div>
-        <div style={{ fontSize:14 }}>Save server configs from the Build tab to store them here</div>
+        <div style={{ fontSize:32 }}>🚗</div>
+        <div style={{ fontFamily:C.head, fontSize:24, letterSpacing:1, textTransform:'uppercase', color:C.muted }}>Garage is empty</div>
+        <div style={{ fontFamily:C.body, fontSize:14, color:C.muted }}>Save server configs from the Build tab to store them here</div>
       </div>
     )
   }
@@ -29,7 +29,7 @@ export default function GarageView({ onLoad, onDeploy }) {
         {profiles.map(p => (
           <Card key={p.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
             <div style={{ flex:1 }}>
-              <div style={{ fontFamily:C.head, fontWeight:700, fontSize:18, marginBottom:3 }}>{p.name}</div>
+              <div style={{ fontFamily:C.head, fontSize:20, marginBottom:3 }}>{p.name}</div>
               <div style={{ fontSize:12, color:C.muted, marginBottom:8 }}>
                 {p.trackId || 'no track'}{p.layoutId ? ` / ${p.layoutId}` : ''}
                 {' · '}{p.cars?.length || 0} cars
@@ -40,7 +40,7 @@ export default function GarageView({ onLoad, onDeploy }) {
               <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
                 {p.cars?.slice(0,5).map(c => <Tag key={c} color={C.muted} size="xs">{c}</Tag>)}
                 {p.cars?.length > 5 && <Tag color={C.muted} size="xs">+{p.cars.length-5} more</Tag>}
-                {p.password && <Tag color={C.yellow} size="xs">🔒 Password</Tag>}
+                {p.password && <Tag color={C.orange} size="xs">🔒 Password</Tag>}
                 {!p.allowances?.tc    && <Tag color={C.red}  size="xs">No TC</Tag>}
                 {!p.allowances?.abs   && <Tag color={C.red}  size="xs">No ABS</Tag>}
                 {p.allowances?.tyreBlankets && <Tag color={C.green} size="xs">Blankets</Tag>}

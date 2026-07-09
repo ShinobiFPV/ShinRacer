@@ -35,43 +35,49 @@ const NAV = [
 
 function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backendOnline }) {
   return (
-    <div style={{ width:196, background:C.surface, borderRight:`1px solid ${C.border}`,
+    <div style={{ width:180, background:C.bg, borderRight:`1px solid ${C.border}`,
       display:'flex', flexDirection:'column', flexShrink:0, userSelect:'none' }}>
 
       {/* Wordmark — sits in the titlebar drag region */}
-      <div style={{ height:32, display:'flex', alignItems:'center', padding:'0 16px',
-        borderBottom:`1px solid ${C.border}`, WebkitAppRegion:'drag', flexShrink:0 }}>
-        <span style={{ fontFamily:C.head, fontWeight:700, fontSize:18, lineHeight:1 }}>
-          <span style={{color:C.yellow}}>Shin</span>Racer
+      <div style={{ height:48, position:'relative', display:'flex', flexDirection:'column', justifyContent:'center',
+        padding:'0 16px', borderBottom:`1px solid ${C.border}`, borderLeft:`3px solid ${C.blue}`,
+        WebkitAppRegion:'drag', flexShrink:0 }}>
+        <span style={{ fontFamily:C.head, fontSize:22, letterSpacing:3, lineHeight:1, color:C.whiteHot }}>
+          SHINRACER
+        </span>
+        <span style={{ fontFamily:C.body, fontWeight:400, fontSize:10, letterSpacing:2, textTransform:'uppercase', color:C.muted, marginTop:2 }}>
+          ShinTech
         </span>
       </div>
 
       {/* Live indicator */}
       {liveCount > 0 && (
-        <div style={{ margin:'8px 10px 0', background:`${C.green}18`, border:`1px solid ${C.green}40`,
-          borderRadius:5, padding:'5px 10px', display:'flex', alignItems:'center', gap:7 }}>
-          <StatusDot online />
-          <span style={{ fontSize:11, color:C.green, fontWeight:600 }}>
-            {liveCount} server{liveCount!==1?'s':''} live
+        <div style={{ background:C.bg, borderBottom:`1px solid ${C.border}`, borderLeft:`3px solid ${C.green}`,
+          padding:'8px 14px', display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{ width:4, height:4, borderRadius:'50%', background:C.green, boxShadow:`0 0 6px ${C.green}`, flexShrink:0 }} />
+          <span style={{ fontFamily:C.head, fontSize:14, letterSpacing:2, color:C.green }}>
+            {liveCount} LIVE
           </span>
         </div>
       )}
 
       {/* Nav items */}
-      <nav style={{ flex:1, padding:'8px 8px' }}>
+      <nav style={{ flex:1, padding:'8px 0' }}>
         {NAV.map(n => {
           const active = view === n.id
           const warn = n.id==='settings' && !setupComplete
           return (
             <button key={n.id} onClick={() => onChange(n.id)}
-              style={{ width:'100%', display:'flex', alignItems:'center', gap:10,
-                padding:'9px 12px', borderRadius:6, border:'none', cursor:'pointer',
-                background: active ? `${C.yellow}18` : 'transparent',
-                color: active ? C.yellow : warn ? C.orange : C.muted,
-                fontFamily:C.head, fontWeight: active ? 700 : 500,
-                fontSize:14, letterSpacing:0.2, textAlign:'left',
-                transition:'background .12s, color .12s', marginBottom:2 }}>
-              <span style={{fontSize:17}}>{n.icon}</span>
+              style={{ width:'100%', position:'relative', display:'flex', alignItems:'center', gap:10,
+                height:36, paddingLeft:20, paddingRight:12, background:'transparent', border:'none', cursor:'pointer',
+                color: active ? C.blue : warn ? C.orange : C.muted,
+                fontFamily:C.body, fontWeight:600, textTransform:'uppercase',
+                fontSize:13, letterSpacing:1.5, textAlign:'left', transition:'color .1s' }}
+              onMouseEnter={e => { if (!active) { e.currentTarget.style.color = warn ? C.orange : C.textSec; e.currentTarget.firstElementChild.style.background = C.borderHi } }}
+              onMouseLeave={e => { if (!active) { e.currentTarget.style.color = warn ? C.orange : C.muted; e.currentTarget.firstElementChild.style.background = 'transparent' } }}>
+              <span style={{ position:'absolute', left:0, top:'50%', transform:'translateY(-50%)',
+                width:2, height:14, background: active ? C.blue : 'transparent', transition:'background .1s' }} />
+              <span style={{ fontSize:14, opacity:0.6 }}>{n.icon}</span>
               {n.label}
               {warn && <span style={{marginLeft:'auto',fontSize:9,color:C.orange}}>●</span>}
             </button>
@@ -80,10 +86,12 @@ function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backend
       </nav>
 
       <div style={{ padding:'10px 14px', borderTop:`1px solid ${C.border}`, fontSize:10, color:C.muted, lineHeight:1.6 }}>
-        ShinTech Electronics<br/>
-        acServer v1.16.x compat
+        <span style={{ fontFamily:C.body, letterSpacing:1, textTransform:'uppercase' }}>ShinTech Electronics</span><br/>
+        <span style={{ fontFamily:C.head, letterSpacing:1 }}>acServer v1.16.x compat</span>
         <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:6 }}>
-          <span style={{ width:6, height:6, borderRadius:'50%', background: backendOnline ? C.green : C.red, flexShrink:0 }} />
+          <span style={{ width:4, height:4, borderRadius:0, background: backendOnline ? C.green : C.red, flexShrink:0,
+            boxShadow: backendOnline ? `0 0 4px ${C.green}` : 'none',
+            animation: backendOnline ? 'none' : 'pulse 1s infinite' }} />
           <span style={{ fontFamily:C.mono, fontSize:9, color:C.muted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
             {backendUrl}
           </span>
@@ -143,17 +151,18 @@ function Inner() {
             {/* Page header bar */}
             <div style={{ height:48, display:'flex', alignItems:'center', padding:'0 24px',
               borderBottom:`1px solid ${C.border}`, flexShrink:0,
-              WebkitAppRegion:'drag', background:C.surface }}>
-              <span style={{ fontFamily:C.head, fontWeight:700, fontSize:18, WebkitAppRegion:'no-drag' }}>
+              WebkitAppRegion:'drag', background:C.bg }}>
+              <span style={{ fontFamily:C.head, fontSize:20, letterSpacing:2, textTransform:'uppercase',
+                color:C.textPrimary, WebkitAppRegion:'no-drag' }}>
                 {NAV.find(n=>n.id===view)?.label}
               </span>
               {view==='deploy' && (
                 <span style={{ marginLeft:'auto', WebkitAppRegion:'no-drag' }}>
                   <Tooltip text="Open the server builder to configure and launch a new server" position="left">
                     <button onClick={() => goToBuild()}
-                      style={{ background:C.yellow, color:'#000', border:'none',
-                        borderRadius:5, padding:'5px 16px', fontFamily:C.head, fontWeight:700,
-                        fontSize:13, cursor:'pointer' }}>
+                      style={{ background:C.blue, color:C.whiteHot, border:`1px solid ${C.blueDim}`, borderLeft:'2px solid #0088FF',
+                        borderRadius: 0, padding:'6px 18px', fontFamily:C.body, fontWeight:700, textTransform:'uppercase',
+                        letterSpacing:1.5, fontSize:12, cursor:'pointer' }}>
                       + New server
                     </button>
                   </Tooltip>

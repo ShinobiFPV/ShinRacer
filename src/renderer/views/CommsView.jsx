@@ -40,9 +40,9 @@ function useLocalAudioLevel(stream) {
 function MicMeter({ stream }) {
   const level = useLocalAudioLevel(stream)
   return (
-    <div style={{ height: 8, background: C.bg, borderRadius: 4, overflow: 'hidden', border: `1px solid ${C.border}` }}>
+    <div style={{ height: 8, background: C.bg, borderRadius: 0, overflow: 'hidden', border: `1px solid ${C.border}` }}>
       <div style={{ height: '100%', width: `${level * 100}%`,
-        background: level > 0.8 ? C.red : level > 0.5 ? C.orange : C.green, transition: 'width .05s' }} />
+        background: `linear-gradient(90deg, ${C.blueDim}, ${C.blue})`, transition: 'width .05s' }} />
     </div>
   )
 }
@@ -63,14 +63,15 @@ function PeerCard({ user, stream, speaking, speakerId, connectionState, onReconn
   const isBad = connectionState === 'failed' || connectionState === 'disconnected'
 
   return (
-    <Card accent={speaking ? `${C.green}80` : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <Card accent={speaking ? user.color : C.border}
+      style={{ display: 'flex', flexDirection: 'column', gap: 10,
+        animation: speaking ? 'peerGlow 600ms ease-in-out infinite' : 'none', '--glow': user.color }}>
       <audio ref={audioRef} autoPlay />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ width: 10, height: 10, borderRadius: '50%', background: user.color,
-          boxShadow: speaking ? `0 0 8px ${user.color}` : 'none',
-          animation: speaking ? 'speakPulse 600ms ease-in-out infinite' : 'none' }} />
-        <span style={{ fontFamily: C.head, fontWeight: 700, fontSize: 14, flex: 1 }}>{user.handle}</span>
-        {speaking && <Tag color={C.green} size="xs">speaking</Tag>}
+          boxShadow: speaking ? `0 0 8px ${user.color}` : 'none' }} />
+        <span style={{ fontFamily: C.head, fontSize: 16, flex: 1 }}>{user.handle}</span>
+        {speaking && <Tag color={C.blue} size="xs">speaking</Tag>}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ width: 7, height: 7, borderRadius: '50%', background: connectionDotColor(connectionState), flexShrink: 0 }}
@@ -175,7 +176,7 @@ function VoicePanel({ identity, socket, users, selfId }) {
 
   return (
     <div style={{ width: 340, borderRight: `1px solid ${C.border}`, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 14, flexShrink: 0 }}>
-      <Card>
+      <Card style={pttActive ? { border: `1px solid ${C.blue}`, boxShadow: `0 0 12px ${C.blue}44, inset 2px 2px 0 0 ${C.borderHi}` } : {}}>
         <SectionHead children="Devices" />
         <Label muted>Microphone</Label>
         <div style={{ marginBottom: 12 }}>
@@ -193,7 +194,7 @@ function VoicePanel({ identity, socket, users, selfId }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
           <Label muted style={{ marginBottom: 0 }}>Input level</Label>
-          <span style={{ fontSize: 12, color: pttActive ? C.yellow : C.muted, animation: pttActive ? 'pulse 1s infinite' : 'none' }}>🎙️</span>
+          <span style={{ fontSize: 12, color: pttActive ? C.blue : C.muted, animation: pttActive ? 'pulse 1s infinite' : 'none' }}>🎙️</span>
         </div>
         <MicMeter stream={effectiveMuted ? null : localStream} />
       </Card>
@@ -207,9 +208,9 @@ function VoicePanel({ identity, socket, users, selfId }) {
           <Tooltip text="Click to rebind your push-to-talk key">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               background: pttActive ? `${C.green}18` : C.bg, border: `1px solid ${pttActive ? C.green : C.border}`,
-              borderRadius: 6, padding: '8px 12px', marginTop: 4 }}>
+              borderRadius: 0, padding: '8px 12px', marginTop: 4 }}>
               <div style={{ fontSize: 12, color: C.mutedHi }}>
-                Push-to-talk key: <span style={{ fontFamily: C.mono, color: C.yellow }}>{keyLabel(pttKey)}</span>
+                Push-to-talk key: <span style={{ fontFamily: C.mono, color: C.blue }}>{keyLabel(pttKey)}</span>
               </div>
               <Btn size="xs" variant="subtle" onClick={() => setRebinding(true)}>
                 {rebinding ? 'Press a key…' : 'Rebind'}
@@ -292,10 +293,11 @@ function ChatPanel({ identity, socket, quickPhrases }) {
         {messages.map(m => m.kind === 'system' ? (
           <div key={m.id} style={{ fontSize: 11, color: C.muted, fontStyle: 'italic', textAlign: 'center' }}>{m.text}</div>
         ) : (
-          <div key={m.id} style={{ fontSize: 13 }}>
-            <span style={{ fontFamily: C.head, fontWeight: 700, color: m.color || C.yellow }}>{m.handle}</span>
+          <div key={m.id} style={{ fontSize: 13,
+            borderLeft: `2px solid ${m.handle === identity?.handle ? C.blue : (m.color || C.blue)}`, paddingLeft: 10 }}>
+            <span style={{ fontFamily: C.head, color: m.color || C.blue }}>{m.handle}</span>
             <span style={{ fontFamily: C.mono, fontSize: 10, color: C.muted, marginLeft: 8 }}>{fmtTime(m.ts)}</span>
-            <div style={{ color: C.white, marginTop: 2 }}>{m.text}</div>
+            <div style={{ color: C.textPrimary, marginTop: 2 }}>{m.text}</div>
           </div>
         ))}
         {messages.length === 0 && <div style={{ color: C.muted, fontSize: 12 }}>No messages yet — say hi</div>}
@@ -306,9 +308,9 @@ function ChatPanel({ identity, socket, quickPhrases }) {
           {quickPhrases.map(p => (
             <Tooltip key={p} text="Click to instantly send this phrase to chat — edit in Settings">
               <button onClick={() => send(p)}
-                style={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 5, color: C.mutedHi,
+                style={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 0, color: C.mutedHi,
                   fontSize: 11, padding: '6px 8px', textAlign: 'left', fontFamily: C.body }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = C.yellow}
+                onMouseEnter={e => e.currentTarget.style.borderColor = C.blue}
                 onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
                 {p}
               </button>

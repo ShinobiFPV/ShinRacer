@@ -6,7 +6,7 @@ import { useStore, DEFAULT_QUICK_PHRASES } from '../store/AppStore'
 
 const api = window.api
 
-const IDENTITY_COLORS = [C.yellow, C.blue, C.green, C.red, C.orange, C.purple, C.white, C.mutedHi]
+const IDENTITY_COLORS = [C.yellow, C.blue, C.green, C.red, C.orange, '#8E44AD', C.white, C.mutedHi]
 
 export default function SettingsView() {
   const { settings, saveSettings, identity, saveIdentity, backendUrl, saveBackendUrl,
@@ -75,22 +75,22 @@ export default function SettingsView() {
     <div style={{ padding: 28, maxWidth: 780, display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* AC detection banner */}
       {acDetected?.found && (
-        <div style={{ background: `${C.green}18`, border: `1px solid ${C.green}60`, borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ background: `${C.green}18`, border: `1px solid ${C.green}60`, borderRadius: 0, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 18 }}>✓</span>
           <div>
-            <div style={{ fontFamily: C.head, fontWeight: 700, color: C.green }}>Assetto Corsa detected</div>
+            <div style={{ fontFamily: C.head, fontSize: 16, letterSpacing: 0.5, color: C.green }}>Assetto Corsa detected</div>
             <div style={{ fontSize: 12, color: C.muted, fontFamily: C.mono }}>{acDetected.path}</div>
           </div>
         </div>
       )}
       {acDetected && !acDetected.found && (
-        <div style={{ background: `${C.orange}18`, border: `1px solid ${C.orange}60`, borderRadius: 8, padding: '12px 16px' }}>
-          <div style={{ fontFamily: C.head, fontWeight: 700, color: C.orange }}>AC not auto-detected — set path manually below</div>
+        <div style={{ background: `${C.orange}18`, border: `1px solid ${C.orange}60`, borderRadius: 0, padding: '12px 16px' }}>
+          <div style={{ fontFamily: C.head, fontSize: 16, letterSpacing: 0.5, color: C.orange }}>AC not auto-detected — set path manually below</div>
           <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Checked default Steam library paths</div>
         </div>
       )}
 
-      <Card>
+      <Card accent={C.borderHi}>
         <SectionHead children="Assetto Corsa paths" sub="Required for launching servers and scanning tracks" />
 
         <Label>AC root folder</Label>
@@ -123,7 +123,7 @@ export default function SettingsView() {
         </div>
       </Card>
 
-      <Card>
+      <Card accent={C.borderHi}>
         <SectionHead children="Server defaults" sub="Used as starting values when creating a new server config" />
 
         <Label>Default server name</Label>
@@ -138,7 +138,7 @@ export default function SettingsView() {
         <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>Used for /admin command in-game</div>
       </Card>
 
-      <Card>
+      <Card accent={C.borderHi}>
         <SectionHead children="Your identity" sub="Shown to friends in Events, Comms, and Stats — no login required" />
         <Label>Handle</Label>
         <div style={{ marginBottom: 16 }}>
@@ -149,15 +149,15 @@ export default function SettingsView() {
           {IDENTITY_COLORS.map(c => (
             <Tooltip key={c} text="Choose your crew color — shown next to your name in Events and Comms">
               <button onClick={() => setIdentity('color', c)}
-                style={{ width: 26, height: 26, borderRadius: '50%', background: c, cursor: 'pointer',
-                  border: identityLocal.color === c ? `2px solid ${C.white}` : `2px solid transparent`,
+                style={{ width: 24, height: 24, borderRadius: 0, background: c, cursor: 'pointer',
+                  border: identityLocal.color === c ? `2px solid ${C.whiteHot}` : `2px solid transparent`,
                   boxShadow: identityLocal.color === c ? `0 0 0 2px ${c}` : 'none' }} />
             </Tooltip>
           ))}
         </div>
       </Card>
 
-      <Card>
+      <Card accent={C.borderHi}>
         <SectionHead children="Backend connection" sub="Events, chat, comms signaling, and lap stats all go through this server" />
         <Label>Backend URL</Label>
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
@@ -169,14 +169,20 @@ export default function SettingsView() {
         </div>
         {testResult && (
           testResult.ok ? (
-            <div style={{ fontSize: 12, color: C.green }}>✓ Reachable — uptime {Math.floor(testResult.uptime)}s</div>
+            <div style={{ fontSize: 12, color: C.green, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontFamily: C.head, fontSize: 14, letterSpacing: 1 }}>REACHABLE</span>
+              <span style={{ color: C.muted }}>uptime {Math.floor(testResult.uptime)}s</span>
+            </div>
           ) : (
-            <div style={{ fontSize: 12, color: C.red }}>✕ {testResult.error || 'Unreachable'}</div>
+            <div style={{ fontSize: 12, color: C.red, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontFamily: C.head, fontSize: 14, letterSpacing: 1 }}>UNREACHABLE</span>
+              <span style={{ color: C.muted }}>{testResult.error}</span>
+            </div>
           )
         )}
       </Card>
 
-      <Card>
+      <Card accent={C.borderHi}>
         <SectionHead children="Quick-phrase buttons" sub="Shown in the Comms text chat panel" />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
           {quickPhrasesLocal.map((p, i) => (
@@ -190,7 +196,7 @@ export default function SettingsView() {
         </Tooltip>
       </Card>
 
-      <Card>
+      <Card accent={C.borderHi}>
         <SectionHead children="Diagnostics" sub="Main-process logs — app start, server lifecycle, UDP lap events" />
         <Tooltip text="View ShinRacer application logs for troubleshooting">
           <Btn size="sm" variant="subtle" onClick={() => api.logs.openFolder()}>Open log folder</Btn>

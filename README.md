@@ -19,6 +19,8 @@ That's the ShinTech philosophy in general: self-hosted, DIY, built to be underst
 
 Every control in the app has a hover tooltip explaining what it actually does — not a restatement of the label, an explanation of the effect. First time in a tab you haven't touched, just hover around.
 
+Visually, ShinRacer is built to feel like an instrument cluster, not a dashboard toy — true black backgrounds, sharp zero-radius corners, an electric blue primary accent, and Bebas Neue/Barlow Condensed display type throughout. Gold is reserved for exactly three things: your personal-best lap, favorited replays, and the top rank on a leaderboard. Everywhere else, status reads through color alone — blue for active, green for online, red for stop.
+
 ## Features
 
 ### 🏁 Server Manager
@@ -183,7 +185,7 @@ Server Manager, Traffic Manager, and the Replay Browser work entirely offline �
 |-------|-----------|
 | Desktop shell | Electron 28 |
 | UI | React 18 + Vite 5 |
-| Styling | Inline styles, custom design system (no CSS framework) |
+| Styling | Inline styles, custom design system — true black, electric blue, Bebas Neue/Barlow Condensed (no CSS framework) |
 | Backend | Node.js 24 + Express |
 | Realtime | Socket.io 4 |
 | Database | SQLite via better-sqlite3 |
@@ -297,7 +299,7 @@ Architecture, feature design, UX direction, QA, and deployment.
 **Built with Claude**
 This project was designed in collaboration with [Claude](https://claude.ai) (Anthropic's AI assistant) and built using [Claude Code](https://claude.ai/code) (Anthropic's agentic coding tool).
 
-The development process: William directed all product decisions — what to build, how it should work, and how it should feel. Claude handled code generation across seven iterative phases, from initial scaffold through production hardening, the Mod Manager, and the current polish pass — an app-wide tooltip system, the Server Builder Wizard, and the Useful Links page. Claude Code executed each phase given a detailed prompt, with William reviewing, testing, and course-correcting between phases.
+The development process: William directed all product decisions — what to build, how it should work, and how it should feel. Claude handled code generation across eight iterative phases, from initial scaffold through production hardening, the Mod Manager, an app-wide tooltip system with the Server Builder Wizard and Useful Links page, and a full visual redesign to the current cold, high-contrast look. Claude Code executed each phase given a detailed prompt, with William reviewing, testing, and course-correcting between phases.
 
 This is an example of what's possible when a technically-minded builder uses AI as a force multiplier — not to replace judgment, but to ship faster.
 

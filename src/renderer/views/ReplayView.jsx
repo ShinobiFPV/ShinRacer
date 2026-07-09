@@ -36,10 +36,9 @@ function ReplayRow({ replay, meta, anno, selected, onSelect, onToggleFavorite })
   const carCount = meta?.parsed ? meta.cars.length : null
   return (
     <div onClick={onSelect}
-      style={{ display: 'flex', gap: 12, padding: 10, alignItems: 'center', cursor: 'pointer', borderRadius: 6,
-        background: selected ? `${C.yellow}14` : 'transparent', border: `1px solid ${selected ? C.yellowDim : 'transparent'}` }}>
-      <div style={{ width: 48, height: 48, borderRadius: 6, flexShrink: 0,
-        background: hashColor(track || replay.filename) }} />
+      style={{ display: 'flex', gap: 12, padding: '10px 10px 10px 8px', alignItems: 'center', cursor: 'pointer', borderRadius: 0,
+        background: selected ? `${C.blue}14` : 'transparent',
+        borderLeft: `3px solid ${hashColor(track || replay.filename)}` }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         {meta === undefined ? (
           <>
@@ -48,7 +47,7 @@ function ReplayRow({ replay, meta, anno, selected, onSelect, onToggleFavorite })
           </>
         ) : (
           <>
-            <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap',
+            <div style={{ fontFamily: C.head, fontSize: 16, whiteSpace: 'nowrap',
               overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {track || replay.filename}
             </div>
@@ -131,9 +130,9 @@ function DetailPanel({ replay, meta, anno, onUpdateAnnotation, onLaunch, onOpenF
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {meta.cars.map((c, i) => (
               <div key={i} style={{ display: 'flex', gap: 10, padding: '6px 10px', background: C.bg,
-                border: `1px solid ${C.border}`, borderRadius: 5, fontSize: 12 }}>
+                border: `1px solid ${C.border}`, borderRadius: 0, fontSize: 12 }}>
                 <span style={{ fontFamily: C.mono, color: C.mutedHi, flex: 1 }}>{c.model || 'Unknown car'}</span>
-                <span style={{ color: c.driver ? C.white : C.muted, fontStyle: c.driver ? 'normal' : 'italic' }}>
+                <span style={{ color: c.driver ? C.textPrimary : C.muted, fontStyle: c.driver ? 'normal' : 'italic' }}>
                   {c.driver || 'Unknown driver'}
                 </span>
                 {c.skin && <span style={{ color: C.muted, fontFamily: C.mono, fontSize: 11 }}>{c.skin}</span>}
@@ -151,7 +150,7 @@ function DetailPanel({ replay, meta, anno, onUpdateAnnotation, onLaunch, onOpenF
           {anno.tags.map(t => (
             <Tooltip key={t} text="Click to remove this tag">
               <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontFamily: C.mono,
-                color: C.white, background: C.raised, border: `1px solid ${C.border}`, borderRadius: 4, padding: '3px 8px' }}>
+                color: C.textPrimary, background: C.raised, border: `1px solid ${C.border}`, borderRadius: C.radiusSm, padding: '3px 8px' }}>
                 {t}
                 <button onClick={() => removeTag(t)} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
               </span>
@@ -170,7 +169,7 @@ function DetailPanel({ replay, meta, anno, onUpdateAnnotation, onLaunch, onOpenF
             <Tooltip key={t} text="Click to add this tag">
               <button onClick={() => addSuggested(t)}
                 style={{ fontSize: 11, fontFamily: C.mono, color: C.muted, background: 'transparent',
-                  border: `1px dashed ${C.border}`, borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}>
+                  border: `1px dashed ${C.border}`, borderRadius: C.radiusSm, padding: '3px 8px', cursor: 'pointer' }}>
                 + {t}
               </button>
             </Tooltip>
@@ -182,8 +181,8 @@ function DetailPanel({ replay, meta, anno, onUpdateAnnotation, onLaunch, onOpenF
         <Label>Notes</Label>
         <textarea value={notes} onChange={e => scheduleNotesSave(e.target.value)} onBlur={flushNotesSave}
           rows={4} placeholder="Notes about this replay…"
-          style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 5,
-            color: C.white, padding: '8px 10px', fontSize: 12, fontFamily: C.body, resize: 'vertical', outline: 'none' }} />
+          style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0,
+            color: C.textPrimary, padding: '8px 10px', fontSize: 12, fontFamily: C.body, resize: 'vertical', outline: 'none' }} />
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>
@@ -203,9 +202,9 @@ function NoReplaysState({ onOpenFolder }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       height: '100%', gap: 14, color: C.muted }}>
-      <div style={{ fontSize: 48 }}>🎬</div>
-      <div style={{ fontFamily: C.head, fontSize: 20, color: C.white }}>No replays found</div>
-      <div style={{ fontSize: 13 }}>Replays are saved automatically by AC after each session</div>
+      <div style={{ fontSize: 32 }}>🎬</div>
+      <div style={{ fontFamily: C.head, fontSize: 22, letterSpacing: 1, textTransform: 'uppercase', color: C.muted }}>No replays found</div>
+      <div style={{ fontFamily: C.body, fontSize: 13, color: C.muted }}>Replays are saved automatically by AC after each session</div>
       <Btn size="sm" variant="subtle" onClick={onOpenFolder}>Open replay folder</Btn>
     </div>
   )
@@ -213,7 +212,7 @@ function NoReplaysState({ onOpenFolder }) {
 
 function FolderMissingBanner({ onGoSettings }) {
   return (
-    <div style={{ background: `${C.orange}18`, border: `1px solid ${C.orange}60`, borderRadius: 8,
+    <div style={{ background: `${C.orange}18`, border: `1px solid ${C.orange}60`, borderRadius: 0,
       padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, margin: '16px 24px 0' }}>
       <span style={{ color: C.orange, fontSize: 13, fontWeight: 600, flex: 1 }}>
         ⚠ Replay folder not found — check your AC path in Settings
@@ -316,10 +315,10 @@ export default function ReplayView({ onGoSettings, showToast }) {
             {[{ id: 'all', label: 'All' }, { id: 'favorites', label: 'Favorites ★' },
               ...allTags.map(t => ({ id: t, label: t }))].map(f => (
               <button key={f.id} onClick={() => setFilterTag(f.id)}
-                style={{ fontSize: 11, fontFamily: C.mono, padding: '4px 10px', borderRadius: 12, cursor: 'pointer',
-                  background: filterTag === f.id ? C.yellow : 'transparent',
-                  color: filterTag === f.id ? '#000' : C.muted,
-                  border: `1px solid ${filterTag === f.id ? C.yellow : C.border}` }}>
+                style={{ fontSize: 11, fontFamily: C.mono, padding: '4px 10px', borderRadius: 0, cursor: 'pointer',
+                  background: filterTag === f.id ? `${C.blue}18` : 'transparent',
+                  color: filterTag === f.id ? C.blue : C.muted,
+                  border: `1px solid ${filterTag === f.id ? C.blue : C.border}` }}>
                 {f.label}
               </button>
             ))}
@@ -328,9 +327,9 @@ export default function ReplayView({ onGoSettings, showToast }) {
           <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
             {[{ id: 'date', label: 'Date' }, { id: 'track', label: 'Track A-Z' }, { id: 'size', label: 'Size' }].map(s => (
               <button key={s.id} onClick={() => setSortMode(s.id)}
-                style={{ fontSize: 10, fontFamily: C.head, fontWeight: 700, padding: '3px 8px', borderRadius: 4, cursor: 'pointer',
-                  background: 'none', color: sortMode === s.id ? C.yellow : C.muted,
-                  border: `1px solid ${sortMode === s.id ? C.yellowDim : 'transparent'}` }}>
+                style={{ fontSize: 10, fontFamily: C.head, padding: '3px 8px', borderRadius: 0, cursor: 'pointer',
+                  background: 'none', color: sortMode === s.id ? C.blue : C.muted,
+                  border: `1px solid ${sortMode === s.id ? C.blue : 'transparent'}` }}>
                 {s.label}
               </button>
             ))}

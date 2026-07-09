@@ -39,28 +39,30 @@ function LogPanel({ server, onClose }) {
     if (line.includes('connected')) return C.green
     if (line.includes('disconnected') || line.includes('kick')) return C.orange
     if (line.includes('collision') || line.includes('WARN')) return C.orange
-    return C.mutedHi
+    return C.muted
   }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 100,
       display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ width: 760, height: 560, background: C.surface, border: `1px solid ${C.border}`,
-        borderRadius: 10, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        borderRadius: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '12px 18px', borderBottom: `1px solid ${C.border}`,
           display: 'flex', gap: 10, alignItems: 'center' }}>
           <StatusDot online />
-          <span style={{ fontFamily: C.head, fontWeight: 700, fontSize: 15 }}>{server.name}</span>
-          <Tag color={C.green}>LIVE LOG</Tag>
+          <span style={{ fontFamily: C.head, fontSize: 16 }}>{server.name}</span>
+          <Tag color={C.blue}>LIVE LOG</Tag>
           <input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Filter…"
-            style={{ marginLeft: 'auto', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 4,
-              color: C.white, padding: '4px 10px', fontSize: 11, fontFamily: C.mono, outline: 'none', width: 160 }} />
+            style={{ marginLeft: 'auto', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0,
+              color: C.textPrimary, padding: '4px 10px', fontSize: 11, fontFamily: C.mono, outline: 'none', width: 160 }} />
           <Btn variant="ghost" size="sm" onClick={onClose}>✕ Close</Btn>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: '10px 14px', fontFamily: C.mono,
           fontSize: 11, lineHeight: 1.8, background: C.bg }}>
           {filtered.map((l, i) => (
-            <div key={i} style={{ color: colorFor(l) }}>{l}</div>
+            <div key={i} style={{ color: colorFor(l),
+              borderLeft: i === filtered.length - 1 ? `2px solid ${C.blue}` : '2px solid transparent',
+              paddingLeft: 6 }}>{l}</div>
           ))}
           <div ref={bottomRef} />
         </div>
@@ -141,9 +143,9 @@ export function ShareModal({ server, identity, carRestriction, onClose, showToas
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 100,
       display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 420, background: C.surface, border: `1px solid ${C.border}`,
-        borderRadius: 10, padding: 24, animation: 'fadeUp .18s ease' }}>
+        borderRadius: 0, padding: 24, animation: 'fadeUp .18s ease' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 17 }}>Invite to {server.name}</div>
+          <div style={{ fontFamily: C.head, fontSize: 18 }}>Invite to {server.name}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 18, cursor: 'pointer' }}>✕</button>
         </div>
 
@@ -153,16 +155,16 @@ export function ShareModal({ server, identity, carRestriction, onClose, showToas
         {invite && (
           <>
             <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontFamily: C.mono, fontSize: 32, fontWeight: 700, color: C.yellow, letterSpacing: 3 }}>{invite.code}</div>
+              <div style={{ fontFamily: C.head, fontSize: 48, color: C.blue, letterSpacing: 8 }}>{invite.code}</div>
             </div>
 
             {qrDataUrl && (
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
-                <img src={qrDataUrl} alt="Invite QR code" style={{ borderRadius: 6, background: '#fff', padding: 8 }} />
+                <img src={qrDataUrl} alt="Invite QR code" style={{ borderRadius: 0, border: `1px solid ${C.border}`, background: C.bg, padding: 8 }} />
               </div>
             )}
 
-            <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: '10px 14px',
+            <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, padding: '10px 14px',
               marginBottom: 16, fontSize: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div><span style={{ color: C.muted }}>Host: </span><span style={{ fontFamily: C.mono }}>{invite.host}:{invite.port}</span></div>
               {invite.password && <div><span style={{ color: C.muted }}>Password: </span><span style={{ fontFamily: C.mono }}>{invite.password}</span></div>}
@@ -230,9 +232,9 @@ function JoinModal({ onClose, showToast, prefillCode }) {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 100,
       display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 380, background: C.surface, border: `1px solid ${C.border}`,
-        borderRadius: 10, padding: 24, animation: 'fadeUp .18s ease' }}>
+        borderRadius: 0, padding: 24, animation: 'fadeUp .18s ease' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 17 }}>Join server</div>
+          <div style={{ fontFamily: C.head, fontSize: 18 }}>Join server</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 18, cursor: 'pointer' }}>✕</button>
         </div>
 
@@ -246,9 +248,9 @@ function JoinModal({ onClose, showToast, prefillCode }) {
         {error && <div style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>✕ {error}</div>}
 
         {result && (
-          <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: '12px 14px',
+          <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, padding: '12px 14px',
             marginBottom: 14, fontSize: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{result.serverName || 'AC Server'}</div>
+            <div style={{ fontFamily: C.head, fontSize: 15, marginBottom: 2 }}>{result.serverName || 'AC Server'}</div>
             <div><span style={{ color: C.muted }}>Host: </span><span style={{ fontFamily: C.mono }}>{result.host}:{result.port}</span></div>
             {result.track && <div><span style={{ color: C.muted }}>Track: </span><span style={{ fontFamily: C.mono }}>{result.track}</span></div>}
             {result.password && <div><span style={{ color: C.muted }}>Password: </span><span style={{ fontFamily: C.mono }}>{result.password}</span></div>}
@@ -286,7 +288,7 @@ function PitBoard({ server, onStop, onViewLogs, onShare }) {
   const hh = String(Math.floor(elapsed / 3600)).padStart(2,'0')
   const mm = String(Math.floor((elapsed % 3600) / 60)).padStart(2,'0')
   const ss = String(elapsed % 60).padStart(2,'0')
-  const uptime = elapsed > 3600 ? `${hh}:${mm}:${ss}` : `${mm}:${ss}`
+  const uptime = `${hh}:${mm}:${ss}`
 
   const stop = async () => {
     setStopping(true)
@@ -294,27 +296,26 @@ function PitBoard({ server, onStop, onViewLogs, onShare }) {
   }
 
   return (
-    <div style={{ background: C.surface, border: `2px solid ${C.yellow}`, borderRadius: 8,
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.blue}`, borderRadius: 0,
       overflow: 'hidden', position: 'relative', animation: 'fadeUp .3s ease' }}>
-      <div style={{ height: 3, background: C.yellow }} />
       <div style={{ padding: 18 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
           <div>
-            <div style={{ fontFamily: C.head, fontSize: 20, fontWeight: 700, lineHeight: 1 }}>{server.name}</div>
+            <div style={{ fontFamily: C.head, fontSize: 22, lineHeight: 1 }}>{server.name}</div>
             <div style={{ fontSize: 11, color: C.muted, marginTop: 3, fontFamily: C.mono }}>
               {server.config?.trackId || '—'}{server.config?.layoutId ? ` / ${server.config.layoutId}` : ''}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <StatusDot online />
-            <Tag color={C.green}>LIVE</Tag>
+            <Tag color={C.blue}>LIVE</Tag>
           </div>
         </div>
 
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 }}>
-          <div title={driverNames} style={{ background: C.bg, borderRadius: 6, padding: '8px 10px', textAlign: 'center', cursor: 'default' }}>
-            <div style={{ fontFamily: C.mono, fontSize: 16, fontWeight: 700, color: C.yellow }}>
+          <div title={driverNames} style={{ background: C.bg, borderRadius: 0, padding: '8px 10px', textAlign: 'center', cursor: 'default' }}>
+            <div style={{ fontFamily: C.mono, fontSize: 16, fontWeight: 700, color: C.blue }}>
               {players.count}/{server.config?.maxClients || '?'}
             </div>
             <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Players</div>
@@ -324,8 +325,8 @@ function PitBoard({ server, onStop, onViewLogs, onShare }) {
             { label: 'Uptime',   val: uptime },
             { label: 'PID',      val: server.pid || '—' },
           ].map(s => (
-            <div key={s.label} style={{ background: C.bg, borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
-              <div style={{ fontFamily: C.mono, fontSize: 16, fontWeight: 700, color: C.yellow }}>{s.val}</div>
+            <div key={s.label} style={{ background: C.bg, borderRadius: 0, padding: '8px 10px', textAlign: 'center' }}>
+              <div style={{ fontFamily: C.mono, fontSize: 16, fontWeight: 700, color: C.blue }}>{s.val}</div>
               <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>{s.label}</div>
             </div>
           ))}
@@ -340,7 +341,7 @@ function PitBoard({ server, onStop, onViewLogs, onShare }) {
 
         {server.config?.password && (
           <div style={{ fontSize: 11, color: C.muted, marginBottom: 12, fontFamily: C.mono }}>
-            🔒 <span style={{ color: C.white }}>{server.config.password}</span>
+            🔒 <span style={{ color: C.textPrimary }}>{server.config.password}</span>
           </div>
         )}
 
@@ -426,9 +427,9 @@ export default function DeployView({ onBuild, onOpenWizard }) {
         {liveServers.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             height: '100%', gap: 16, color: C.muted }}>
-            <div style={{ fontSize: 52 }}>🏁</div>
-            <div style={{ fontFamily: C.head, fontSize: 24, color: C.white }}>No servers running</div>
-            <div style={{ fontSize: 14 }}>Build and launch a server to see it here</div>
+            <div style={{ fontSize: 32 }}>🏁</div>
+            <div style={{ fontFamily: C.head, fontSize: 48, letterSpacing: 2, textTransform: 'uppercase', color: C.muted }}>No servers running</div>
+            <div style={{ fontSize: 14, fontFamily: C.body, color: C.muted, textTransform: 'none' }}>Build and launch a server to see it here</div>
             <Btn onClick={onBuild} size="lg" style={{ marginTop: 8 }}>Build a server</Btn>
             <Tooltip text="Answer a few fun questions instead of using the technical form">
               <Btn onClick={onOpenWizard} variant="ghost" size="sm">✨ Build with wizard</Btn>

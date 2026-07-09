@@ -4,7 +4,9 @@ import { C, Card, Label, Btn, TextInput } from './primitives'
 import { DEFAULT_QUICK_PHRASES, DEFAULT_BACKEND_URL } from '../store/AppStore'
 
 const api = window.api
-const IDENTITY_COLORS = [C.yellow, C.blue, C.green, C.red, C.orange, C.purple, C.white, C.mutedHi]
+const IDENTITY_COLORS = [C.yellow, C.blue, C.green, C.red, C.orange, '#8E44AD', C.white, C.mutedHi]
+const GRID_TEXTURE = 'repeating-linear-gradient(0deg, transparent, transparent 40px, #0A0C1210 40px, #0A0C1210 41px),' +
+  'repeating-linear-gradient(90deg, transparent, transparent 40px, #0A0C1210 40px, #0A0C1210 41px)'
 
 // ── Progress indicator ──────────────────────────────────────────────────────
 function ProgressBar({ steps, index }) {
@@ -14,15 +16,15 @@ function ProgressBar({ steps, index }) {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '20px 0 0' }}>
       {visible.map((s, i) => (
         <div key={s} style={{ display: 'flex', alignItems: 'center' }}>
-          <div style={{ width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          <div style={{ width: 26, height: 26, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontFamily: C.mono, fontSize: 11, fontWeight: 700,
-            background: i < activePos ? C.yellow : 'transparent',
-            color: i < activePos ? '#000' : i === activePos ? C.yellow : C.muted,
-            border: `2px solid ${i <= activePos ? C.yellow : C.border}` }}>
+            background: i < activePos ? C.blue : 'transparent',
+            color: i < activePos ? C.whiteHot : i === activePos ? C.blue : C.muted,
+            border: `2px solid ${i <= activePos ? C.blue : C.border}` }}>
             {i < activePos ? '✓' : i + 1}
           </div>
           {i < visible.length - 1 && (
-            <div style={{ width: 32, height: 2, background: i < activePos ? C.yellow : C.border }} />
+            <div style={{ width: 32, height: 2, background: i < activePos ? C.blue : C.border }} />
           )}
         </div>
       ))}
@@ -34,8 +36,8 @@ function ProgressBar({ steps, index }) {
 function WelcomeStep({ onNext }) {
   return (
     <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-      <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 56, letterSpacing: 0.5, lineHeight: 1 }}>
-        <span style={{ color: C.yellow }}>Shin</span>Racer
+      <div style={{ fontFamily: C.head, fontSize: 56, letterSpacing: 2, lineHeight: 1 }}>
+        <span style={{ color: C.blue }}>Shin</span>Racer
       </div>
       <div style={{ fontSize: 16, color: C.mutedHi }}>Race. Drift. Coordinate.</div>
       <Btn size="lg" onClick={onNext} style={{ marginTop: 18 }}>Get started →</Btn>
@@ -56,17 +58,17 @@ function AcPathStep({ data, setData, valid }) {
   }
   return (
     <Card style={{ width: 480 }}>
-      <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 20, marginBottom: 6 }}>Assetto Corsa</div>
+      <div style={{ fontFamily: C.head, fontSize: 22, letterSpacing: 1, marginBottom: 6 }}>Assetto Corsa</div>
       <div style={{ fontSize: 13, color: C.muted, marginBottom: 18 }}>We'll use this to find your tracks, cars, and launch servers.</div>
 
       {valid ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: `${C.green}18`,
-          border: `1px solid ${C.green}60`, borderRadius: 6, padding: '8px 12px', marginBottom: 16 }}>
+          border: `1px solid ${C.green}60`, borderRadius: 0, padding: '8px 12px', marginBottom: 16 }}>
           <span style={{ color: C.green }}>✓</span>
           <span style={{ fontFamily: C.mono, fontSize: 11, color: C.mutedHi }}>{data.acPath}</span>
         </div>
       ) : (
-        <div style={{ background: `${C.orange}18`, border: `1px solid ${C.orange}60`, borderRadius: 6,
+        <div style={{ background: `${C.orange}18`, border: `1px solid ${C.orange}60`, borderRadius: 0,
           padding: '8px 12px', marginBottom: 16, fontSize: 12, color: C.orange }}>
           Not auto-detected — set path manually.
         </div>
@@ -92,7 +94,7 @@ function IdentityStep({ data, setData }) {
   const tooShort = data.handle.length > 0 && data.handle.trim().length < 2
   return (
     <Card style={{ width: 420 }}>
-      <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 20, marginBottom: 6 }}>Who are you?</div>
+      <div style={{ fontFamily: C.head, fontSize: 22, letterSpacing: 1, marginBottom: 6 }}>Who are you?</div>
       <div style={{ fontSize: 13, color: C.muted, marginBottom: 18 }}>Your handle and color appear in Events, Comms, and Lap Stats.</div>
 
       <Label>Handle</Label>
@@ -105,14 +107,14 @@ function IdentityStep({ data, setData }) {
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         {IDENTITY_COLORS.map(c => (
           <button key={c} onClick={() => setData(d => ({ ...d, color: c }))}
-            style={{ width: 26, height: 26, borderRadius: '50%', background: c, cursor: 'pointer',
-              border: data.color === c ? `2px solid ${C.white}` : '2px solid transparent',
+            style={{ width: 24, height: 24, borderRadius: 0, background: c, cursor: 'pointer',
+              border: data.color === c ? `2px solid ${C.whiteHot}` : '2px solid transparent',
               boxShadow: data.color === c ? `0 0 0 2px ${c}` : 'none' }} />
         ))}
       </div>
 
-      <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: '10px 14px' }}>
-        <span style={{ fontFamily: C.head, fontWeight: 700, color: data.color }}>
+      <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, padding: '10px 14px' }}>
+        <span style={{ fontFamily: C.head, color: data.color }}>
           Hello, {data.handle.trim() || '…'}
         </span>
       </div>
@@ -146,7 +148,7 @@ function BackendStep({ data, setData, onSkip }) {
 
   return (
     <Card style={{ width: 460 }}>
-      <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 20, marginBottom: 6 }}>Connect to the crew</div>
+      <div style={{ fontFamily: C.head, fontSize: 22, letterSpacing: 1, marginBottom: 6 }}>Connect to the crew</div>
       <div style={{ fontSize: 13, color: C.muted, marginBottom: 18 }}>The backend server keeps everyone's events, chat, and stats in sync.</div>
 
       <Label>Backend URL</Label>
@@ -175,7 +177,7 @@ function PhrasesStep({ data, setData }) {
   const reset = () => setData(d => ({ ...d, quickPhrases: [...DEFAULT_QUICK_PHRASES] }))
   return (
     <Card style={{ width: 520 }}>
-      <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 20, marginBottom: 6 }}>Quick phrases</div>
+      <div style={{ fontFamily: C.head, fontSize: 22, letterSpacing: 1, marginBottom: 6 }}>Quick phrases</div>
       <div style={{ fontSize: 13, color: C.muted, marginBottom: 18 }}>One-tap phrases for the Comms chat. Edit them any time in Settings.</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
         {data.quickPhrases.map((p, i) => <TextInput key={i} value={p} onChange={v => setPhrase(i, v)} />)}
@@ -190,8 +192,8 @@ function DoneStep({ data, acFound, onFinish }) {
   return (
     <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
       <div style={{ fontSize: 52, color: C.green }}>✓</div>
-      <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 26 }}>You're all set, {data.handle.trim() || 'racer'}!</div>
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '16px 22px',
+      <div style={{ fontFamily: C.head, fontSize: 32, letterSpacing: 1 }}>You're all set, {data.handle.trim() || 'racer'}!</div>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 0, padding: '16px 22px',
         textAlign: 'left', minWidth: 340, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
         <div>
           <span style={{ color: C.muted }}>AC: </span>
@@ -229,7 +231,7 @@ export default function Wizard({ onComplete }) {
   const [finishing, setFinishing] = useState(false)
   const [data, setData] = useState({
     acPath: '', acServerExe: '',
-    handle: '', color: C.yellow,
+    handle: '', color: C.blue,
     backendUrl: DEFAULT_BACKEND_URL, backendSkipped: false,
     quickPhrases: [...DEFAULT_QUICK_PHRASES],
   })
@@ -322,7 +324,8 @@ export default function Wizard({ onComplete }) {
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       {!isBookend && <ProgressBar steps={steps} index={stepIdx} />}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        backgroundImage: isBookend ? GRID_TEXTURE : 'none' }}>
         {stepId === 'welcome' && <WelcomeStep onNext={goNext} />}
         {stepId === 'acpath' && <AcPathStep data={data} setData={setData} valid={acPathValid} />}
         {stepId === 'identity' && <IdentityStep data={data} setData={setData} />}

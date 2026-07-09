@@ -79,14 +79,15 @@ function LinkCard({ link, confirming, onEdit, onDelete, onConfirmDelete, onCance
       onMouseLeave={() => setHover(false)}
       style={{
         display: 'flex', flexDirection: 'column', gap: 8,
-        border: `1px solid ${hover ? C.borderHi : C.border}`,
+        border: `1px solid ${C.border}`,
+        borderLeft: `2px solid ${hover ? C.borderHi : C.border}`,
         background: hover ? C.raised : C.surface,
         opacity: link.isHidden ? 0.55 : 1,
         transition: 'border-color .12s, background .12s',
       }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-        <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 16, lineHeight: 1.2 }}>{link.name}</div>
-        {link.preset && <Tag color={C.yellowDim} size="xs">⭐ ShinTech</Tag>}
+        <div style={{ fontFamily: C.head, fontSize: 18, lineHeight: 1.2 }}>{link.name}</div>
+        {link.preset && <Tag color={C.blue} size="xs">⭐ ShinTech</Tag>}
       </div>
       <div style={{ fontSize: 12, color: C.muted, display: '-webkit-box', WebkitLineClamp: 2,
         WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 32 }}>
@@ -159,7 +160,7 @@ function LinkModal({ initial, onClose, onSave }) {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 100,
       display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 460, background: C.surface, border: `1px solid ${C.border}`,
-        borderRadius: 10, padding: 24, animation: 'fadeUp .18s ease' }}>
+        borderRadius: 0, padding: 24, animation: 'fadeUp .18s ease' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 17 }}>{isEdit ? 'Edit link' : 'Add link'}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 18, cursor: 'pointer' }}>✕</button>
@@ -174,7 +175,7 @@ function LinkModal({ initial, onClose, onSave }) {
         <Label>Description (optional)</Label>
         <div style={{ marginBottom: 12 }}>
           <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} placeholder="What is this?"
-            style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.white,
+            style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, color: C.textPrimary,
               padding: '8px 10px', fontSize: 12, fontFamily: C.body, resize: 'vertical', outline: 'none' }} />
         </div>
 
@@ -303,8 +304,8 @@ export default function LinksView() {
       {isEmpty ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           padding: '60px 0', gap: 14, color: C.muted }}>
-          <div style={{ fontSize: 44 }}>🔗</div>
-          <div style={{ fontFamily: C.head, fontSize: 18, color: C.white }}>No links yet</div>
+          <div style={{ fontSize: 32 }}>🔗</div>
+          <div style={{ fontFamily: C.head, fontSize: 22, letterSpacing: 1, textTransform: 'uppercase', color: C.muted }}>No links yet</div>
           <Btn onClick={openAdd}>Add your first link</Btn>
         </div>
       ) : searched ? (
@@ -316,12 +317,15 @@ export default function LinksView() {
       ) : (
         CATEGORIES.filter(c => byCategory[c.id]?.length).map(c => (
           <div key={c.id} style={{ marginBottom: 28 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <span style={{ fontFamily: C.head, fontWeight: 700, fontSize: 13, textTransform: 'uppercase',
-                letterSpacing: 0.8, color: C.yellow, whiteSpace: 'nowrap' }}>
-                {c.emoji} {c.label}
-              </span>
-              <div style={{ flex: 1, height: 1, background: C.border }} />
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontFamily: C.head, fontSize: 16, textTransform: 'uppercase',
+                  letterSpacing: 2, color: C.blue, whiteSpace: 'nowrap' }}>
+                  {c.emoji} {c.label}
+                </span>
+                <div style={{ flex: 1, height: 1, background: C.border }} />
+              </div>
+              <div style={{ width: 40, height: 1, background: C.blue, marginTop: 4 }} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
               {byCategory[c.id].map(l => <LinkCard key={l.id} {...cardProps(l)} />)}

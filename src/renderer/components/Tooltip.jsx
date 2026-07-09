@@ -48,10 +48,10 @@ function computePlacement(rect, preferred, size) {
 function arrowStyle(placement) {
   const base = { position: 'absolute', width: 0, height: 0 }
   switch (placement.pos) {
-    case 'top':    return { ...base, left: placement.arrowX - ARROW, bottom: -ARROW, borderLeft: `${ARROW}px solid transparent`, borderRight: `${ARROW}px solid transparent`, borderTop: `${ARROW}px solid ${C.raised}` }
-    case 'bottom': return { ...base, left: placement.arrowX - ARROW, top: -ARROW, borderLeft: `${ARROW}px solid transparent`, borderRight: `${ARROW}px solid transparent`, borderBottom: `${ARROW}px solid ${C.raised}` }
-    case 'left':   return { ...base, top: placement.arrowY - ARROW, right: -ARROW, borderTop: `${ARROW}px solid transparent`, borderBottom: `${ARROW}px solid transparent`, borderLeft: `${ARROW}px solid ${C.raised}` }
-    default:       return { ...base, top: placement.arrowY - ARROW, left: -ARROW, borderTop: `${ARROW}px solid transparent`, borderBottom: `${ARROW}px solid transparent`, borderRight: `${ARROW}px solid ${C.raised}` }
+    case 'top':    return { ...base, left: placement.arrowX - ARROW, bottom: -ARROW, borderLeft: `${ARROW}px solid transparent`, borderRight: `${ARROW}px solid transparent`, borderTop: `${ARROW}px solid ${C.overlay}` }
+    case 'bottom': return { ...base, left: placement.arrowX - ARROW, top: -ARROW, borderLeft: `${ARROW}px solid transparent`, borderRight: `${ARROW}px solid transparent`, borderBottom: `${ARROW}px solid ${C.overlay}` }
+    case 'left':   return { ...base, top: placement.arrowY - ARROW, right: -ARROW, borderTop: `${ARROW}px solid transparent`, borderBottom: `${ARROW}px solid transparent`, borderLeft: `${ARROW}px solid ${C.overlay}` }
+    default:       return { ...base, top: placement.arrowY - ARROW, left: -ARROW, borderTop: `${ARROW}px solid transparent`, borderBottom: `${ARROW}px solid transparent`, borderRight: `${ARROW}px solid ${C.overlay}` }
   }
 }
 
@@ -90,13 +90,13 @@ export function TooltipProvider({ children }) {
             top: placement ? placement.y : -9999,
             left: placement ? placement.x : -9999,
             zIndex: 9999,
-            background: C.raised,
+            background: C.overlay,
             border: `1px solid ${C.borderHi}`,
-            borderRadius: 5,
+            borderRadius: 0,
             padding: '5px 10px',
             fontSize: 11,
             lineHeight: 1.4,
-            color: C.mutedHi,
+            color: C.textSec,
             fontFamily: C.body,
             maxWidth: 220,
             textAlign: 'center',

@@ -7,7 +7,7 @@ import { ShareModal } from './DeployView'
 import api, { getBackendUrl } from '../lib/api'
 
 const EVENT_TYPES = ['Race', 'Drift Session', 'Hotlap Practice', 'Cruise']
-const TYPE_COLORS = { 'Race': C.red, 'Drift Session': C.purple, 'Hotlap Practice': C.blue, 'Cruise': C.green }
+const TYPE_COLORS = { 'Race': C.red, 'Drift Session': C.orange, 'Hotlap Practice': C.blue, 'Cruise': C.green }
 const STATUS_COLORS = { proposed: C.blue, happening: C.green, past: C.muted, cancelled: C.muted }
 const STATUS_LABELS = { proposed: 'Proposed', happening: 'Happening', past: 'Past', cancelled: 'Cancelled' }
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -137,12 +137,12 @@ function ProposeForm({ identity, showToast, onClose, onSaved, initialDate, editi
         <div>
           <Label>Date</Label>
           <input type="date" value={form.date} onChange={e => set('date', e.target.value)}
-            style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.white, padding: '7px 10px', fontSize: 12, outline: 'none' }} />
+            style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, color: C.textPrimary, padding: '7px 10px', fontSize: 12, outline: 'none' }} />
         </div>
         <div>
           <Label>Time</Label>
           <input type="time" value={form.time} onChange={e => set('time', e.target.value)}
-            style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.white, padding: '7px 10px', fontSize: 12, outline: 'none' }} />
+            style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, color: C.textPrimary, padding: '7px 10px', fontSize: 12, outline: 'none' }} />
         </div>
         <div>
           <Label>Track</Label>
@@ -170,7 +170,7 @@ function ProposeForm({ identity, showToast, onClose, onSaved, initialDate, editi
       <div style={{ marginBottom: 12 }}>
         <Label>Notes</Label>
         <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Meet point, rules, anything else…"
-          style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.white,
+          style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, color: C.textPrimary,
             padding: '8px 10px', fontSize: 12, fontFamily: C.body, outline: 'none', resize: 'vertical' }} />
       </div>
       <div style={{ marginBottom: 16 }}>
@@ -178,10 +178,10 @@ function ProposeForm({ identity, showToast, onClose, onSaved, initialDate, editi
         <div onDragOver={e => { e.preventDefault(); setDragOver(true) }} onDragLeave={() => setDragOver(false)}
           onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files?.[0]) }}
           onClick={() => document.getElementById('poster-input').click()}
-          style={{ border: `1px dashed ${dragOver ? C.yellow : C.border}`, borderRadius: 7, padding: 16, textAlign: 'center',
-            cursor: 'pointer', background: dragOver ? `${C.yellow}0A` : C.bg }}>
+          style={{ border: `1px dashed ${dragOver ? C.blue : C.border}`, borderRadius: 0, padding: 16, textAlign: 'center',
+            cursor: 'pointer', background: dragOver ? `${C.blue}0A` : C.bg }}>
           {posterPreview ? (
-            <img src={posterPreview} alt="poster preview" style={{ maxHeight: 120, borderRadius: 5 }} />
+            <img src={posterPreview} alt="poster preview" style={{ maxHeight: 120, borderRadius: 0 }} />
           ) : (
             <div style={{ color: C.muted, fontSize: 12 }}>Drop an image here, or click to browse</div>
           )}
@@ -213,13 +213,13 @@ function DetailPanel({ event, onClose, onAccept, onEdit, onCancelEvent, onDelete
 
   return (
     <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 380, background: C.surface,
-      borderLeft: `1px solid ${status === 'happening' ? C.green : C.border}`,
-      boxShadow: status === 'happening' ? `-8px 0 24px rgba(0,0,0,.4), inset 2px 0 0 ${C.green}60` : '-8px 0 24px rgba(0,0,0,.4)',
-      opacity: status === 'past' ? 0.6 : isCancelled ? 0.5 : 1,
+      borderLeft: `3px solid ${STATUS_COLORS[status]}`,
+      boxShadow: '-8px 0 24px rgba(0,0,0,.4)',
+      opacity: status === 'past' ? 0.4 : isCancelled ? 0.5 : 1,
       zIndex: 100, display: 'flex', flexDirection: 'column', animation: 'fadeUp .18s ease' }}>
       <div style={{ padding: '16px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 18, textDecoration: isCancelled ? 'line-through' : 'none' }}>{event.name}</div>
+          <div style={{ fontFamily: C.head, fontSize: 20, textDecoration: isCancelled ? 'line-through' : 'none' }}>{event.name}</div>
           <div style={{ marginTop: 6, display: 'flex', gap: 6 }}>
             <Tag color={TYPE_COLORS[event.type] || C.blue}>{event.type}</Tag>
             <Tag color={STATUS_COLORS[status]}>{STATUS_LABELS[status]}</Tag>
@@ -229,7 +229,7 @@ function DetailPanel({ event, onClose, onAccept, onEdit, onCancelEvent, onDelete
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
         {event.poster_path && (
-          <img src={`${getBackendUrl()}${event.poster_path}`} alt="" style={{ width: '100%', borderRadius: 7, marginBottom: 16 }} />
+          <img src={`${getBackendUrl()}${event.poster_path}`} alt="" style={{ width: '100%', borderRadius: 0, marginBottom: 16 }} />
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
           <div><Label muted>Track</Label><span style={{ fontFamily: C.mono }}>{event.track}</span></div>
@@ -318,9 +318,9 @@ function DetailPanel({ event, onClose, onAccept, onEdit, onCancelEvent, onDelete
 function EmptyState({ onPropose }) {
   return (
     <Card style={{ padding: '60px 20px', textAlign: 'center' }}>
-      <div style={{ fontSize: 40, marginBottom: 12 }}>🏁</div>
-      <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 16, marginBottom: 6 }}>No events yet</div>
-      <div style={{ color: C.muted, fontSize: 13, marginBottom: 18 }}>Be the first to get something on the calendar.</div>
+      <div style={{ fontSize: 32, marginBottom: 12 }}>🏁</div>
+      <div style={{ fontFamily: C.head, fontSize: 22, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>No events yet</div>
+      <div style={{ fontFamily: C.body, color: C.muted, fontSize: 13, marginBottom: 18 }}>Be the first to get something on the calendar.</div>
       <Btn onClick={onPropose}>Propose the first one</Btn>
     </Card>
   )
@@ -537,15 +537,15 @@ export default function EventsView() {
                 return (
                   <div key={i} onClick={() => onDayClick(iso, dayEvents.length > 0)}
                     style={{ minHeight: 96, borderRight: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`,
+                      borderLeft: isToday ? `2px solid ${C.blue}` : '2px solid transparent',
                       padding: 6, opacity: cell.inMonth ? 1 : 0.35,
-                      background: isToday ? `${C.yellow}0A` : 'transparent',
-                      boxShadow: isToday ? `inset 0 0 0 2px ${C.yellow}` : 'none',
+                      background: 'transparent',
                       cursor: dayEvents.length === 0 && !showForm ? 'pointer' : 'default' }}>
-                    <div style={{ fontSize: 11, fontFamily: C.mono, color: isToday ? C.yellow : C.muted, marginBottom: 3 }}>{cell.date.getDate()}</div>
+                    <div style={{ fontSize: 10, fontFamily: C.mono, color: isToday ? C.blue : C.muted, marginBottom: 3 }}>{cell.date.getDate()}</div>
                     {dayEvents.length > 0 && (
                       <div style={{ display: 'flex', gap: 3, marginBottom: 4 }}>
                         {dayEvents.map(e => (
-                          <span key={e.id} style={{ width: 5, height: 5, borderRadius: '50%', background: STATUS_COLORS[displayStatus(e, today)] }} />
+                          <span key={e.id} style={{ width: 4, height: 4, borderRadius: 0, background: STATUS_COLORS[displayStatus(e, today)] }} />
                         ))}
                       </div>
                     )}
@@ -555,9 +555,9 @@ export default function EventsView() {
                         return (
                           <button key={e.id} onClick={(ev) => { ev.stopPropagation(); setSelected(e) }}
                             style={{ display: 'flex', alignItems: 'center', gap: 5, background: C.bg, border: `1px solid ${C.border}`,
-                              borderRadius: 3, padding: '2px 6px', fontSize: 10, color: C.mutedHi, textAlign: 'left', position: 'relative',
-                              opacity: status === 'past' ? 0.6 : status === 'cancelled' ? 0.5 : 1 }}>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLORS[status], flexShrink: 0 }} />
+                              borderRadius: 0, padding: '2px 6px', fontSize: 10, color: C.mutedHi, textAlign: 'left', position: 'relative',
+                              opacity: status === 'past' ? 0.4 : status === 'cancelled' ? 0.5 : 1 }}>
+                            <span style={{ width: 4, height: 4, borderRadius: 0, background: STATUS_COLORS[status], flexShrink: 0 }} />
                             <span style={{ whiteSpace: 'nowrap', position: 'relative', textOverflow: 'ellipsis',
                               textDecoration: status === 'cancelled' ? 'line-through' : 'none' }}>{e.name}</span>
                           </button>
