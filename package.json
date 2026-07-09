@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Assetto Corsa Server Manager — ShinTech Edition",
   "main": "src/main/main.js",
+  "license": "MIT",
   "scripts": {
     "dev": "concurrently -n VITE,ELECTRON -c cyan,yellow \"vite\" \"wait-on http://localhost:5173 && electron . --dev\"",
     "build": "vite build && electron-builder",
