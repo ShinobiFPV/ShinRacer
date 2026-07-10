@@ -54,6 +54,10 @@ function nullExtendedFields() {
     ersDeployMode: null, enginePowerICE: null, enginePowerMGUK: null,
     weatherCondition: null, airTemp: null, trackTemp: null,
     boostActive: null, boostAmount: null,
+    // Phase 17 addition (Forza World Map) — isRacing distinguishes IN RACE
+    // vs OPEN DRIVING for Forza; yaw is heading (radians) for the map's
+    // direction-arrow marker. null for every game that doesn't expose these.
+    isRacing: null, yaw: null,
   }
 }
 
@@ -203,6 +207,10 @@ function normalizeForza(buf, version) {
   const currentLapMs = Math.round(currentLapS * 1000)
   const bestLapMs = Math.round(bestLapS * 1000)
   const lastLapMs = Math.round(lastLapS * 1000)
+  // Yaw lives in the Sled section (byte 56), before the FH6 Dash-section
+  // shift point (which only affects fields from Position onward) — no at()
+  // wrapper needed, same as CarClass/CarPerformanceIndex/DrivetrainType below.
+  const yaw = buf.readFloatLE(56)
 
   return {
     game: version, gameDisplayName: version === 'fh6' ? 'FH6' : 'FH5',
@@ -247,6 +255,10 @@ function normalizeForza(buf, version) {
     tireSlipAngle: [buf.readFloatLE(164), buf.readFloatLE(168), buf.readFloatLE(172), buf.readFloatLE(176)],
     tireCombinedSlip: [buf.readFloatLE(180), buf.readFloatLE(184), buf.readFloatLE(188), buf.readFloatLE(192)],
     worldPosition: { x: buf.readFloatLE(at(232)), y: buf.readFloatLE(at(236)), z: buf.readFloatLE(at(240)) },
+    // Phase 17 (Forza World Map): isRaceOn (already computed above for
+    // status) doubles as the IN RACE / OPEN DRIVING signal; yaw is heading
+    // in radians for the map's direction-arrow marker.
+    isRacing: isRaceOn, yaw,
   }
 }
 

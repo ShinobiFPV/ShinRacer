@@ -674,6 +674,11 @@ ipcMain.handle('telemetry:stop', () => {
 const { TelemetryManager } = require('./telemetry')
 let telemetryManager = null
 
+// Forza World Map (Phase 17): throttles the local player's position POST to
+// the backend to once per 500ms, reusing the SAME telemetry frame the LIVE
+// tab already receives — no second UDP listener or polling loop needed.
+let lastForzaBroadcast = 0
+
 function startShmTelemetry() {
   if (!telemetryManager) {
     telemetryManager = new TelemetryManager({
@@ -681,6 +686,33 @@ function startShmTelemetry() {
         win?.webContents.send('telemetry:frame', frame)
         overlayWindow?.webContents.send('telemetry:frame', frame)
         clusterOverlayWindow?.webContents.send('telemetry:frame', frame)
+
+        if (frame.game === 'fh5' || frame.game === 'fh6') {
+          const now = Date.now()
+          if (now - lastForzaBroadcast >= 500) {
+            lastForzaBroadcast = now
+            const backendUrl = store.get('backendUrl')
+            const auth = store.get('googleAuth')
+            if (backendUrl && auth?.idToken) {
+              fetch(`${backendUrl}/api/telemetry/forza-position`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${auth.idToken}`,
+                },
+                body: JSON.stringify({
+                  color: auth.color || '#0066FF',
+                  x: frame.worldPosition?.x,
+                  z: frame.worldPosition?.z,
+                  speed: frame.speed,
+                  game: frame.game,
+                  isRacing: frame.isRacing,
+                  heading: frame.yaw || 0,
+                }),
+              }).catch(() => {}) // silent fail — no internet/backend down just means the map doesn't update
+            }
+          }
+        }
       },
       onGameDetected: (game) => win?.webContents.send('game:detected', game),
       onGameLost: (game) => win?.webContents.send('game:lost', game),
@@ -1215,4 +1247,42 @@ ipcMain.handle('fpv:readMapImage', (_, trackName) => {
 ipcMain.handle('shell:runCommand', (_, cmd) => {
   exec(cmd)
   return { ok: true }
+})
+
+// ── IPC: Forza World Map (Phase 17) ───────────────────────────────────────────
+// Real game map images are copyrighted, so this repo only ships hand-drawn
+// placeholder SVGs (resources/maps/{game}_map.svg) — a real .jpg/.png the
+// user supplies (or copies in via "Replace map image") always wins over it.
+const MAPS_DIR = path.join(__dirname, '../../resources/maps')
+
+ipcMain.handle('forzamap:getMapImage', (_, game) => {
+  const base = game === 'fh6' ? 'fh6_map' : 'fh5_map'
+  for (const [ext, mimeType] of [['.jpg', 'image/jpeg'], ['.png', 'image/png'], ['.svg', 'image/svg+xml']]) {
+    const file = path.join(MAPS_DIR, base + ext)
+    try {
+      const buf = fs.readFileSync(file)
+      return { ok: true, base64: buf.toString('base64'), mimeType, isPlaceholder: ext === '.svg' }
+    } catch (e) { /* try the next extension */ }
+  }
+  return { ok: false }
+})
+
+ipcMain.handle('forzamap:replaceMapImage', async (_, game) => {
+  const result = await dialog.showOpenDialog(win, {
+    title: `Select a ${game === 'fh6' ? 'FH6' : 'FH5'} map image`,
+    properties: ['openFile'],
+    filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png'] }],
+  })
+  if (result.canceled || !result.filePaths[0]) return { ok: false, canceled: true }
+  const src = result.filePaths[0]
+  const ext = path.extname(src).toLowerCase() === '.png' ? '.png' : '.jpg'
+  const dest = path.join(MAPS_DIR, (game === 'fh6' ? 'fh6_map' : 'fh5_map') + ext)
+  try {
+    fs.mkdirSync(MAPS_DIR, { recursive: true })
+    fs.copyFileSync(src, dest)
+    log(`Forza map replaced: ${game} -> ${dest}`)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e.message }
+  }
 })

@@ -219,6 +219,12 @@ contextBridge.exposeInMainWorld('api', {
     },
   },
 
+  // Forza World Map (Phase 17) — map image loading/replacement
+  forzamap: {
+    getMapImage:     (game) => ipcRenderer.invoke('forzamap:getMapImage', game),
+    replaceMapImage: (game) => ipcRenderer.invoke('forzamap:replaceMapImage', game),
+  },
+
   // FPV Drone Assistant (Phase 14) — sug44/FpvDroneForAC install check + preset files
   fpv: {
     checkInstall:  ()           => ipcRenderer.invoke('fpv:checkInstall'),

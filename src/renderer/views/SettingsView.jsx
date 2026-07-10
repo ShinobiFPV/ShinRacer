@@ -197,6 +197,78 @@ function TelemetrySection() {
   )
 }
 
+// ── Forza Map section (Phase 17) ────────────────────────────────────────────
+// FH5/FH6 share ShinRacer's single Forza UDP listener (see TelemetrySection's
+// "Forza Data Out port" above) — ForzaSource auto-detects which game is
+// actually talking by packet size once a connection is live, per Phase
+// 13/15. Rather than pretend FH6/FH5 have independent listeners (which
+// would mean restructuring the working single-socket ForzaSource into a
+// dual-socket one — out of scope for this pass), both fields below are
+// deliberately shown reading/writing that same underlying port: editing
+// either one really does change what the other shows too, honestly
+// reflecting the real architecture instead of hiding it.
+function ForzaMapSection() {
+  const [forzaPort, setForzaPortLocal] = useState('5300')
+  const [fh6Status, setFh6Status] = useState(null)
+  const [fh5Status, setFh5Status] = useState(null)
+  const [replacing, setReplacing] = useState(null)
+
+  const refreshMapStatus = useCallback(async () => {
+    setFh6Status(await api.forzamap.getMapImage('fh6'))
+    setFh5Status(await api.forzamap.getMapImage('fh5'))
+  }, [])
+
+  useEffect(() => {
+    api.store.get('forzaTelemetryPort').then(v => setForzaPortLocal(String(v || 5300)))
+    refreshMapStatus()
+  }, [refreshMapStatus])
+
+  const updatePort = (v) => { setForzaPortLocal(v); const n = Number(v); if (n > 0) api.telemetry.setForzaPort(n) }
+
+  const replaceMap = async (game) => {
+    setReplacing(game)
+    const res = await api.forzamap.replaceMapImage(game)
+    if (res.ok) await refreshMapStatus()
+    setReplacing(null)
+  }
+
+  const MapStatus = ({ game, status }) => (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ fontSize: 12, color: status?.ok && !status.isPlaceholder ? C.green : C.muted }}>
+        {status?.ok && !status.isPlaceholder ? `✓ Custom ${game.toUpperCase()} map loaded` : 'Using placeholder'}
+      </span>
+      <Btn size="xs" variant="subtle" onClick={() => replaceMap(game)} disabled={replacing === game}>
+        {replacing === game ? 'Copying…' : `Replace ${game.toUpperCase()} map…`}
+      </Btn>
+    </div>
+  )
+
+  return (
+    <Card accent={C.borderHi}>
+      <SectionHead children="Forza Map" sub="FH5/FH6 share ShinRacer's single Forza listening port — auto-detected by packet size once connected" />
+
+      <div style={{ display: 'flex', gap: 24, marginBottom: 16 }}>
+        <div style={{ flex: 1 }}>
+          <Label>FH6 Data Out port</Label>
+          <TextInput mono value={forzaPort} onChange={updatePort} placeholder="5700" />
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>In FH6: Settings → HUD and Gameplay → Data Out Port</div>
+        </div>
+        <div style={{ flex: 1 }}>
+          <Label>FH5 Data Out port</Label>
+          <TextInput mono value={forzaPort} onChange={updatePort} placeholder="5300" />
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>In FH5: Settings → HUD and Gameplay → Data Out Port</div>
+        </div>
+      </div>
+
+      <Label muted>Map image</Label>
+      <div style={{ display: 'flex', gap: 24, marginTop: 6 }}>
+        <MapStatus game="fh6" status={fh6Status} />
+        <MapStatus game="fh5" status={fh5Status} />
+      </div>
+    </Card>
+  )
+}
+
 // ── Update section (Phase 16) — surfaced at the top of Settings since it's
 // the most important status to show; the app version is always visible even
 // before any updater:status event has arrived. ──────────────────────────────
@@ -432,6 +504,7 @@ export default function SettingsView() {
       </Card>
 
       <TelemetrySection />
+      <ForzaMapSection />
 
       <Card accent={C.borderHi}>
         <SectionHead children="Server defaults" sub="Used as starting values when creating a new server config" />

@@ -1510,6 +1510,162 @@ the first — by deleting and re-pushing the `v1.1.0` tag again and
 watching the real workflow run, not by assuming a plausible-looking fix
 is correct.
 
+**Confirmed: both fixes worked.** The third real run succeeded end to
+end — `npm install`, `npm run release` (electron-builder's own native
+rebuild + NSIS packaging + GitHub publish), and the release-notes-template
+step all passed. `gh release view v1.1.0` shows a real, published,
+non-draft release with three real assets: `ShinRacer-Setup-1.1.0.exe`,
+its `.blockmap` (needed for `electron-updater`'s Phase 16 differential
+updates), and `latest.yml` (the update-check manifest). This is the first
+release this repository has ever actually published — the CI pipeline
+documented since Phase 5 had never been exercised for real until this
+pass, and needed both fixes above before it actually worked. The
+template's "What's new" section still reads "(fill in before publishing)"
+— per `docs/RELEASING.md`, filling that in is deliberately left as the
+one manual step a human does, not something to auto-generate.
+
+## Phase 17: Forza World Map
+
+Phase 17 added a persistent world map showing every ShinRacer user
+currently playing FH5/FH6, with IN RACE / OPEN DRIVING / IDLE status,
+direction-arrow markers, and lerp-smoothed live positions — reusing Phase
+13/15's existing `ForzaSource` for the underlying telemetry rather than a
+second UDP listener.
+
+### Real, fetched calibration data — verified, not assumed
+Fetched `map_meta.json`/`calibration_points.csv` from
+github.com/vasyadiagnost/Forza-Horizon-6-Live-Map as instructed. The
+`map_meta.json` "formula" block is a genuine affine transform
+(`map_x = a·ForzaX + b·ForzaZ + c`, etc.) onto a 20000×20000 native
+coordinate space — not just a bounding box. Verified both directions with
+a standalone script before writing `forzaMapCalibration.js`: forward-
+transformed three real calibration points and compared against their
+published pixel positions (matched within ~50px of 20000 — the source
+dataset's own points carry a little placement noise), then confirmed the
+inverse transform round-trips every point exactly. `FH5_CALIBRATION`
+stays exactly what the brief gave — a TODO-flagged estimated bounding box
+— since no equivalent public per-point dataset was found for FH5 in this
+pass.
+
+### Architecture decisions
+- **FH6/FH5 share ShinRacer's one existing Forza UDP port**, not two
+  independent listeners. The brief asked for separate "FH6 Data Out port
+  (5700)" / "FH5 Data Out port (5300)" settings fields, but `ForzaSource`
+  (Phase 13/15) is a single socket that already auto-detects FH5 vs FH6 by
+  packet size once connected — restructuring that into a dual-socket
+  architecture would be a materially larger, riskier change than this
+  phase's actual ask, and directly conflicts with "do not touch Phase
+  1-16 confirmed working features." `SettingsView.jsx`'s new
+  `ForzaMapSection` shows both fields reading/writing the *same*
+  `forzaTelemetryPort` value — editing either one really does change what
+  the other displays, and the section's own subtitle says so, rather than
+  pretending they're independent.
+- **A real rules-of-hooks bug in the brief's own `useForza` example**: it
+  called `const { socket } = useSocket()` — with no `identity` argument,
+  and *inside* a `useEffect` — which is invalid on both counts (hooks
+  can't be called conditionally/nested, and `useSocket` requires an
+  `identity` parameter to announce presence). Fixed by calling
+  `useSocket(identity)` at `useForza`'s own top level, matching every
+  other place in this codebase that uses the shared socket connection.
+- **The Forza map's `handle` is the full Google name, not the crew
+  nickname** — `backend/routes/telemetry.js`'s `POST /forza-position`
+  derives `handle` from `req.user.name` (the verified token's Google
+  display name), matching the brief's own consistent use of
+  `googleAuth.user.name` in both its backend-socket draft and its
+  main.js-broadcast draft. This is a deliberate, disclosed inconsistency
+  with Phase 14's `fpv:position` (which uses the crew `identity.handle`
+  for exactly this reason) — Phase 14's brief contradicted itself between
+  two drafts and crew-handle consistency won; this brief was internally
+  consistent about wanting the Google name, so it was kept as specified
+  rather than silently overridden to match Phase 14's own choice.
+- **Position smoothing** (`usePositionSmoothing` in `ForzaMapView.jsx`)
+  runs its own `requestAnimationFrame` loop lerping every visible player's
+  map-pixel position toward its latest broadcast target over 300ms, per
+  the brief — same cost class as the existing telemetry widgets' own
+  frequent-update components (G-Force Circle, Input Trace).
+- **Zoom/pan** is a single container div's CSS `transform: translate()
+  scale()`, wheel-to-zoom (centered on the cursor via a dynamic
+  `transform-origin`), drag-to-pan (which cancels "Follow me" the moment
+  a manual drag starts, standard map-UX convention) — pure SVG + CSS, no
+  mapping library, per the constraint.
+- **`mapToWorld` is exported but has no dedicated consuming UI** — the
+  brief describes it as "used for click-to-mark on map" without actually
+  specifying a mark/pin feature anywhere else in `ForzaMapView`'s own
+  spec, so it wasn't invented; the function exists and is verified
+  correct (see below) for whenever that feature is actually asked for.
+- **`OFFLINE` status only ever applies to your own card.** The brief's
+  status-derivation rule includes `!frame → OFFLINE`, but `useForza`
+  already prunes any remote player's entry after 5 seconds of silence —
+  they simply disappear from the list rather than lingering as "OFFLINE."
+  Your own row is the one place `OFFLINE` can actually render (no local
+  Forza telemetry active yet).
+
+### Files
+- `src/renderer/lib/forzaMapCalibration.js` (new): `FH6_CALIBRATION`
+  (real transform), `FH5_CALIBRATION` (TODO bounds), `worldToMap`/
+  `mapToWorld`.
+- `src/renderer/hooks/useForza.js` (new): local position from the existing
+  telemetry frame stream, other players via the backend relay + 5s
+  staleness pruning.
+- `src/renderer/views/ForzaMapView.jsx` (new): collapsible left panel
+  (game tabs, connection status, player list, Follow me / Show all /
+  opacity / replace-map controls) + right panel (pan/zoom map, direction-
+  arrow markers with pulsing IN RACE rings, click-for-detail, race-
+  start/finish toasts via the existing `showToast`).
+- `src/main/telemetry/normalizer.js`: `isRacing`/`yaw` added to
+  `nullExtendedFields()` and set in `normalizeForza` (`yaw` read directly
+  at byte 56 — the Sled section, before FH6's Dash-section shift point,
+  so no `at()` wrapper needed, same as the existing CarClass/
+  DrivetrainType fields nearby).
+- `backend/socket.js`: `forza:position` relay — a separate event from
+  Phase 14's `fpv:position` even though the shape is similar, since the
+  two features are independent.
+- `backend/routes/telemetry.js`: `forzaPositions` in-memory store (keyed
+  by handle, 5s TTL), `POST /forza-position`, `GET /forza-positions`.
+- `src/main/main.js`: `startShmTelemetry`'s `onFrame` now also throttles a
+  position POST to the backend to once per 500ms when `frame.game` is
+  `fh5`/`fh6` (wrapped in a bare `.catch(() => {})` — silent skip on any
+  network/backend failure, per the constraint); new
+  `forzamap:getMapImage` (checks `.jpg` → `.png` → `.svg` in that order)
+  and `forzamap:replaceMapImage` (file picker + copy into
+  `resources/maps/`) IPC handlers.
+- `src/main/preload.js`: `forzamap.getMapImage`/`replaceMapImage` bridge.
+- `resources/maps/fh5_map.svg`, `fh6_map.svg` (new): hand-drawn placeholder
+  maps (dark background, grid, stylized coastline, game title) — real
+  `.jpg`/`.png` game screenshots the user supplies always take priority.
+- `src/renderer/App.jsx`: `forzamap` nav entry after `fpv`.
+- `src/renderer/views/SettingsView.jsx`: new `ForzaMapSection` (FH6/FH5
+  port fields sharing one value, per-game map-image status + replace
+  buttons).
+- **Deploy script**: `backend/socket.js` and `backend/routes/telemetry.js`
+  were already both in `scripts/deploy-backend.ps1`'s scp list from
+  Phase 13/14 — no change needed, contrary to the brief's assumption that
+  `telemetry.js` needed adding.
+
+### Verified this pass
+`npx vite build` compiles clean (168 modules, up from 165). `node --check`
+passes on every touched main-process/backend file. The real, fetched FH6
+calibration transform was verified both directions with a standalone
+script (three real calibration points, forward + exact inverse
+round-trip) *before* writing `forzaMapCalibration.js`, then the actual
+exported `worldToMap`/`mapToWorld` functions were re-verified afterward
+against a rendered 2000×2000 map size, including clamping (an
+absurd out-of-range world position correctly clamps to the image
+bounds) and null-safety (a null position defaults to map center rather
+than throwing or rendering `NaN`).
+
+### Not independently verified
+No real FH5/FH6 session, no other crew member's client, and no real map
+image exist in this environment, so the actual live map — position
+broadcast → relay → smoothed marker rendering, direction arrows against
+real heading data, the race-start/finish toast triggers, and the
+zoom/pan/Follow-me/Show-all controls — were verified by careful code
+reading and the calibration-math/build checks above, not by driving the
+running UI. If FH6 marker positions look visibly wrong once tested
+against a real game session, the calibration transform itself was
+verified correct — check `ForzaMapView.jsx`'s `worldToMap` call site
+(map size / game selection) before suspecting `forzaMapCalibration.js`.
+
 ## Rename: AC1Companion → ShinRacer
 
 2026-07-09: the project folder was manually renamed from `AC1Companion` to

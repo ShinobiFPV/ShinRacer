@@ -69,6 +69,20 @@ module.exports = function attachSocket(io) {
       socket.broadcast.emit('fpv:position', { handle, x, y, z, track, ts: Date.now() })
     })
 
+    // Forza World Map (Phase 17) — a separate event from fpv:position
+    // (Phase 14) even though the shape is similar, since these two features
+    // are independent and a client might reasonably want one broadcast
+    // without the other. Same relay-only, nothing-persisted pattern.
+    socket.on('forza:position', (data) => {
+      socket.broadcast.emit('forza:position', {
+        handle: data.handle,
+        color: data.color,
+        x: data.x, z: data.z, speed: data.speed,
+        game: data.game, isRacing: data.isRacing, heading: data.heading,
+        ts: Date.now(),
+      })
+    })
+
     socket.on('rtc:offer',  ({ to, payload }) => io.to(to).emit('rtc:offer',  { from: socket.id, payload }))
     socket.on('rtc:answer', ({ to, payload }) => io.to(to).emit('rtc:answer', { from: socket.id, payload }))
     socket.on('rtc:ice',    ({ to, payload }) => io.to(to).emit('rtc:ice',    { from: socket.id, payload }))

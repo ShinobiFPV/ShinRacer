@@ -20,6 +20,7 @@ import ClusterView from './views/ClusterView'
 import ReplayView  from './views/ReplayView'
 import ModsView    from './views/ModsView'
 import FpvView     from './views/FpvView'
+import ForzaMapView from './views/ForzaMapView'
 import LinksView   from './views/LinksView'
 import SettingsView from './views/SettingsView'
 import AdminView   from './views/AdminView'
@@ -46,6 +47,7 @@ const NAV = [
   { id:'replays',  icon:'🎬', label:'Replays',         role:'crew'  },
   { id:'mods',     icon:'📦', label:'Mods',            role:'crew'  },
   { id:'fpv',      icon:'🚁', label:'FPV Drone',       role:'crew'  },
+  { id:'forzamap', icon:'🗺️', label:'Forza Map',       role:'crew'  },
   { id:'links',    icon:'🔗', label:'Links',           role:'crew'  },
   { id:'settings', icon:'⚙',  label:'Settings',        role:'crew'  },
   { id:'admin',    icon:'🔐', label:'Admin',           role:'admin' },
@@ -330,6 +332,7 @@ function Inner() {
                   {view==='replays' && <ReplayView onGoSettings={() => setView('settings')} showToast={showToast} />}
                   {view==='mods'    && <ModsView />}
                   {view==='fpv'     && <FpvView onGoMods={() => setView('mods')} />}
+                  {view==='forzamap'&& <ForzaMapView />}
                   {view==='links'   && <LinksView />}
                   {view==='settings'&& <SettingsView />}
                   {view==='admin'   && <AdminView />}
