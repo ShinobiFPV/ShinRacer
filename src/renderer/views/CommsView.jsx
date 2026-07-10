@@ -107,6 +107,17 @@ function VoicePanel({ identity, socket, users, selfId }) {
   const [peerVolumes, setPeerVolumes] = useState({})
   const { showToast } = useStore()
   const volumeSaveRef = useRef(null)
+  // Car Stereo mixer's COMMS channel (Phase 18) — useStereo has no direct
+  // access to WebRTC's per-peer audio elements (they live here, not routed
+  // through the shared AudioContext), so its GainNode-equivalent is this
+  // multiplier, dispatched as a window event the same way the Cluster
+  // Fucker's ptt/mute events already are (see below).
+  const [commsMixerVolume, setCommsMixerVolume] = useState(1)
+  useEffect(() => {
+    const onCommsVolume = (e) => setCommsMixerVolume(e.detail ?? 1)
+    window.addEventListener('stereo:commsVolume', onCommsVolume)
+    return () => window.removeEventListener('stereo:commsVolume', onCommsVolume)
+  }, [])
 
   useEffect(() => {
     window.api.store.get('peerVolumes').then(v => setPeerVolumes(v || {}))
@@ -269,7 +280,7 @@ function VoicePanel({ identity, socket, users, selfId }) {
           {peers.map(p => (
             <PeerCard key={p.id} user={p} stream={remoteStreams[p.id]} speaking={!!speaking[p.id]} speakerId={speakerId}
               connectionState={connectionStates[p.id]} onReconnect={reconnect}
-              volume={peerVolumes[p.handle] ?? 1} onVolumeChange={(v) => setPeerVolume(p.handle, v)} />
+              volume={(peerVolumes[p.handle] ?? 1) * commsMixerVolume} onVolumeChange={(v) => setPeerVolume(p.handle, v)} />
           ))}
         </div>
       </div>

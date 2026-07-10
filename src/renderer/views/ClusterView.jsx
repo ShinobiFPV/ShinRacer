@@ -6,6 +6,7 @@ import ClusterRuntime from '../components/cluster/ClusterRuntime'
 import ClusterThumbnail from '../components/cluster/ClusterThumbnail'
 import { CLUSTER_WIDGET_CATALOG, CLUSTER_WIDGET_CATEGORIES, getWidgetEntry, GAUGE_COMPONENTS, readImageAsBase64 } from '../components/cluster/widgets'
 import { useStore } from '../store/AppStore'
+import { useStereo } from '../hooks/useStereo'
 import api from '../lib/api'
 
 const win = window.api
@@ -31,6 +32,11 @@ const APP_FUNCTIONS = [
   { value: 'volume.down', label: 'Volume: down' },
   { value: 'ac.openReplay', label: 'AC: open replay browser' },
   { value: 'ac.launchGame', label: 'AC: launch game' },
+  { value: 'stereo.play', label: 'Car Stereo: play' },
+  { value: 'stereo.pause', label: 'Car Stereo: pause' },
+  { value: 'stereo.playPause', label: 'Car Stereo: play/pause toggle' },
+  { value: 'stereo.next', label: 'Car Stereo: next track' },
+  { value: 'stereo.prev', label: 'Car Stereo: previous track' },
 ]
 // fnParam shape per function — the editor stores the fully-shaped object
 // directly in the binding (e.g. { index: 3 }), so dispatch is ever only
@@ -105,6 +111,28 @@ const FIELD_META = {
 
   telemetryBind: { section: 'TELEMETRY', control: 'text' },
   telemetryThreshold: { section: 'TELEMETRY', control: 'number', allowNull: true },
+
+  // Car Stereo widgets (Phase 18) — reuse existing keys (backgroundColor,
+  // glowColor, label, showValue, fontSize) where the concept already exists;
+  // these are the ones genuinely new to this widget family.
+  showArtwork: { section: 'APPEARANCE', control: 'boolean' },
+  showArtist: { section: 'APPEARANCE', control: 'boolean' },
+  showProgress: { section: 'APPEARANCE', control: 'boolean' },
+  textColor: { section: 'APPEARANCE', control: 'color' },
+  sizeVariant: { section: 'APPEARANCE', control: 'select', options: ['small', 'medium', 'large'] },
+  showPrev: { section: 'APPEARANCE', control: 'boolean' },
+  showNext: { section: 'APPEARANCE', control: 'boolean' },
+  buttonColor: { section: 'APPEARANCE', control: 'color' },
+  buttonSize: { section: 'APPEARANCE', control: 'select', options: ['small', 'medium', 'large'] },
+  activeSource: { section: 'APPEARANCE', control: 'select', options: ['auto', 'spotify', 'ytm', 'apple', 'local'] },
+  showMusic: { section: 'APPEARANCE', control: 'boolean' },
+  showGame: { section: 'APPEARANCE', control: 'boolean' },
+  showComms: { section: 'APPEARANCE', control: 'boolean' },
+  showLabels: { section: 'APPEARANCE', control: 'boolean' },
+  faderColor: { section: 'APPEARANCE', control: 'color' },
+  channel: { section: 'APPEARANCE', control: 'select', options: ['music', 'game', 'comms', 'master'] },
+  knobColor: { section: 'APPEARANCE', control: 'color' },
+  maxLines: { section: 'APPEARANCE', control: 'select', options: [1, 2] },
 }
 
 function genId(prefix) { return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` }
@@ -570,6 +598,7 @@ function EditorTab({ layout, setLayout, identity, localPresets, saveLocalPresets
   const [confirmClear, setConfirmClear] = useState(false)
   const [preview, setPreview] = useState(false)
   const canvasRef = useRef(null)
+  const stereo = useStereo()
 
   const localRecord = localPresets.find(p => p.layout.id === layout.id)
   const publicCount = localPresets.filter(p => p.layout.author === identity?.handle && p.isPublic).length
@@ -681,7 +710,13 @@ function EditorTab({ layout, setLayout, identity, localPresets, saveLocalPresets
     return (
       <div style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
         <Btn variant="ghost" onClick={() => setPreview(false)}>← Back to editor</Btn>
-        <ClusterRuntime layout={layout} telemetryFrame={null} onAction={() => {}} />
+        {/* Preview runs inside the main renderer, same tree as <StereoProvider>,
+            so Car Stereo widgets get the real live state/dispatch directly —
+            no IPC bridge needed here (that's only for the separate overlay window). */}
+        <ClusterRuntime layout={layout} telemetryFrame={null} onAction={() => {}}
+          stereoState={{ activeSource: stereo.activeSource, nowPlaying: stereo.nowPlaying, isPlaying: stereo.isPlaying, volumes: stereo.volumes, muted: stereo.muted }}
+          onStereoAction={(action) => stereo[action]?.()}
+          onStereoVolumeChange={(channel, v) => stereo.setVolume(channel, v)} />
       </div>
     )
   }

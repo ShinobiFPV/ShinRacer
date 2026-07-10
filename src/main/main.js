@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, Notification, screen, Menu } = require('electron')
+const { app, BrowserWindow, BrowserView, ipcMain, dialog, shell, Notification, screen, Menu } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -26,6 +26,12 @@ let overlayWindow = null
 
 // ── Cluster Fucker overlay window ─────────────────────────────────────────────
 let clusterOverlayWindow = null
+
+// ── Car Stereo (Phase 18): embedded BrowserViews for YouTube Music / Apple
+// Music (neither has a real playback API — see CLAUDE.md's Phase 18 notes)
+// and the Spotify OAuth loopback server. ─────────────────────────────────────
+let ytmView = null
+let appleView = null
 
 // ── The Cluster Fucker: keystroke dispatch ────────────────────────────────────
 // Verified in this environment: `npm install robotjs` succeeds (a prebuilt
@@ -186,6 +192,9 @@ function createWindow() {
       clusterOverlayWindow = null
     }
     closeOAuthCallbackServer()
+    closeSpotifyCallbackServer()
+    if (ytmView) { try { win.removeBrowserView(ytmView) } catch (e) {} ytmView = null }
+    if (appleView) { try { win.removeBrowserView(appleView) } catch (e) {} appleView = null }
   })
 }
 
@@ -364,6 +373,69 @@ ipcMain.handle('auth:startCallbackServer', () => {
 
 ipcMain.handle('auth:stopCallbackServer', () => {
   closeOAuthCallbackServer()
+  return { ok: true }
+})
+
+// ── Spotify OAuth loopback callback server (Car Stereo, Phase 18) ────────────
+// Same loopback pattern as the Google sign-in server above, on a different
+// fixed port (9722) so the two never collide — Spotify's own OAuth policy for
+// this app type also requires a real redirect URI, not a custom scheme.
+const SPOTIFY_CALLBACK_PORT = 9722
+let spotifyCallbackServer = null
+
+const SPOTIFY_CALLBACK_HTML = `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { background: #050507; color: #E8F0FF;
+           font-family: 'Barlow Condensed', sans-serif;
+           display: flex; align-items: center;
+           justify-content: center; height: 100vh; margin: 0; }
+    h1 { font-size: 32px; letter-spacing: 2px; color: #1DB954; }
+    p  { color: #5A6475; }
+  </style>
+</head>
+<body>
+  <div style="text-align:center">
+    <h1>CONNECTED TO SPOTIFY</h1>
+    <p>You can close this tab and return to ShinRacer.</p>
+  </div>
+</body>
+</html>`
+
+function closeSpotifyCallbackServer() {
+  if (spotifyCallbackServer) {
+    try { spotifyCallbackServer.close() } catch (e) {}
+    spotifyCallbackServer = null
+  }
+}
+
+ipcMain.handle('spotify:startAuth', () => {
+  closeSpotifyCallbackServer()
+  return new Promise((resolve) => {
+    const server = http.createServer((req, res) => {
+      const url = new URL(req.url, `http://127.0.0.1:${SPOTIFY_CALLBACK_PORT}`)
+      const code = url.searchParams.get('code')
+      const error = url.searchParams.get('error')
+      res.writeHead(200, { 'Content-Type': 'text/html' })
+      res.end(SPOTIFY_CALLBACK_HTML)
+      if (code) win?.webContents.send('spotify:callback', code)
+      else if (error) log(`Spotify OAuth error: ${error}`)
+      closeSpotifyCallbackServer()
+    })
+    server.on('error', (err) => {
+      log(`Spotify callback server error: ${err.message}`)
+      spotifyCallbackServer = null
+    })
+    server.listen(SPOTIFY_CALLBACK_PORT, '127.0.0.1', () => {
+      spotifyCallbackServer = server
+      resolve({ ok: true })
+    })
+  })
+})
+
+ipcMain.handle('spotify:stopAuth', () => {
+  closeSpotifyCallbackServer()
   return { ok: true }
 })
 
@@ -1285,4 +1357,249 @@ ipcMain.handle('forzamap:replaceMapImage', async (_, game) => {
   } catch (e) {
     return { ok: false, error: e.message }
   }
+})
+
+// ── IPC: Car Stereo — YouTube Music embedded BrowserView (Phase 18) ─────────
+// YTM has no public playback API — Google shut the unofficial ones down — so
+// this is an embedded music.youtube.com panel controlled by CSS-selector
+// injection. Selectors WILL break on site updates; every executeJavaScript
+// call below is wrapped so a broken selector degrades to { ok:false } instead
+// of throwing into the caller. `partition: 'persist:ytm'` keeps the signed-in
+// session across app restarts without touching the main window's own cookies.
+ipcMain.handle('ytm:show', (_, bounds) => {
+  if (!win) return { ok: false }
+  if (!ytmView) {
+    ytmView = new BrowserView({
+      webPreferences: { nodeIntegration: false, contextIsolation: true, partition: 'persist:ytm' },
+    })
+    ytmView.webContents.loadURL('https://music.youtube.com')
+  }
+  win.addBrowserView(ytmView)
+  if (bounds) ytmView.setBounds(bounds)
+  return { ok: true }
+})
+
+ipcMain.handle('ytm:hide', () => {
+  if (ytmView && win) win.removeBrowserView(ytmView)
+  return { ok: true }
+})
+
+ipcMain.handle('ytm:getNowPlaying', async () => {
+  if (!ytmView) return { ok: false }
+  try {
+    const result = await ytmView.webContents.executeJavaScript(`
+      (() => {
+        try {
+          const ms = navigator.mediaSession
+          if (!ms?.metadata) return null
+          return {
+            title: ms.metadata.title,
+            artist: ms.metadata.artist,
+            album: ms.metadata.album,
+            artwork: ms.metadata.artwork?.[0]?.src || null,
+            playing: ms.playbackState === 'playing',
+          }
+        } catch (e) { return null }
+      })()
+    `)
+    return { ok: true, data: result }
+  } catch (e) { return { ok: false, error: e.message } }
+})
+
+ipcMain.handle('ytm:play', async () => {
+  try {
+    await ytmView?.webContents.executeJavaScript(`
+      (() => {
+        try {
+          const btn = document.querySelector('tp-yt-paper-icon-button#play-pause-button') ||
+                      document.querySelector('.play-pause-button')
+          btn?.click()
+        } catch (e) {}
+      })()
+    `)
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e.message } }
+})
+
+ipcMain.handle('ytm:next', async () => {
+  try {
+    await ytmView?.webContents.executeJavaScript(`
+      (() => { try { document.querySelector('.next-button, [aria-label="Next"]')?.click() } catch (e) {} })()
+    `)
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e.message } }
+})
+
+ipcMain.handle('ytm:prev', async () => {
+  try {
+    await ytmView?.webContents.executeJavaScript(`
+      (() => { try { document.querySelector('.previous-button, [aria-label="Previous"]')?.click() } catch (e) {} })()
+    `)
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e.message } }
+})
+
+// ── IPC: Car Stereo — Apple Music embedded BrowserView (Phase 18) ───────────
+// Same embedded-panel approach as YTM, for the same reason (no public
+// playback API without a $99/yr Apple Developer MusicKit token — see
+// SettingsView's Apple Music section for the optional native-controls path).
+ipcMain.handle('apple:show', (_, bounds) => {
+  if (!win) return { ok: false }
+  if (!appleView) {
+    appleView = new BrowserView({
+      webPreferences: { nodeIntegration: false, contextIsolation: true, partition: 'persist:apple' },
+    })
+    appleView.webContents.loadURL('https://music.apple.com')
+  }
+  win.addBrowserView(appleView)
+  if (bounds) appleView.setBounds(bounds)
+  return { ok: true }
+})
+
+ipcMain.handle('apple:hide', () => {
+  if (appleView && win) win.removeBrowserView(appleView)
+  return { ok: true }
+})
+
+ipcMain.handle('apple:getNowPlaying', async () => {
+  if (!appleView) return { ok: false }
+  try {
+    const result = await appleView.webContents.executeJavaScript(`
+      (() => {
+        try {
+          const ms = navigator.mediaSession
+          if (!ms?.metadata) return null
+          return {
+            title: ms.metadata.title,
+            artist: ms.metadata.artist,
+            album: ms.metadata.album,
+            artwork: ms.metadata.artwork?.[0]?.src || null,
+            playing: ms.playbackState === 'playing',
+          }
+        } catch (e) { return null }
+      })()
+    `)
+    return { ok: true, data: result }
+  } catch (e) { return { ok: false, error: e.message } }
+})
+
+ipcMain.handle('apple:play', async () => {
+  try {
+    await appleView?.webContents.executeJavaScript(`
+      (() => {
+        try {
+          const btn = document.querySelector('[data-testid="play-pause-btn"], .playback-controls__playback-btn.playback-controls__playback-btn--play')
+          if (btn) { btn.click(); return }
+          const ms = navigator.mediaSession
+          if (ms?.playbackState === 'playing') ms.setActionHandler && ms.pause?.()
+          else ms?.play?.()
+        } catch (e) {}
+      })()
+    `)
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e.message } }
+})
+
+ipcMain.handle('apple:next', async () => {
+  try {
+    await appleView?.webContents.executeJavaScript(`
+      (() => { try { document.querySelector('[data-testid="next-btn"]')?.click() } catch (e) {} })()
+    `)
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e.message } }
+})
+
+ipcMain.handle('apple:prev', async () => {
+  try {
+    await appleView?.webContents.executeJavaScript(`
+      (() => { try { document.querySelector('[data-testid="previous-btn"]')?.click() } catch (e) {} })()
+    `)
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e.message } }
+})
+
+// ── IPC: Car Stereo — local file library (Phase 18) ──────────────────────────
+const LOCAL_AUDIO_EXTS = ['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac']
+
+ipcMain.handle('local:scanFolder', async (_, folderPath) => {
+  const results = []
+  function scan(dir) {
+    let entries
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch (e) { return }
+    for (const e of entries) {
+      const full = path.join(dir, e.name)
+      if (e.isDirectory()) scan(full)
+      else if (LOCAL_AUDIO_EXTS.includes(path.extname(e.name).toLowerCase())) {
+        results.push({ path: full, filename: e.name, dir: path.relative(folderPath, dir) })
+      }
+    }
+  }
+  try {
+    if (!fs.existsSync(folderPath)) return { ok: false, error: 'Folder not found' }
+    scan(folderPath)
+    return { ok: true, files: results }
+  } catch (e) { return { ok: false, error: e.message } }
+})
+
+// music-metadata publishes ESM as its default entry, which raises the
+// question of whether a plain require() from this CommonJS file would throw
+// ERR_REQUIRE_ESM — checked against the actual installed package
+// (node_modules/music-metadata/package.json) before writing this rather than
+// assumed: it ships a dual package via package.json `exports` conditions
+// (a `require: "./lib/node.cjs"` condition alongside `import`), so a normal
+// require() resolves to the real CJS build and works correctly, same as
+// every other require() in this file.
+ipcMain.handle('local:getMetadata', async (_, filePath) => {
+  try {
+    const mm = require('music-metadata')
+    const meta = await mm.parseFile(filePath, { duration: true })
+    return {
+      ok: true,
+      data: {
+        title: meta.common.title || path.basename(filePath),
+        artist: meta.common.artist || 'Unknown',
+        album: meta.common.album || 'Unknown',
+        duration: meta.format.duration || 0,
+        picture: meta.common.picture?.[0]
+          ? `data:${meta.common.picture[0].format};base64,${meta.common.picture[0].data.toString('base64')}`
+          : null,
+      },
+    }
+  } catch (e) { return { ok: false, error: e.message } }
+})
+
+ipcMain.handle('local:getFileUrl', (_, filePath) => {
+  return { ok: true, url: `file://${filePath.replace(/\\/g, '/')}` }
+})
+
+// ── IPC: Car Stereo — game audio volume via nircmd.exe (Phase 18) ───────────
+// nircmd isn't bundled (freeware, redistribution terms are unclear) — the
+// user downloads it once per docs/CAR_STEREO_SETUP.md. execFileSync with an
+// argv array (not a shell string) avoids quoting/injection concerns entirely,
+// same reasoning as every other execFileSync call in this file.
+const NIRCMD_PATH = path.join(__dirname, '../../resources/tools/nircmd.exe')
+
+ipcMain.handle('audio:setAppVolume', (_, { processName, volume }) => {
+  if (!fs.existsSync(NIRCMD_PATH)) return { ok: false, error: 'nircmd.exe not found in resources/tools/ — see docs/CAR_STEREO_SETUP.md' }
+  try {
+    const level = Math.max(0, Math.min(1, volume / 100))
+    execFileSync(NIRCMD_PATH, ['setappvolume', processName, String(level)])
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e.message } }
+})
+
+ipcMain.handle('audio:getActiveGame', () => telemetryManager?.activeGame ?? null)
+ipcMain.handle('audio:nircmdStatus', () => ({ found: fs.existsSync(NIRCMD_PATH) }))
+
+// ── IPC: Car Stereo — mirror now-playing/mixer state to the Cluster Fucker's
+// pop-out overlay window (Phase 18). Same relay shape as the telemetry frame
+// forwarding above: the overlay is a separate BrowserWindow/renderer with no
+// access to the main window's Spotify SDK / BrowserViews / Web Audio graph,
+// so useStereo (main window) pushes a lightweight state snapshot here and
+// main.js forwards it on; actions taken in the overlay round-trip back
+// through the existing cluster:callFn -> cluster:invoke -> window
+// CustomEvent('cluster:stereo.*') path already used for ptt/mute/volume.
+ipcMain.handle('stereo:pushState', (_, state) => {
+  clusterOverlayWindow?.webContents.send('stereo:state', state)
+  return { ok: true }
 })

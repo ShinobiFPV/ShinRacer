@@ -7,6 +7,7 @@ import UpdateBanner from './components/UpdateBanner'
 import Wizard from './components/Wizard'
 import ServerWizard from './components/ServerWizard'
 import { deployConfig, presetFromConfig } from './lib/deploy'
+import { StereoProvider } from './hooks/useStereo'
 import api from './lib/api'
 import DeployView  from './views/DeployView'
 import BuildView   from './views/BuildView'
@@ -21,6 +22,7 @@ import ReplayView  from './views/ReplayView'
 import ModsView    from './views/ModsView'
 import FpvView     from './views/FpvView'
 import ForzaMapView from './views/ForzaMapView'
+import StereoView  from './views/StereoView'
 import LinksView   from './views/LinksView'
 import SettingsView from './views/SettingsView'
 import AdminView   from './views/AdminView'
@@ -48,6 +50,7 @@ const NAV = [
   { id:'mods',     icon:'📦', label:'Mods',            role:'crew'  },
   { id:'fpv',      icon:'🚁', label:'FPV Drone',       role:'crew'  },
   { id:'forzamap', icon:'🗺️', label:'Forza Map',       role:'crew'  },
+  { id:'stereo',   icon:'🎵', label:'Car Stereo',      role:'crew'  },
   { id:'links',    icon:'🔗', label:'Links',           role:'crew'  },
   { id:'settings', icon:'⚙',  label:'Settings',        role:'crew'  },
   { id:'admin',    icon:'🔐', label:'Admin',           role:'admin' },
@@ -333,6 +336,7 @@ function Inner() {
                   {view==='mods'    && <ModsView />}
                   {view==='fpv'     && <FpvView onGoMods={() => setView('mods')} />}
                   {view==='forzamap'&& <ForzaMapView />}
+                  {view==='stereo'  && <StereoView />}
                   {view==='links'   && <LinksView />}
                   {view==='settings'&& <SettingsView />}
                   {view==='admin'   && <AdminView />}
@@ -364,7 +368,9 @@ export default function App() {
   return (
     <AppStoreProvider>
       <TooltipProvider>
-        <Inner />
+        <StereoProvider>
+          <Inner />
+        </StereoProvider>
       </TooltipProvider>
     </AppStoreProvider>
   )

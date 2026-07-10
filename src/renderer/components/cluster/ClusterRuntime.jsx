@@ -9,7 +9,14 @@ import { getWidgetEntry, STATEFUL_WIDGET_TYPES } from './widgets'
 // on/off, rotary position, slider value, XY pad position. See widgets/
 // index.js's STATEFUL_WIDGET_TYPES comment for why this couldn't just live
 // in each widget's own local useState.
-export default function ClusterRuntime({ layout, telemetryFrame, onAction, mode = 'runtime' }) {
+// `stereoState`/`onStereoAction`/`onStereoVolumeChange` (Phase 18) follow the
+// exact same pass-through shape as `telemetryFrame`/`onAction` above — Car
+// Stereo widgets read now-playing/mixer data the same way telemetry widgets
+// read a physics frame, and transport/volume widgets dispatch through a
+// dedicated callback rather than the generic action-binding system, since
+// "play/pause/next/prev" aren't user-configurable bindings, they're what the
+// widget IS. See widgets/NowPlayingWidget.jsx etc. and CLAUDE.md's Phase 18 notes.
+export default function ClusterRuntime({ layout, telemetryFrame, onAction, mode = 'runtime', stereoState, onStereoAction, onStereoVolumeChange }) {
   const [runtimeState, setRuntimeState] = useState(() => {
     const initial = {}
     for (const w of layout?.widgets || []) {
@@ -48,10 +55,17 @@ export default function ClusterRuntime({ layout, telemetryFrame, onAction, mode 
         if (!entry) return null
         const Widget = entry.component
         const cfg = w.config || {}
-        const common = { key: w.id, config: cfg, mode, telemetryFrame }
+        const common = { key: w.id, config: cfg, mode, telemetryFrame, stereoState }
 
         let extra = {}
         switch (w.type) {
+          case 'stereoTransport':
+            extra = { onTransportAction: (action) => onStereoAction?.(action) }
+            break
+          case 'stereoMixer':
+          case 'stereoVolumeKnob':
+            extra = { onVolumeChange: (channel, v) => onStereoVolumeChange?.(channel, v) }
+            break
           case 'momentaryButton':
             extra = { onPress: () => fire(w.id, cfg.action, 'press'), onRelease: () => fire(w.id, cfg.action, 'release') }
             break

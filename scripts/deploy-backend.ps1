@@ -23,6 +23,7 @@ scp backend\routes\admin.js shinobi@192.168.1.203:/home/shinobi/ac-companion-bac
 scp backend\routes\hosts.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
 scp backend\routes\cluster.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
 scp backend\routes\telemetry.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
+scp backend\routes\stereo.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/routes/
 scp backend\middleware\auth.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/middleware/
 scp backend\lib\drive.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/lib/
 scp backend\lib\oauth.js shinobi@192.168.1.203:/home/shinobi/ac-companion-backend/lib/

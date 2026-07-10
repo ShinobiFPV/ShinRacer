@@ -234,4 +234,49 @@ contextBridge.exposeInMainWorld('api', {
     deletePreset:  (name)       => ipcRenderer.invoke('fpv:deletePreset', name),
     readMapImage:  (track)      => ipcRenderer.invoke('fpv:readMapImage', track),
   },
+
+  // Car Stereo (Phase 18) — Spotify OAuth loopback, YTM/Apple embedded
+  // BrowserViews, local file library, nircmd game-volume mixer channel, and
+  // the now-playing bridge to the Cluster Fucker's pop-out overlay window.
+  spotify: {
+    startAuth: () => ipcRenderer.invoke('spotify:startAuth'),
+    stopAuth:  () => ipcRenderer.invoke('spotify:stopAuth'),
+    onCallback: (cb) => {
+      ipcRenderer.on('spotify:callback', (_, code) => cb(code))
+      return () => ipcRenderer.removeAllListeners('spotify:callback')
+    },
+  },
+  ytm: {
+    show:          (bounds) => ipcRenderer.invoke('ytm:show', bounds),
+    hide:          ()       => ipcRenderer.invoke('ytm:hide'),
+    getNowPlaying: ()       => ipcRenderer.invoke('ytm:getNowPlaying'),
+    play:          ()       => ipcRenderer.invoke('ytm:play'),
+    next:          ()       => ipcRenderer.invoke('ytm:next'),
+    prev:          ()       => ipcRenderer.invoke('ytm:prev'),
+  },
+  apple: {
+    show:          (bounds) => ipcRenderer.invoke('apple:show', bounds),
+    hide:          ()       => ipcRenderer.invoke('apple:hide'),
+    getNowPlaying: ()       => ipcRenderer.invoke('apple:getNowPlaying'),
+    play:          ()       => ipcRenderer.invoke('apple:play'),
+    next:          ()       => ipcRenderer.invoke('apple:next'),
+    prev:          ()       => ipcRenderer.invoke('apple:prev'),
+  },
+  local: {
+    scanFolder:  (folderPath) => ipcRenderer.invoke('local:scanFolder', folderPath),
+    getMetadata: (filePath)   => ipcRenderer.invoke('local:getMetadata', filePath),
+    getFileUrl:  (filePath)   => ipcRenderer.invoke('local:getFileUrl', filePath),
+  },
+  audio: {
+    setAppVolume:  (args) => ipcRenderer.invoke('audio:setAppVolume', args),
+    getActiveGame: ()     => ipcRenderer.invoke('audio:getActiveGame'),
+    nircmdStatus:  ()     => ipcRenderer.invoke('audio:nircmdStatus'),
+  },
+  stereo: {
+    pushState: (state) => ipcRenderer.invoke('stereo:pushState', state),
+    onState: (cb) => {
+      ipcRenderer.on('stereo:state', (_, data) => cb(data))
+      return () => ipcRenderer.removeAllListeners('stereo:state')
+    },
+  },
 })

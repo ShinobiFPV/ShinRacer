@@ -120,6 +120,17 @@ Build your own button box. Design a custom panel of buttons, toggles, gauges, an
 - Unlimited local presets, publish up to 5 to the crew library, share any preset as a QR code or a JSON file
 - Full build-and-share walkthrough: **[docs/CLUSTER_FUCKER.md](docs/CLUSTER_FUCKER.md)**
 
+### 🎵 Car Stereo
+
+Music, game audio, and Comms voice, all in one three-channel mixer — because alt-tabbing to Spotify mid-race is how you end up in the wall.
+
+- Spotify (Premium), YouTube Music, and Apple Music — plus local mp3/flac/wav/ogg/m4a/aac files with real ID3-tag metadata and artwork
+- Spotify gets full native control (play/pause/skip/seek/shuffle/repeat, search, playlists) via its official SDK; YTM and Apple Music run in an embedded browser panel since neither has a public playback API
+- A real three-channel mixer — MUSIC / GAME / COMMS — with per-channel VU meters, mute, solo, a linked master fader, and four built-in presets (RACE / CRUISE / STREAM / QUIET), plus your own
+- The GAME channel reaches into your actual game's Windows volume, not just ShinRacer's own
+- Five dedicated widgets (Now Playing, Transport, Mixer, Volume Knob, Track Info) drop straight into the Cluster Fucker, so your button box can carry playback controls too
+- Full setup walkthrough: **[docs/CAR_STEREO_SETUP.md](docs/CAR_STEREO_SETUP.md)**
+
 ### 🎬 Replay Browser
 
 That lap you hit last night? It's in here. Tagged, saved, and one click from reliving it.
@@ -265,6 +276,7 @@ Since you asked:
 | Voice | WebRTC (browser APIs, peer-to-peer mesh) |
 | Auth | Google Sign-In (OAuth 2.0 + ID tokens), role-based access via `roles.json` |
 | Telemetry | Shared memory (AC1, ACC, AC Evo, AC Rally) + UDP (FH5, FH6, F1 25, AMS2), one canonical frame shape |
+| Music | Spotify Web Playback SDK + Web API, embedded BrowserViews for YouTube Music/Apple Music, music-metadata for local file tags |
 | Mod library | Google Drive API + OAuth (googleapis) |
 | Keystroke dispatch | robotjs (PowerShell SendKeys fallback) |
 | Mobile app | PWA (React + Vite, service worker via vite-plugin-pwa), served through nginx |

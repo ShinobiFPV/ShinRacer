@@ -2917,3 +2917,255 @@ specific game's live frame shape through the real UI wasn't attempted —
 only demo mode's rendering was — but they use the exact same `GameBadge`
 component and conditional-rendering logic already confirmed working for
 demo, just with a different `frame.game` value and color lookup.
+
+## Phase 18: Car Stereo Mode
+
+Phase 18 added a Car Stereo page (Spotify, YouTube Music, Apple Music, and
+local file playback behind one Now Playing bar and a three-channel MUSIC/
+GAME/COMMS mixer) plus five matching widgets for the Cluster Fucker and its
+pop-out overlay window.
+
+### A real bug caught before it shipped: music-metadata's module format
+
+The brief pinned `"music-metadata": "^10.0.0"` and warned that recent
+versions are ESM-only, instructing the local-file metadata reader to use
+`await import()` from `main.js` instead of a plain `require()`. That
+warning was checked against the actual installed package rather than taken
+on faith: `require('music-metadata')` was tried directly in this
+environment and it **worked** — `node_modules/music-metadata/package.json`
+shows a dual-package `exports` map with a real `require: "./lib/node.cjs"`
+condition alongside `import`, so a plain `require()` resolves to a genuine
+CJS build. `local:getMetadata` in `main.js` uses `require()`, matching
+every other require() in that file, with a comment explaining exactly what
+was checked and why — not the dynamic-`import()` version the brief assumed
+was necessary. If a future `music-metadata` major version drops the
+`require` condition, that's the first thing to check if this handler starts
+throwing `ERR_REQUIRE_ESM`.
+
+### Backend (`backend/routes/stereo.js`)
+
+- Spotify's token exchange/refresh happen server-side via HTTP Basic auth
+  with `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` (`backend/.env`, same
+  principle as `lib/oauth.js`'s Google flow) — `POST /spotify/token`,
+  `POST /spotify/refresh`. Search/playlists/recently-played are thin proxies
+  (`GET /spotify/search`, `/spotify/playlists`, `/spotify/recently-played`)
+  requiring both the app's own `requireAuth` (Bearer, ID token) and a
+  separate `X-Spotify-Token` header — the same two-tokens-in-two-headers
+  pattern `routes/mods.js` already established for Drive uploads, for the
+  same reason (they prove two different things).
+- **Addition beyond the brief's literal route list**:
+  `POST /spotify/configure` + `GET /spotify/client-id`. The brief's own
+  Settings tab wants a "Save & Connect" button that actually works, but
+  nothing in its IPC/route list lets the Electron app either configure the
+  backend's Spotify app credentials without SSHing in, or learn the
+  `client_id` needed to build the `/authorize` URL client-side (client_id
+  isn't secret; it's the one piece the renderer legitimately needs).
+  `configure` sets an in-memory override (session-scoped — doesn't survive
+  a backend restart, same disclosed tradeoff as this backend's other
+  in-memory state, e.g. the reminder `Set`s) that wins over the env vars;
+  `docs/CAR_STEREO_SETUP.md` says plainly that a permanent setup still needs
+  `backend/.env` on shinobi.
+- Authorization Code flow with PKCE layered on top of the confidential
+  client secret (defense in depth, not a replacement for it) — the brief
+  asked for "OAuth 2.0 with PKCE," and pure PKCE-without-secret was
+  considered and rejected: it would have let `client_id` alone reach
+  Spotify's token endpoint with no backend involvement at all, which
+  contradicts the brief's own "backend proxies... so client_secret stays on
+  the Pi" framing. Both together is stricter than either alone.
+- `scripts/deploy-backend.ps1` gained one `scp` line for
+  `routes/stereo.js`, parse-checked the same way as every other line in
+  that file.
+
+### Main process (`src/main/main.js`, `preload.js`)
+
+- **Spotify loopback OAuth server** (port 9722) is a near-exact copy of the
+  existing `auth:startCallbackServer` mechanism from Phase 12's Google
+  sign-in follow-up — same `http.createServer` + single-request +
+  self-close shape, different port and page copy (green "CONNECTED TO
+  SPOTIFY" instead of "SIGNED IN").
+- **YTM/Apple `BrowserView`s** (`ytm:*`/`apple:*` handlers) match the
+  brief's design exactly: `partition: 'persist:ytm'` /
+  `'persist:apple'` for a session that survives app restarts,
+  `executeJavaScript` calls wrapped in try/catch that always resolve
+  `{ ok: false }` rather than throwing, selector fallbacks
+  (`tp-yt-paper-icon-button#play-pause-button` OR `.play-pause-button`,
+  etc.) exactly as specified. Both views are cleaned up (removed from
+  `win`) in the existing window `closed` handler alongside every other
+  subsystem's teardown.
+- **Local files**: `local:scanFolder` (recursive, silently skips an
+  unreadable subdirectory rather than failing the whole scan),
+  `local:getMetadata` (see the music-metadata note above),
+  `local:getFileUrl` (plain `file://` URL for an `<audio>` element).
+- **nircmd**: `audio:setAppVolume` uses `execFileSync` with an argv array
+  (not a shell string), matching this file's own established preference for
+  avoiding shell-quoting hazards everywhere else it shells out. `nircmd.exe`
+  is not bundled (redistribution terms unclear) — `resources/tools/README.txt`
+  documents where to put it; every handler degrades to a clear
+  `{ ok:false, error: '...not found...' }` rather than throwing when it's
+  missing. **Addition beyond the brief's literal IPC list**:
+  `audio:nircmdStatus` — the brief's own Settings section wants a real
+  "found ✓ / not found ✗" status shown *before* any volume-set call ever
+  happens, which needs a plain existence check, not an error inferred from
+  a failed adjustment.
+- **Stereo state bridge** (`stereo:pushState` / `'stereo:state'`): the
+  Cluster Fucker's pop-out overlay is a separate `BrowserWindow`/renderer
+  with zero access to the main window's Spotify SDK, BrowserViews, or Web
+  Audio graph — this mirrors a lightweight now-playing/mixer snapshot to it
+  every 500ms, the same shape and cadence Phase 9's telemetry frame
+  forwarding already established for exactly this class of problem.
+  Actions taken in the overlay round-trip back through the *existing*
+  `cluster:callFn` → `cluster:invoke` → `window CustomEvent('cluster:stereo.*')`
+  path already used for ptt/mute/volume since Phase 11 — no new dispatch
+  mechanism was invented, `'stereo.*'` app functions just fall through the
+  same default case every other unhandled `cluster:callFn` already used.
+
+### Renderer
+
+- **`useSpotify.js`**: Web Playback SDK integration. `getOAuthToken`
+  always calls through a `getFreshToken()` that refreshes first if the
+  cached token is within 60s of expiry, so the SDK Player never has to know
+  about the refresh flow itself. PKCE verifier/challenge generated with
+  plain `crypto.subtle.digest` (no library, same technique the PWA's own
+  `lib/auth.js` already uses for its PKCE flow from Phase 10).
+- **`useStereo.jsx`** (note the `.jsx` extension, not `.js` like every
+  other hook in this folder — it renders an actual `<StereoContext.Provider>`
+  element for the singleton pattern the brief required, and Vite's default
+  esbuild config only parses JSX in `.jsx`/`.tsx` files; a `.js` file with
+  real JSX in it fails to build under this project's actual `vite.config.js`,
+  confirmed by trying it before settling on the rename rather than assumed).
+  Owns the **one** `AudioContext` + local-file `<audio>` element + `GainNode`
+  + `AnalyserNode` graph for the whole app session, created once in a mount
+  effect via refs (not state), per the brief's explicit constraint. Dispatch
+  to whichever source is active (`play`/`pause`/`next`/`prev`/`seek`) and
+  mixer volume application (`applyChannelVolume`) both branch on
+  `activeSource` — Spotify volume goes through the SDK's own `setVolume`,
+  local goes through the real `GainNode`, YTM/Apple fall back to nircmd
+  against the whole app process (see the disclosed limitation below), GAME
+  always goes through nircmd against the detected game's exe, and COMMS
+  has no `GainNode` to reach at all (see next point).
+- **COMMS channel has no shared `AnalyserNode`/`GainNode`** the way MUSIC
+  does — `CommsView`'s WebRTC peers are independent `<audio>` elements with
+  `.volume` set directly (Phase 3/11's working design, untouched here), not
+  routed through one shared `AudioContext`. `useStereo` dispatches a
+  `'stereo:commsVolume'` `window` `CustomEvent` instead — the exact same
+  pattern Phase 11 already used for `ptt.start`/`mute.toggle`/etc — and
+  `CommsView.jsx` gained one small additive listener that multiplies this
+  into each peer's existing per-peer volume. This is an additive change to
+  a "Phase 1-17 confirmed working feature" (touching `CommsView.jsx` at
+  all), done narrowly and only because the brief explicitly asked the mixer
+  to control Comms' existing audio, not as an unrelated refactor.
+- **YTM/Apple Music volume is disclosed as an app-wide approximation, not a
+  true per-source channel** — neither BrowserView exposes a Web Audio hook
+  the main renderer can reach, so their audio shares the whole Electron
+  process's own volume. The MUSIC channel's `applyChannelVolume` calls
+  `audio:setAppVolume({ processName: 'ShinRacer.exe', ... })` for these two
+  sources specifically, and the Library tab's embedded-panel control bar
+  says so directly ("Volume for this source is controlled by the mixer's
+  MUSIC channel below") rather than pretending a real 🔊 slider exists — the
+  brief's own YTM section anticipated and explicitly permitted exactly this
+  limitation ("Simplest approach: use nircmd... Document this limitation
+  clearly in the UI").
+- **`StereoView.jsx`'s own SETTINGS tab, not a `SettingsView.jsx` section**:
+  the brief's spec text has a "SETTINGS TAB" section listed as one of Car
+  Stereo's four own tabs (`[LIBRARY] [QUEUE] [SOURCES] [SETTINGS]`) *and*
+  separately describes Spotify/Apple/mixer-preset/local-file/nircmd config
+  fields under a general "SETTINGS TAB" heading — read as the same thing,
+  not two separate places to put the same controls. Every other
+  feature-specific settings block in this app (Telemetry, Forza Map) lives
+  in the global `SettingsView.jsx` instead, but duplicating Car Stereo's
+  config into both places risked two different UIs editing the same
+  electron-store keys and backend state out of sync with each other — a
+  worse outcome than picking the one the brief's own tab list names
+  explicitly.
+- **Mixer level meters are honest about what's real and what's
+  simulated**: MUSIC gets a true `AnalyserNode` reading only when the
+  active source is `local` (the only one actually routed through this
+  app's own `AudioContext`); every other case (Spotify/YTM/Apple, GAME,
+  COMMS) shows an animated approximation driven by a simple "is something
+  probably happening" boolean (`isPlaying`, `activeGame` present, always-on
+  for COMMS) rather than a fabricated-but-precise-looking number. This
+  mirrors the brief's own explicit allowance for the GAME channel
+  ("Level meter: cannot easily measure — show a simulated VU based on game
+  running state") extended to the other two channels where the same
+  underlying constraint applies for a different reason.
+- **Cluster Fucker widgets** (`components/cluster/widgets/{NowPlaying,
+  Transport,Mixer,VolumeKnob,TrackInfo}Widget.jsx`) read/write through two
+  new `ClusterRuntime` props, `stereoState`/`onStereoAction`/
+  `onStereoVolumeChange`, added alongside the existing
+  `telemetryFrame`/`onAction` pair rather than overloading the generic
+  action-binding system — "play/pause/next/prev" and "adjust channel X"
+  aren't user-configurable bindings the way a `MomentaryButton`'s keystroke
+  is, they're what these specific widgets *are*. `ClusterView.jsx`'s
+  `EditorTab` Preview mode calls `useStereo()` directly (same renderer, same
+  `<StereoProvider>` tree, no IPC needed); `ClusterOverlay.jsx` (the
+  separate pop-out window) gets its `stereoState` from the
+  `stereo:pushState` IPC bridge and dispatches actions through
+  `cluster:callFn('stereo.*')` — see the main-process section above.
+  **Also added**: five `'stereo.play'/'stereo.pause'/'stereo.playPause'/
+  'stereo.next'/'stereo.prev'` entries in `ClusterView.jsx`'s generic
+  `APP_FUNCTIONS` list, so any plain `MomentaryButton`/`ToggleButton` can be
+  bound to stereo control too, not just the dedicated Transport widget —
+  cheap to add since it's the same dispatch path, and consistent with how
+  every other appFunction in that list already works.
+- `App.jsx`: `stereo` nav entry between `forzamap` and `links`, exactly
+  where the brief specified; `<StereoProvider>` wraps `<Inner>` (inside
+  `AppStoreProvider`/`TooltipProvider`) so the one `useStereo()` instance is
+  a true app-session singleton shared by `StereoView` and every Car Stereo
+  cluster widget in the main window.
+
+### Verified this pass
+
+`npx vite build` compiles clean (176 modules, up from 168, no new
+errors/warnings). `node --check` passes on `main.js`, `preload.js`,
+`backend/routes/stereo.js`, and `backend/server.js`. The `music-metadata`
+`require()` question above was tested directly (not assumed) both by
+requiring the package from a plain Node script and by inspecting its
+installed `package.json`'s `exports` map. A real, interactive Electron
+click-through was driven via a throwaway Playwright `_electron` script
+(installed with `--no-save`, deleted after use, confirmed absent from
+`package.json`/`package-lock.json` afterward — same technique as Phases
+4-9/13) against an isolated `--user-data-dir` with hand-seeded
+`googleAuth`/`settings.setupComplete` (bypassing the Wizard, same technique
+Phase 13 used): confirmed the Car Stereo nav item exists and opens the
+page; the Now Playing bar, transport controls, source selector, and volume
+knob all render; the Library/Queue/Sources/Settings tabs all switch and
+render their real content (Sources shows Spotify/YouTube Music/Apple
+Music/Local Files cards with correct connection-state copy; Settings shows
+the Spotify credential fields, nircmd status, and mixer presets section;
+Queue correctly shows "switch to LOCAL" for the default Spotify source);
+the mixer's three channel faders + master + presets render at the bottom
+with real values; and the Cluster Fucker's widget palette shows a new
+AUDIO category with all five new widgets (Now Playing, Transport, Mixer,
+Volume Knob, Track Info) alongside the existing INPUT/DISPLAY ones — all
+with **zero console errors** across every screen. Screenshots of both the
+Car Stereo page and the Cluster editor were captured and visually reviewed
+against the Phase 8 design system.
+
+One verification result was better than planned for: the Spotify Web
+Playback SDK script (loaded from `sdk.scdn.co` via the new `<script>` tag)
+actually fetched successfully in this environment and ran for real —
+`useSpotify`'s `initialization_error` listener fired a genuine SDK error
+("Failed to initialize player," expected and correct with no real
+token/account behind it) that rendered exactly where the Sources tab's
+error-display code expects it, which is real evidence the whole SDK
+load → construct → `connect()` → error-surfacing pipeline works end to
+end, not just that the code reads plausibly.
+
+### Not independently verified
+
+No real Spotify Premium account, Spotify Developer app, Apple Developer
+token, or `nircmd.exe` binary exists in this environment, so none of the
+following were exercised against genuine external state: an actual Spotify
+sign-in round trip and real playback through the SDK, YouTube Music's/Apple
+Music's embedded-panel selectors against the real, current site markup (the
+brief itself warns these will drift — if a button stops working, that
+selector is the first thing to check, wrapped in try/catch exactly so a
+broken one degrades instead of crashing), a real nircmd volume change
+against a running game process, and a real local-file scan against actual
+MP3/FLAC files with real ID3 tags (only the IPC plumbing and empty-folder/
+missing-file paths were exercised). The Cluster Fucker overlay window's
+real-time stereo-state mirroring (`stereo:pushState` → `'stereo:state'` →
+`ClusterOverlay.jsx`) was verified by code reading and the build/click-through
+above, not by actually opening a second overlay `BrowserWindow` and watching
+live now-playing data move through it — the same class of gap Phase 9/11's
+own overlay-window notes already carry for their respective features.

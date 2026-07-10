@@ -9,6 +9,11 @@ import GaugeWidget, { DEFAULT_GAUGE_CONFIG, GAUGE_COMPONENTS } from './GaugeWidg
 import TextReadout, { DEFAULT_TEXTREADOUT_CONFIG } from './TextReadout'
 import ImagePanel, { DEFAULT_IMAGEPANEL_CONFIG } from './ImagePanel'
 import LabelText, { DEFAULT_LABELTEXT_CONFIG } from './LabelText'
+import NowPlayingWidget, { DEFAULT_NOWPLAYING_CONFIG } from './NowPlayingWidget'
+import TransportWidget, { DEFAULT_TRANSPORT_CONFIG } from './TransportWidget'
+import MixerWidget, { DEFAULT_MIXER_CONFIG } from './MixerWidget'
+import VolumeKnobWidget, { DEFAULT_VOLUMEKNOB_CONFIG } from './VolumeKnobWidget'
+import TrackInfoWidget, { DEFAULT_TRACKINFO_CONFIG } from './TrackInfoWidget'
 
 export { GAUGE_COMPONENTS }
 export { readImageAsBase64 } from './ImagePanel'
@@ -29,9 +34,17 @@ export const CLUSTER_WIDGET_CATALOG = [
   { type: 'textReadout', label: 'Text Readout', category: 'DISPLAY', component: TextReadout, defaultConfig: DEFAULT_TEXTREADOUT_CONFIG, defaultSize: { width: 160, height: 60 } },
   { type: 'imagePanel', label: 'Image Panel', category: 'DISPLAY', component: ImagePanel, defaultConfig: DEFAULT_IMAGEPANEL_CONFIG, defaultSize: { width: 160, height: 120 } },
   { type: 'labelText', label: 'Label', category: 'DISPLAY', component: LabelText, defaultConfig: DEFAULT_LABELTEXT_CONFIG, defaultSize: { width: 120, height: 40 } },
+  // Car Stereo widgets (Phase 18) — read/write the shared useStereo state via
+  // ClusterRuntime's stereoState/onStereoAction/onStereoVolumeChange props,
+  // not telemetryFrame/onAction. See ClusterRuntime.jsx and CLAUDE.md.
+  { type: 'nowPlaying', label: 'Now Playing', category: 'AUDIO', component: NowPlayingWidget, defaultConfig: DEFAULT_NOWPLAYING_CONFIG, defaultSize: { width: 240, height: 80 } },
+  { type: 'stereoTransport', label: 'Transport', category: 'AUDIO', component: TransportWidget, defaultConfig: DEFAULT_TRANSPORT_CONFIG, defaultSize: { width: 140, height: 60 } },
+  { type: 'stereoMixer', label: 'Mixer', category: 'AUDIO', component: MixerWidget, defaultConfig: DEFAULT_MIXER_CONFIG, defaultSize: { width: 200, height: 100 } },
+  { type: 'stereoVolumeKnob', label: 'Volume Knob', category: 'AUDIO', component: VolumeKnobWidget, defaultConfig: DEFAULT_VOLUMEKNOB_CONFIG, defaultSize: { width: 80, height: 80 } },
+  { type: 'trackInfo', label: 'Track Info', category: 'AUDIO', component: TrackInfoWidget, defaultConfig: DEFAULT_TRACKINFO_CONFIG, defaultSize: { width: 200, height: 48 } },
 ]
 
-export const CLUSTER_WIDGET_CATEGORIES = ['INPUT', 'DISPLAY']
+export const CLUSTER_WIDGET_CATEGORIES = ['INPUT', 'DISPLAY', 'AUDIO']
 
 export function getWidgetEntry(type) {
   return CLUSTER_WIDGET_CATALOG.find(w => w.type === type)
