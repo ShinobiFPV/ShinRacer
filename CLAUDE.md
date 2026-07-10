@@ -1436,6 +1436,60 @@ UI. Network-error classification (the `isNetworkError` string-matching
 check) was implemented verbatim from the brief and not independently
 tested against a real offline scenario.
 
+## Follow-up: fixed the release CI pipeline (first real tag push)
+
+2026-07-10: `npm run version:minor` (1.0.0 → 1.1.0) was run for the first
+time this repo has ever actually pushed a release tag — every prior
+phase's "verified this pass" notes about auto-update/releasing had
+explicitly flagged "never tried a real tag push" as a caveat, and this is
+that caveat finally getting exercised for real.
+
+The build failed at `npm install` on the `windows-latest` GitHub Actions
+runner: `robotjs`'s install script (`prebuild-install --runtime napi ||
+node-gyp rebuild`) fell through to `node-gyp`, which reported "could not
+find a version of Visual Studio 2017 or newer to use" despite Visual
+Studio being genuinely present on the runner (the log shows it found
+`Visual Studio 18 Enterprise` but couldn't parse that version string —
+node-gyp v10.1.0, bundled with the workflow's pinned Node 20, doesn't
+recognize it).
+
+**Diagnosed by testing, not by guessing**: ran `npx prebuild-install
+--runtime napi --verbose` directly against this sandbox's own
+`node_modules/robotjs` and got "This package does not support N-API
+version undefined... skipping download" — meaning robotjs has **no real
+prebuilt binary at all** for this runtime; it always falls through to
+`node-gyp` everywhere, including in this dev sandbox. The `build/Release/`
+directory's `.iobj`/`.ipdb`/`.exp` files (genuine MSVC incremental-link
+artifacts) confirm this sandbox's own copy was actually *compiled*
+locally, not fetched — which quietly contradicts Phase 11's own note that
+"a prebuilt binary exists via prebuild-install for this Node/win32
+combo." That was wrong; it just happened to compile successfully here
+because this sandbox's Node 24 bundles a newer `node-gyp` that correctly
+parses whatever VS version is installed, and CI's Node 20 doesn't.
+
+**Fix**: `.github/workflows/release.yml`'s `actions/setup-node@v4` bumped
+from `node-version: 20` to `node-version: 24`, matching the Node major
+version this sandbox already proved works. No GitHub Release had been
+created yet when the build failed (it errors out before `electron-builder`
+ever runs), so the failed `v1.1.0` tag was deleted (`git tag -d` +
+`git push origin :refs/tags/v1.1.0`) and re-pushed after this fix, rather
+than burning a version number on a build that never shipped anything.
+
+### Verified this pass
+The `npx prebuild-install --verbose` test above was run for real against
+the actual installed `robotjs` package, not assumed. Whether bumping to
+Node 24 actually fixes the CI build is being verified by re-running the
+real release workflow against the same tag — see the next entry (or this
+one's own follow-up, if edited in place) for the outcome. If it *doesn't*
+fix it, the next thing to try is explicitly installing a node-gyp-compatible
+VS Build Tools component via a dedicated CI step (e.g.
+`microsoft/setup-msbuild` or a pinned VS installer), or having the CI
+build tolerate `robotjs` being entirely absent from the packaged app (the
+existing PowerShell `SendKeys` fallback in `main.js` already handles
+`require('robotjs')` throwing at runtime — see Phase 11 — so a release
+missing robotjs's native binary wouldn't crash the app, just always use
+the SendKeys path for Cluster Fucker keystrokes).
+
 ## Rename: AC1Companion → ShinRacer
 
 2026-07-09: the project folder was manually renamed from `AC1Companion` to
