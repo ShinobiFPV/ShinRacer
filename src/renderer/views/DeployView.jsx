@@ -371,7 +371,7 @@ function PitBoard({ server, onStop, onViewLogs, onShare }) {
 
 // ── Deploy View ───────────────────────────────────────────────────────────────
 export default function DeployView({ onBuild, onOpenWizard }) {
-  const { liveServers, removeLiveServer, showToast, identity } = useStore()
+  const { liveServers, removeLiveServer, showToast, identity, settings } = useStore()
   const { socket } = useSocket(identity)
   const [logServer, setLogServer] = useState(null)
   const [shareServer, setShareServer] = useState(null)
@@ -434,6 +434,11 @@ export default function DeployView({ onBuild, onOpenWizard }) {
             <Tooltip text="Answer a few fun questions instead of using the technical form">
               <Btn onClick={onOpenWizard} variant="ghost" size="sm">✨ Build with wizard</Btn>
             </Tooltip>
+            {!settings.acServerExe && (
+              <div style={{ fontSize: 12, color: C.orange, textTransform: 'none', marginTop: 8, textAlign: 'center', maxWidth: 320 }}>
+                ⚠ Hosting needs Assetto Corsa (with the dedicated server component) installed — set the path in Settings first.
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ padding: 24 }}>

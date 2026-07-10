@@ -25,17 +25,21 @@ import OverlayApp  from './OverlayApp'
 import ClusterOverlay from './ClusterOverlay'
 
 // ── Sidebar nav ───────────────────────────────────────────────────────────────
-// Role hierarchy: admin sees everything; host sees host+crew; crew sees
-// crew only. See canAccess() below for the exact rule.
+// Signing in with Google is the security boundary for every feature except
+// the ones explicitly tagged 'admin' — hosting a server, editing traffic,
+// etc. don't need a special role, just a signed-in account. Only the Admin
+// panel itself (crew/role management, system health) is actually
+// admin-only. Tag new features 'admin' here when they need that split;
+// everything else defaults to 'crew' (any signed-in user). See canAccess().
 const NAV = [
-  { id:'deploy',   icon:'🏁', label:'Live Servers',   role:'host'  },
-  { id:'build',    icon:'⚙️', label:'Build',           role:'host'  },
-  { id:'garage',   icon:'🚗', label:'Garage',          role:'host'  },
-  { id:'traffic',  icon:'🌆', label:'Traffic Manager', role:'admin' },
+  { id:'deploy',   icon:'🏁', label:'Live Servers',   role:'crew'  },
+  { id:'build',    icon:'⚙️', label:'Build',           role:'crew'  },
+  { id:'garage',   icon:'🚗', label:'Garage',          role:'crew'  },
+  { id:'traffic',  icon:'🌆', label:'Traffic Manager', role:'crew'  },
   { id:'events',   icon:'📅', label:'Events',          role:'crew'  },
   { id:'comms',    icon:'🎙️', label:'Comms',           role:'crew'  },
   { id:'stats',    icon:'📊', label:'Stats',           role:'crew'  },
-  { id:'telemetry',icon:'📡', label:'Telemetry',       role:'host'  },
+  { id:'telemetry',icon:'📡', label:'Telemetry',       role:'crew'  },
   { id:'cluster',  icon:'🎛️', label:'Cluster',         role:'crew'  },
   { id:'replays',  icon:'🎬', label:'Replays',         role:'crew'  },
   { id:'mods',     icon:'📦', label:'Mods',            role:'crew'  },
@@ -45,9 +49,7 @@ const NAV = [
 ]
 
 function canAccess(requiredRole, userRole) {
-  if (userRole === 'admin') return true
-  if (userRole === 'host') return requiredRole !== 'admin'
-  return requiredRole === 'crew'
+  return requiredRole !== 'admin' || userRole === 'admin'
 }
 
 const ROLE_COLOR = { admin: C.red, host: C.blue, crew: C.muted }

@@ -985,6 +985,77 @@ needed. **No files were touched this pass** — this entry exists purely so
 a future session doesn't waste time re-investigating the same non-gap a
 third time.
 
+## Follow-up: role gating simplified — signed-in is the bar, admin is the only split (Phase 12)
+
+2026-07-10, right after confirming sign-in/admin worked end-to-end: William
+clarified the actual intent behind Phase 12's three-tier role system —
+being signed in with Google is enough security for hosting-related
+features (the server builder, traffic manager, telemetry, registering your
+own machine as a host, proposing to host an event yourself). The `host`
+role was never meant to gate access to those; the only thing that should
+stay admin-only right now is clearing the events calendar (plus the Admin
+panel itself, which is inherently admin — crew/role management, system
+health, restart). The 3-tier `admin`/`host`/`crew` data model stays (role
+is still assignable, `roles.json` still has a `hosts` array), but it no
+longer restricts any UI surface except things explicitly tagged `admin` —
+the point being that new admin-only features are now a one-line tag
+addition (`role:'admin'` in `App.jsx`'s `NAV`), not a design decision every
+time.
+
+- **`App.jsx`**: `NAV`'s `deploy`/`build`/`garage`/`telemetry` (previously
+  `role:'host'`) and `traffic` (previously `role:'admin'`) are now all
+  `role:'crew'` — accessible to any signed-in user. `canAccess()`
+  simplified to a plain `requiredRole !== 'admin' || userRole === 'admin'`
+  — the `host` branch it used to have is gone since nothing requires
+  `'host'` anymore.
+- **`EventsView.jsx`**: `HostSelector`'s "I'll host" card — previously
+  hidden from the DOM unless `isHost` — now renders for any signed-in
+  `user`. Same for the self-host status check effect. The `isHost` prop
+  was dropped from `HostSelector` and `ProposeForm`'s `useStore()`
+  destructure entirely (unused now).
+- **`SettingsView.jsx`**: `HostStatusSection` (the host readiness
+  checklist + "Register as host" button) now gates on `user` instead of
+  `isHost && user`. `TelemetrySection` (auto-detect toggle, manual game
+  dropdown, Forza port, "Test telemetry") dropped its `isHost` gate
+  entirely — Settings itself is already only reachable by a signed-in
+  user, so there was nothing left to additionally check.
+- **`DeployView.jsx`**: the empty state ("No servers running") gained a
+  small orange reminder — "Hosting needs Assetto Corsa (with the dedicated
+  server component) installed — set the path in Settings first" — shown
+  whenever `settings.acServerExe` isn't set. This is the reactive
+  "reminded... if they're trying to host" behavior William asked for,
+  rather than gating access outright.
+- **`BuildView.jsx`** already had an equivalent reminder
+  (`⚠ Set acServer.exe path in Settings`, shown when `!settings.acServerExe`
+  in the deploy panel) — it just could never have been seen by a plain
+  crew member before, since the whole view was `role:'host'`-gated. No
+  change needed there; opening the nav item up was enough.
+- **Deliberately left unchanged: `Wizard.jsx`'s onboarding.** The AC Path
+  and Host Readiness Check steps still only show when
+  `role === 'host' || role === 'admin'` (`isHostOrAdmin`) — i.e., in
+  practice, only for admins today, since nobody's been promoted to `host`
+  through the Admin panel. This was a deliberate choice, not an oversight:
+  William's framing was "reminded... *if* they're trying to host," which
+  reads as a reactive nudge at the point of use, not mandatory upfront
+  friction in onboarding for crew members who may only ever want
+  Events/Comms/Stats. If everyone should see the AC Path step during
+  onboarding too, that's a one-line change to `Wizard.jsx`'s `steps`
+  `useMemo` (drop the `isHostOrAdmin` condition) — flagging it here since
+  it's the one open question this pass didn't resolve unilaterally.
+- **`isHost`/`isHostOrAdmin` weren't deleted from the data model** —
+  `AppStore.jsx` still computes and exports `isHost`, `role` is still a
+  real per-user field, and the Admin panel's role dropdown still offers
+  `host` as a value. Nothing currently reads `isHost` for access control
+  anymore outside `Wizard.jsx`'s onboarding-step gate above, but removing
+  the field itself wasn't asked for and might still be useful later (e.g.
+  a "designated host" label in the Events host-selector).
+
+Verified this pass: `npx vite build` compiles clean (162 modules, no new
+errors). Not independently verified: an interactive click-through
+confirming a plain `crew` account can now actually reach Build/Deploy/
+Garage/Telemetry/Traffic and see the "I'll host" card — verified by
+reading the resulting conditionals only.
+
 ## Rename: AC1Companion → ShinRacer
 
 2026-07-09: the project folder was manually renamed from `AC1Companion` to

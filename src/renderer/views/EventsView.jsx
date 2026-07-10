@@ -66,10 +66,11 @@ function downloadIcs(event) {
 }
 
 // ── Host selector (propose form) ────────────────────────────────────────────
-// Constraint: "I'll Host" must be completely hidden from Crew — not
-// disabled, not present in the DOM — so `isHost` (host or admin role) gates
-// whether Card 2 renders at all, not just whether it's selectable.
-function HostSelector({ hostSelection, setHostSelection, selectedHostUid, setSelectedHostUid, onResolvedName, user, isHost }) {
+// Hosting your own AC server only requires being signed in with Google —
+// that's the security boundary, not an admin/host role — so Card 2 renders
+// for any signed-in `user`, not gated on a role. (Previously gated on
+// `isHost`; see CLAUDE.md's role-simplification notes.)
+function HostSelector({ hostSelection, setHostSelection, selectedHostUid, setSelectedHostUid, onResolvedName, user }) {
   const [availableHosts, setAvailableHosts] = useState([])
   const [selfStatus, setSelfStatus] = useState(null) // null | { loading, host }
 
@@ -78,12 +79,12 @@ function HostSelector({ hostSelection, setHostSelection, selectedHostUid, setSel
   }, [])
 
   useEffect(() => {
-    if (hostSelection !== 'self' || !isHost || !user) return
+    if (hostSelection !== 'self' || !user) return
     setSelfStatus({ loading: true })
     api.get(`/api/hosts/${user.uid}/status`)
       .then(({ data }) => setSelfStatus({ loading: false, host: data.ok ? data.data : null }))
       .catch(() => setSelfStatus({ loading: false, host: null }))
-  }, [hostSelection, isHost, user])
+  }, [hostSelection, user])
 
   // Keeps the parent's "name to submit" in sync without it needing to
   // duplicate the available-hosts fetch or the self-host status check.
@@ -106,7 +107,7 @@ function HostSelector({ hostSelection, setHostSelection, selectedHostUid, setSel
           <div style={{ fontFamily: C.head, fontSize: 15, letterSpacing: 0.5 }}>SHINOBI HOSTS</div>
           <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>William's machine runs the server. You just show up and drive.</div>
         </div>
-        {isHost && (
+        {user && (
           <div style={cardStyle(hostSelection === 'self')} onClick={() => setHostSelection('self')}>
             <div style={{ fontSize: 20, marginBottom: 6 }}>💻</div>
             <div style={{ fontFamily: C.head, fontSize: 15, letterSpacing: 0.5 }}>I'LL HOST</div>
@@ -126,7 +127,7 @@ function HostSelector({ hostSelection, setHostSelection, selectedHostUid, setSel
         )
       )}
 
-      {hostSelection === 'self' && isHost && (
+      {hostSelection === 'self' && user && (
         selfStatus?.loading ? (
           <div style={{ fontSize: 12, color: C.muted }}>Checking your machine…</div>
         ) : selfStatus?.host ? (
@@ -145,7 +146,7 @@ function HostSelector({ hostSelection, setHostSelection, selectedHostUid, setSel
 
 // ── Propose / Edit Event Form ─────────────────────────────────────────────────
 function ProposeForm({ identity, showToast, onClose, onSaved, initialDate, editingEvent }) {
-  const { user, isHost } = useStore()
+  const { user } = useStore()
   const isEditing = !!editingEvent
   const [form, setForm] = useState(() => editingEvent ? {
     name: editingEvent.name, type: editingEvent.type, date: editingEvent.date, time: editingEvent.time,
@@ -240,7 +241,7 @@ function ProposeForm({ identity, showToast, onClose, onSaved, initialDate, editi
       </div>
       <HostSelector hostSelection={hostSelection} setHostSelection={setHostSelection}
         selectedHostUid={selectedHostUid} setSelectedHostUid={setSelectedHostUid}
-        onResolvedName={setSelectedHostName} user={user} isHost={isHost} />
+        onResolvedName={setSelectedHostName} user={user} />
       <div style={{ marginBottom: 12 }}>
         <Label>Required mods</Label>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>

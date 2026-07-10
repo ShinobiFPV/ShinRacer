@@ -11,7 +11,7 @@ const IDENTITY_COLORS = [C.yellow, C.blue, C.green, C.red, C.orange, '#8E44AD', 
 const ROLE_COLOR = { admin: C.red, host: C.blue, crew: C.muted }
 const HOST_PORT = 9600
 
-function HostStatusSection({ settings, backendOnline, user, isHost }) {
+function HostStatusSection({ settings, backendOnline, user }) {
   const [checks, setChecks] = useState({ acInstalled: null, acServerExe: null, portFree: null })
   const [hostRecord, setHostRecord] = useState(null) // null = not checked yet, false = 404/not registered
   const [registering, setRegistering] = useState(false)
@@ -31,9 +31,9 @@ function HostStatusSection({ settings, backendOnline, user, isHost }) {
     setChecking(false)
   }, [settings.acPath, settings.acServerExe, user?.uid])
 
-  useEffect(() => { if (isHost && user) runChecks() }, [isHost, user, runChecks])
+  useEffect(() => { if (user) runChecks() }, [user, runChecks])
 
-  if (!isHost || !user) return null
+  if (!user) return null
 
   const registered = !!hostRecord
   const ready = checks.acInstalled && checks.acServerExe && backendOnline && registered && checks.portFree
@@ -94,7 +94,7 @@ const GAME_OPTIONS = [
 ]
 const GAME_LABELS = Object.fromEntries(GAME_OPTIONS.map(g => [g.value, g.label]))
 
-function TelemetrySection({ isHost }) {
+function TelemetrySection() {
   const [autoDetect, setAutoDetect] = useState(true)
   const [manualGame, setManualGame] = useState('ac1')
   const [forzaPort, setForzaPort] = useState('5300')
@@ -106,8 +106,6 @@ function TelemetrySection({ isHost }) {
     api.store.get('telemetryManualGame').then(v => setManualGame(v || 'ac1'))
     api.store.get('forzaTelemetryPort').then(v => setForzaPort(String(v || 5300)))
   }, [])
-
-  if (!isHost) return null
 
   const updateAutoDetect = (v) => { setAutoDetect(v); api.store.set('telemetryAutoDetect', v) }
   const updateManualGame = (v) => { setManualGame(v); api.store.set('telemetryManualGame', v) }
@@ -171,7 +169,7 @@ function TelemetrySection({ isHost }) {
 export default function SettingsView() {
   const { settings, saveSettings, identity, saveIdentity, backendUrl, saveBackendUrl,
     quickPhrases, saveQuickPhrases, acDetected, showToast,
-    user, role, isHost, signOut, backendOnline } = useStore()
+    user, role, signOut, backendOnline } = useStore()
   const [local, setLocal] = useState({ ...settings })
   const [identityLocal, setIdentityLocal] = useState({ ...identity })
   const [backendUrlLocal, setBackendUrlLocal] = useState(backendUrl)
@@ -275,7 +273,7 @@ export default function SettingsView() {
         </Tooltip>
       </Card>
 
-      <HostStatusSection settings={local} backendOnline={backendOnline} user={user} isHost={isHost} />
+      <HostStatusSection settings={local} backendOnline={backendOnline} user={user} />
 
       {/* AC detection banner */}
       {acDetected?.found && (
@@ -327,7 +325,7 @@ export default function SettingsView() {
         </div>
       </Card>
 
-      <TelemetrySection isHost={isHost} />
+      <TelemetrySection />
 
       <Card accent={C.borderHi}>
         <SectionHead children="Server defaults" sub="Used as starting values when creating a new server config" />
