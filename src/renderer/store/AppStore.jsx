@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import httpApi, { setBackendUrl as setApiBackendUrl } from '../lib/api'
+import { getGoogleAuthUrl, exchangeCodeForTokens, verifyAndSignIn, refreshAuth, isTokenExpired } from '../lib/auth'
 import { C } from '../components/primitives'
 
 const api = window.api  // injected by preload
@@ -128,21 +129,17 @@ export function AppStoreProvider({ children }) {
       const savedAuth = saved.googleAuth
       if (savedAuth) {
         try {
-          const expired = savedAuth.expiryDate && savedAuth.expiryDate < Date.now()
-          const body = expired ? { refreshToken: savedAuth.refreshToken } : { idToken: savedAuth.idToken }
-          const { data } = await httpApi.post('/api/auth/google', body)
-          if (data.ok) {
-            const next = {
-              ...savedAuth,
-              role: data.data.role,
-              user: shapeAuthUser(data.data),
-              idToken: data.data.idToken || savedAuth.idToken,
-              expiryDate: data.data.expiryDate || savedAuth.expiryDate,
-            }
-            await persistGoogleAuth(next)
-          } else {
-            await persistGoogleAuth(null) // 401/invalid — the backend said no, not just unreachable
+          const roleData = isTokenExpired(savedAuth.expiryDate)
+            ? await refreshAuth(savedAuth.refreshToken)
+            : await verifyAndSignIn(savedAuth.idToken)
+          const next = {
+            ...savedAuth,
+            role: roleData.role,
+            user: shapeAuthUser(roleData),
+            idToken: roleData.idToken || savedAuth.idToken,
+            expiryDate: roleData.expiryDate || savedAuth.expiryDate,
           }
+          await persistGoogleAuth(next)
         } catch (e) {
           setGoogleAuthState(savedAuth) // network/backend-unreachable — keep cached auth, don't force a re-sign-in
         }
@@ -209,19 +206,12 @@ export function AppStoreProvider({ children }) {
       setSignInError(null)
       setPendingProfile(null)
       try {
-        const { data: exch } = await httpApi.post('/api/mods/auth/callback', { code })
-        if (!exch.ok) {
-          setSignInStatus('error')
-          setSignInError(exch.error)
-          return
-        }
-        const { tokens, user: googleUser } = exch.data
+        const { tokens, user: googleUser } = await exchangeCodeForTokens(code)
         setPendingProfile(googleUser)
         setSignInStatus('fetching-role')
         try {
-          const { data: roleRes } = await httpApi.post('/api/auth/google', { idToken: tokens.id_token })
-          if (!roleRes.ok) { setSignInStatus('error'); setSignInError(roleRes.error); return }
-          const next = await applyGoogleAuth({ tokens, googleUser, roleData: roleRes.data })
+          const roleData = await verifyAndSignIn(tokens.id_token)
+          const next = await applyGoogleAuth({ tokens, googleUser, roleData })
           setSignInStatus('idle')
           showToast(`✓ Signed in as ${next.user.name}`)
         } catch (e) {
@@ -249,9 +239,8 @@ export function AppStoreProvider({ children }) {
   }, [pendingProfile, applyGoogleAuth])
 
   const signIn = useCallback(async () => {
-    const { data } = await httpApi.get('/api/mods/auth/url')
-    if (!data.ok) throw new Error(data.error || 'Could not build a Google sign-in URL')
-    await api.shell.openExternal(data.data.url)
+    const url = await getGoogleAuthUrl()
+    await api.shell.openExternal(url)
   }, [])
 
   const signOut = useCallback(async () => {

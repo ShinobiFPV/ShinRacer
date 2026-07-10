@@ -811,6 +811,61 @@ and its right-click context menu were not interactively exercised (Playwright
 can trigger the IPC call but doesn't meaningfully test OS-level window
 dragging).
 
+## Follow-up: renderer OAuth verification (lib/auth.js extraction)
+
+2026-07-10: a follow-up pass was asked to add renderer-side Google OAuth
+support on the assumption it was entirely missing. On inspection, most of
+it already existed and worked from Phase 12: `AppStore.jsx` already had
+`signIn`/`signOut`/`googleAuth`/`user`/`role`/`isAdmin`/`isHost`,
+`preload.js` already had the `auth.onCallback` bridge, `main.js`'s
+`handleAccompUrl` already extracted the OAuth `code` from
+`accomp://oauth?code=...` and forwarded it as `oauth:callback`, and
+`Wizard.jsx`'s sign-in button was already wired to a working `handleSignIn`.
+None of that was touched.
+
+Two real gaps were found and fixed, plus one piece of dead code extracted
+for reuse:
+
+- **`src/renderer/lib/auth.js` didn't exist** — the OAuth calls
+  (`getGoogleAuthUrl`, `exchangeCodeForTokens`, `verifyAndSignIn`,
+  `refreshAuth`, `isTokenExpired`) were inlined directly in `AppStore.jsx`.
+  Extracted into this new file as thin wrappers around the same
+  already-working endpoints (`GET /api/mods/auth/url`,
+  `POST /api/mods/auth/callback`, `POST /api/auth/google`) — deliberately
+  **not** switched to building the auth URL client-side from
+  `GET /api/auth/config`, which was the first draft of this fix; that would
+  have replaced a working, previously-verified sign-in path with a second,
+  different one for no functional gain. `AppStore.jsx`'s mount-time
+  token-refresh check, its `signIn()`, and its `oauth:callback` effect all
+  now call into `lib/auth.js` instead of inlining `httpApi` calls directly,
+  with identical control flow and error handling — this was a pure
+  extraction, not a behavior change (`isTokenExpired`'s 60s buffer replaces
+  the mount effect's own no-buffer expiry check as the one canonical
+  expiry test, per this function's own purpose).
+- **`Wizard.jsx`'s `WelcomeStep` never actually displayed a sign-in
+  error.** `handleSignIn`'s catch block had a comment claiming the error
+  was "surfaced right on the welcome step," but no error state existed and
+  nothing rendered — a real bug, not just a documentation gap. Fixed: a
+  `welcomeError` state (kept separate from the existing `signInError` the
+  Connecting step already reads from `useStore()`, which is a different,
+  later failure point) is set in the catch and rendered in red below the
+  button. A message containing `redirect_uri_mismatch` is shown as "OAuth
+  not configured — see docs/GOOGLE_OAUTH_SETUP.md" instead of Google's raw
+  error text.
+- **`docs/GOOGLE_OAUTH_SETUP.md` didn't exist.** Added as a short,
+  focused file — the actual redirect-URI setup steps already lived in
+  `docs/GOOGLE_DRIVE_SETUP.md`'s "OAuth 2.0 client" section (there's only
+  one OAuth client for the whole app, shared between sign-in and Mod
+  Manager uploads), so this new file cross-references that section rather
+  than duplicating it, and documents the `redirect_uri_mismatch` error
+  message above.
+
+Verified this pass: `npx vite build` compiles clean (162 modules, up from
+161 for the new `lib/auth.js` module, no new errors/warnings). No
+interactive click-through — the underlying sign-in mechanism was already
+Phase-12-verified and untouched; only the two fixes above and the
+extraction were exercised via the build.
+
 ## Rename: AC1Companion → ShinRacer
 
 2026-07-09: the project folder was manually renamed from `AC1Companion` to

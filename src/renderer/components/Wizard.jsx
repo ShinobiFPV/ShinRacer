@@ -49,7 +49,7 @@ function GoogleG({ size = 20 }) {
 }
 
 // ── Step: Welcome ────────────────────────────────────────────────────────────
-function WelcomeStep({ onSignIn, signingIn }) {
+function WelcomeStep({ onSignIn, signingIn, error }) {
   return (
     <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
       <div style={{ fontFamily: C.head, fontSize: 56, letterSpacing: 2, lineHeight: 1 }}>
@@ -66,6 +66,7 @@ function WelcomeStep({ onSignIn, signingIn }) {
         }}>
         <GoogleG /> {signingIn ? 'Opening browser…' : 'Sign in with Google'}
       </button>
+      {error && <div style={{ fontSize: 12, color: C.red, maxWidth: 320 }}>{error}</div>}
       <div style={{ fontSize: 12, color: C.muted, maxWidth: 320 }}>You need a Google account to use ShinRacer.</div>
       <div style={{ fontSize: 11, color: C.muted, marginTop: 44 }}>ShinTech Electronics</div>
     </div>
@@ -328,6 +329,7 @@ export default function Wizard({ onComplete }) {
   const [stepIdx, setStepIdx] = useState(0)
   const [finishing, setFinishing] = useState(false)
   const [signingIn, setSigningIn] = useState(false)
+  const [welcomeError, setWelcomeError] = useState(null)
   const [hostRegistered, setHostRegistered] = useState(false)
   const [data, setData] = useState({
     acPath: '', acServerExe: '',
@@ -396,6 +398,7 @@ export default function Wizard({ onComplete }) {
 
   async function handleSignIn() {
     setSigningIn(true)
+    setWelcomeError(null)
     try {
       await signIn()
       setStepIdx(steps.indexOf('connecting'))
@@ -404,6 +407,12 @@ export default function Wizard({ onComplete }) {
       // URL (i.e. it's unreachable before the user ever left the app) —
       // surfaced right on the welcome step rather than advancing to a
       // Connecting screen that has nothing to show.
+      const msg = e.message || 'Sign in failed — check your connection'
+      setWelcomeError(
+        msg.includes('redirect_uri_mismatch')
+          ? 'OAuth not configured — see docs/GOOGLE_OAUTH_SETUP.md'
+          : msg
+      )
     }
     setSigningIn(false)
   }
@@ -461,7 +470,7 @@ export default function Wizard({ onComplete }) {
       {!isBookend && <ProgressBar steps={steps} index={stepIdx} />}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
         backgroundImage: isBookend ? GRID_TEXTURE : 'none' }}>
-        {stepId === 'welcome' && <WelcomeStep onSignIn={handleSignIn} signingIn={signingIn} />}
+        {stepId === 'welcome' && <WelcomeStep onSignIn={handleSignIn} signingIn={signingIn} error={welcomeError} />}
         {stepId === 'connecting' && (
           <ConnectingStep status={signInStatus} pendingProfile={pendingProfile} error={signInError}
             onRetry={handleSignIn} onContinueOffline={continueOffline} />
