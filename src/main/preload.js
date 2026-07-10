@@ -166,6 +166,8 @@ contextBridge.exposeInMainWorld('api', {
     openFolder: (cat)  => ipcRenderer.invoke('mods:openFolder', cat),
   },
   auth: {
+    startCallbackServer: () => ipcRenderer.invoke('auth:startCallbackServer'),
+    stopCallbackServer:  () => ipcRenderer.invoke('auth:stopCallbackServer'),
     onCallback: (cb) => {
       ipcRenderer.on('oauth:callback', (_, code) => cb(code))
       return () => ipcRenderer.removeAllListeners('oauth:callback')

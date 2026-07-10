@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import httpApi, { setBackendUrl as setApiBackendUrl } from '../lib/api'
 import { getGoogleAuthUrl, exchangeCodeForTokens, verifyAndSignIn, refreshAuth, isTokenExpired } from '../lib/auth'
 import { C } from '../components/primitives'
@@ -176,6 +176,11 @@ export function AppStoreProvider({ children }) {
   const [pendingProfile, setPendingProfile] = useState(null)
   const [signInError, setSignInError] = useState(null)
 
+  // 5-minute give-up timer for the OAuth loopback callback server — armed
+  // when signIn() opens the browser, cleared the moment a callback actually
+  // arrives. See signIn() and the api.auth.onCallback effect below.
+  const oauthTimeoutRef = useRef(null)
+
   const applyGoogleAuth = useCallback(async ({ tokens, googleUser, roleData }) => {
     const next = {
       idToken: tokens?.id_token ?? null,
@@ -202,6 +207,8 @@ export function AppStoreProvider({ children }) {
   // CLAUDE.md's Phase 12 notes on the ModsView consolidation).
   useEffect(() => {
     const unsub = api.auth.onCallback(async (code) => {
+      if (oauthTimeoutRef.current) { clearTimeout(oauthTimeoutRef.current); oauthTimeoutRef.current = null }
+      await api.auth.stopCallbackServer()
       setSignInStatus('exchanging')
       setSignInError(null)
       setPendingProfile(null)
@@ -239,8 +246,16 @@ export function AppStoreProvider({ children }) {
   }, [pendingProfile, applyGoogleAuth])
 
   const signIn = useCallback(async () => {
+    await api.auth.startCallbackServer()
     const url = await getGoogleAuthUrl()
     await api.shell.openExternal(url)
+    if (oauthTimeoutRef.current) clearTimeout(oauthTimeoutRef.current)
+    oauthTimeoutRef.current = setTimeout(async () => {
+      oauthTimeoutRef.current = null
+      await api.auth.stopCallbackServer()
+      setSignInStatus('error')
+      setSignInError('Sign in timed out — please try again')
+    }, 5 * 60 * 1000)
   }, [])
 
   const signOut = useCallback(async () => {

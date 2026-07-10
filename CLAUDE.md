@@ -866,6 +866,91 @@ interactive click-through — the underlying sign-in mechanism was already
 Phase-12-verified and untouched; only the two fixes above and the
 extraction were exercised via the build.
 
+## Follow-up: OAuth switched to loopback redirect (Phase 12)
+
+2026-07-10: real-world testing of Phase 12's mandatory Google sign-in hit
+`Error 400: invalid_request` at the Google consent screen — Google's OAuth
+2.0 policy for "Desktop app" clients rejects custom URI scheme redirects
+(`accomp://oauth`) outright. The documented, supported mechanism for
+installed apps is a loopback IP address redirect instead:
+https://developers.google.com/identity/protocols/oauth2/native-app. This
+follow-up switches Electron's sign-in flow to that mechanism; the PWA is
+unaffected (it already used its own `http://` redirect URI, see Phase 10).
+
+- **`src/renderer/lib/auth.js`**: exports `OAUTH_CALLBACK_PORT = 9721`
+  (fixed, not randomized, so it only needs registering once in Google Cloud
+  Console and any local firewall rule). `getGoogleAuthUrl()` and
+  `exchangeCodeForTokens()` now both pass
+  `redirectUri=http://127.0.0.1:9721` through to the backend's existing
+  `GET /api/mods/auth/url` / `POST /api/mods/auth/callback` endpoints
+  (already redirect-URI-aware since Phase 10 added the PWA's own redirect
+  URI) — no backend route changes were needed for this half.
+- **`src/main/main.js`**: new `auth:startCallbackServer` /
+  `auth:stopCallbackServer` IPC handlers run a temporary `http` server on
+  `127.0.0.1:9721` that catches Google's redirect directly, extracts the
+  `code` query param, responds with a small self-contained "SIGNED IN,
+  close this tab" HTML page, forwards the code to the renderer as
+  `oauth:callback` (same event name as before — no renderer-side rename
+  needed beyond what's described below), and closes itself after that one
+  request. `auth:startCallbackServer` closes any stale server from a
+  previous attempt first. The server is also closed on window `close`,
+  alongside every other subsystem's cleanup in that handler. Verified with
+  a standalone throwaway script (not checked in) that actually started the
+  server, hit it with a real HTTP request, confirmed the `code` param
+  round-trips correctly (including URL-decoding), confirmed it closes after
+  exactly one request, and confirmed a clean restart — not just read.
+- **`handleAccompUrl` in `main.js`** no longer has an OAuth branch —
+  `accomp://oauth` is no longer a recognized deep link. `accomp://` itself
+  stays registered for invite links (`accomp://cluster/{id}`) and the
+  generic `accomp:open` passthrough, unchanged.
+- **`AppStore.jsx`**: `signIn()` now calls `api.auth.startCallbackServer()`
+  before building the auth URL and opening the browser, and arms a 5-minute
+  timeout (`oauthTimeoutRef`) that stops the server and surfaces "Sign in
+  timed out — please try again" via the existing `signInStatus`/
+  `signInError` state if no callback ever arrives. The existing
+  `api.auth.onCallback` effect (unchanged otherwise — same exchange/verify/
+  offline-available control flow from the earlier OAuth follow-up above)
+  now clears that timeout and calls `stopCallbackServer()` the moment a
+  real callback arrives. Deliberately **not** restructured into a single
+  promise that stays pending until the callback resolves — `signIn()` still
+  resolves right after opening the browser so the Wizard can transition to
+  its Connecting step immediately, exactly as before; making `signIn()`
+  itself await the full round-trip would have frozen the Wizard on the
+  Welcome step for up to 5 minutes with no progress UI, which was a real
+  functional regression caught during design, not shipped.
+- **`preload.js`**: `auth.startCallbackServer`/`auth.stopCallbackServer`
+  added alongside the existing `auth.onCallback`.
+- **`backend/lib/oauth.js`**: `createOAuthClient`'s redirect-URI fallback
+  chain gained `'http://127.0.0.1:9721'` as the final default (after an
+  explicit `redirectUri` param and `process.env.GOOGLE_OAUTH_REDIRECT_URI`),
+  so a missing env var fails toward the new mechanism rather than the
+  retired one.
+- **`backend/.env`, `.env.example`**: `GOOGLE_OAUTH_REDIRECT_URI` changed
+  from `accomp://oauth` to `http://127.0.0.1:9721`. The deployed copy on
+  shinobi still has the old value and needs updating there too — flagged in
+  `docs/GOOGLE_OAUTH_SETUP.md`'s "Backend config" section, not fixed here
+  since this repo has no access to the Pi.
+- **`docs/GOOGLE_OAUTH_SETUP.md`** rewritten for the loopback flow: the
+  Google Cloud Console redirect-URI change (delete `accomp://oauth`, add
+  `http://127.0.0.1:9721` — a manual step that can't be done in code), the
+  shinobi `.env` update reminder, and the existing `redirect_uri_mismatch`
+  /timeout error-copy notes carried over.
+- **Not updated**: `docs/GOOGLE_DRIVE_SETUP.md`'s own "OAuth 2.0 client"
+  section (step 3) still tells a fresh setup to add `accomp://oauth` as the
+  redirect URI — now stale advice for the Electron sign-in flow specifically,
+  since that file wasn't in this fix's scope. Worth reconciling in a future
+  pass so the two docs don't disagree.
+
+Verified this pass: `npx vite build` compiles clean (162 modules, no new
+errors). `node --check` passes on `main.js`, `preload.js`, and
+`backend/lib/oauth.js`. The loopback HTTP server's actual request/response/
+close cycle was verified live via a standalone script (see above), not just
+read. Not independently verified: an actual Google consent-screen round
+trip (no real OAuth credentials/browser flow exercised in this
+environment — same caveat every prior phase touching Google auth has
+carried) and the Google Cloud Console redirect-URI change itself, which is
+a manual step outside this repo.
+
 ## Rename: AC1Companion → ShinRacer
 
 2026-07-09: the project folder was manually renamed from `AC1Companion` to

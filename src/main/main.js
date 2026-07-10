@@ -4,6 +4,7 @@ const fs = require('fs')
 const os = require('os')
 const dgram = require('dgram')
 const net = require('net')
+const http = require('http')
 const { spawn, execSync, execFileSync } = require('child_process')
 const Store = require('electron-store')
 const { autoUpdater } = require('electron-updater')
@@ -184,6 +185,7 @@ function createWindow() {
       try { clusterOverlayWindow.close() } catch (e) {}
       clusterOverlayWindow = null
     }
+    closeOAuthCallbackServer()
   })
 }
 
@@ -214,23 +216,15 @@ autoUpdater.on('error', (err) => { log(`Auto-updater error: ${err.message}`) })
 // Windows launches a fresh process for a protocol click; if we're already
 // running, that second process's argv arrives here via 'second-instance'
 // instead — requestSingleInstanceLock() is what makes that handoff happen.
-// A subset of accomp:// URLs are Google OAuth callbacks (accomp://oauth?code=...)
-// rather than invite/connect links — those get routed to their own IPC event
-// carrying just the extracted code, so ModsView doesn't have to re-parse the
-// generic accomp:open payload that DeployView already owns interpreting.
+// Google OAuth no longer uses accomp:// — Google's Desktop-app policy
+// rejects custom URI scheme redirects, so sign-in now goes through the
+// loopback HTTP callback server below instead (see 'auth:startCallbackServer').
+// accomp:// itself stays registered for invite links and other deep links.
 function handleAccompUrl(url) {
   log(`accomp:// URL received: ${url}`)
-  const isOauth = /^accomp:\/\/oauth\b/i.test(url) || url.includes('?code=')
-  if (isOauth) {
-    const match = url.match(/[?&]code=([^&]+)/)
-    if (match) {
-      win?.webContents.send('oauth:callback', decodeURIComponent(match[1]))
-      return
-    }
-  }
   // Cluster Fucker QR/share deep link: accomp://cluster/{presetId} — the
   // renderer owns opening ClusterView and fetching the preset from the
-  // backend, same division of labor as the OAuth branch above.
+  // backend.
   const clusterMatch = url.match(/^accomp:\/\/cluster\/([^/?]+)/i)
   if (clusterMatch) {
     win?.webContents.send('cluster:loadPreset', { presetId: clusterMatch[1] })
@@ -238,6 +232,74 @@ function handleAccompUrl(url) {
   }
   win?.webContents.send('accomp:open', url)
 }
+
+// ── OAuth loopback callback server ────────────────────────────────────────────
+// Google's OAuth 2.0 policy for "Desktop app" clients rejects custom URI
+// scheme redirects (accomp://oauth) with a 400: invalid_request at the
+// consent screen — the documented, supported mechanism is a loopback IP
+// address redirect instead:
+// https://developers.google.com/identity/protocols/oauth2/native-app
+// Port 9721 is fixed (not randomized) so it only needs registering once in
+// Google Cloud Console and any local firewall rule — matches
+// src/renderer/lib/auth.js's OAUTH_CALLBACK_PORT constant exactly (main.js
+// is CommonJS and can't import that ES module directly, so the number is
+// duplicated here rather than shared).
+const OAUTH_CALLBACK_PORT = 9721
+let oauthCallbackServer = null
+
+const OAUTH_CALLBACK_HTML = `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { background: #050507; color: #E8F0FF;
+           font-family: 'Barlow Condensed', sans-serif;
+           display: flex; align-items: center;
+           justify-content: center; height: 100vh; margin: 0; }
+    h1 { font-size: 32px; letter-spacing: 2px; }
+    p  { color: #5A6475; }
+  </style>
+</head>
+<body>
+  <div style="text-align:center">
+    <h1>SIGNED IN</h1>
+    <p>You can close this tab and return to ShinRacer.</p>
+  </div>
+</body>
+</html>`
+
+function closeOAuthCallbackServer() {
+  if (oauthCallbackServer) {
+    try { oauthCallbackServer.close() } catch (e) {}
+    oauthCallbackServer = null
+  }
+}
+
+ipcMain.handle('auth:startCallbackServer', () => {
+  closeOAuthCallbackServer() // a stale server from a previous attempt/timeout, if any
+  return new Promise((resolve) => {
+    const server = http.createServer((req, res) => {
+      const url = new URL(req.url, `http://127.0.0.1:${OAUTH_CALLBACK_PORT}`)
+      const code = url.searchParams.get('code')
+      res.writeHead(200, { 'Content-Type': 'text/html' })
+      res.end(OAUTH_CALLBACK_HTML)
+      if (code) win?.webContents.send('oauth:callback', code)
+      closeOAuthCallbackServer()
+    })
+    server.on('error', (err) => {
+      log(`OAuth callback server error: ${err.message}`)
+      oauthCallbackServer = null
+    })
+    server.listen(OAUTH_CALLBACK_PORT, '127.0.0.1', () => {
+      oauthCallbackServer = server
+      resolve({ ok: true })
+    })
+  })
+})
+
+ipcMain.handle('auth:stopCallbackServer', () => {
+  closeOAuthCallbackServer()
+  return { ok: true }
+})
 
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {

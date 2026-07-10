@@ -1,14 +1,19 @@
 const { google } = require('googleapis')
 
-// `redirectUri` defaults to the Electron app's fixed accomp://oauth scheme —
-// the PWA passes its own (http://<host>/auth/callback), since Google requires
-// the redirect_uri in the token exchange to exactly match the one used when
-// the auth URL was built, and the two apps use different ones.
+// `redirectUri` defaults to the Electron app's loopback callback server
+// (http://127.0.0.1:9721 — see src/main/main.js's 'auth:startCallbackServer'
+// and src/renderer/lib/auth.js's OAUTH_CALLBACK_PORT). This replaced the
+// custom accomp://oauth scheme, which Google's OAuth 2.0 policy for
+// "Desktop app" clients rejects outright (400: invalid_request) — see
+// docs/GOOGLE_OAUTH_SETUP.md. The PWA passes its own redirectUri
+// (http://<host>/auth/callback), since Google requires the redirect_uri in
+// the token exchange to exactly match the one used when the auth URL was
+// built, and the two apps use different ones.
 function createOAuthClient(redirectUri) {
   return new google.auth.OAuth2(
     process.env.GOOGLE_OAUTH_CLIENT_ID,
     process.env.GOOGLE_OAUTH_CLIENT_SECRET,
-    redirectUri || process.env.GOOGLE_OAUTH_REDIRECT_URI
+    redirectUri || process.env.GOOGLE_OAUTH_REDIRECT_URI || 'http://127.0.0.1:9721'
   )
 }
 
