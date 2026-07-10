@@ -951,6 +951,40 @@ environment — same caveat every prior phase touching Google auth has
 carried) and the Google Cloud Console redirect-URI change itself, which is
 a manual step outside this repo.
 
+## Follow-up: second false-premise audit of AppStore.jsx's OAuth state (Phase 12)
+
+2026-07-10: a request described `AppStore.jsx` as missing `signIn`/`signOut`
+entirely ("the functions were never added... tokens are always null") and
+asked for a full reimplementation, plus role-gating changes in `App.jsx`.
+Same pattern as the earlier "renderer OAuth verification" follow-up above —
+checked the actual files before writing anything, and the premise didn't
+hold:
+
+- `AppStore.jsx` already exports `signIn`, `signOut`, `user`, `role`,
+  `isAdmin`, `isHost`, `authLoading` from `useStore()` (all present since
+  Phase 12, refined by the two follow-ups above this one) — not missing.
+- `App.jsx`'s `Inner()` already destructures `user`/`role`/`isSignedIn`/
+  `authLoading` from `useStore()` and uses them for nav gating
+  (`canAccess`) and the wizard/loading gate — not missing.
+- The one real gap identified: the request wanted the Wizard to skip
+  straight to the **Done** step when a returning user's stored token
+  verifies on mount. What actually exists (`Wizard.jsx`'s `isSignedIn`
+  effect) skips to **Identity** instead — deliberately, since the Wizard
+  only ever mounts when `setupComplete` is false or the user isn't signed
+  in (see `App.jsx`'s `showWizard`), so a not-yet-fully-configured install
+  still needs AC path / host check / quick phrases, not a skip straight to
+  the end.
+- Implementing the request's `signIn()` literally would also have created
+  a **second, competing `api.auth.onCallback` listener** alongside the one
+  already in `AppStore.jsx` — since OAuth codes are single-use, both would
+  race to consume the same code and one exchange would fail
+  unpredictably. This was flagged rather than risked.
+
+Asked the user how to proceed; they confirmed no code changes were
+needed. **No files were touched this pass** — this entry exists purely so
+a future session doesn't waste time re-investigating the same non-gap a
+third time.
+
 ## Rename: AC1Companion → ShinRacer
 
 2026-07-09: the project folder was manually renamed from `AC1Companion` to
