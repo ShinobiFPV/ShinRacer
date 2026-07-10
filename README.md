@@ -99,7 +99,7 @@ Find out exactly how much faster you actually are. Or slower. We don't judge.
 
 Live data. Every sensor the sim exposes. Tyres, g-force, delta, damage — all of it on screen while you drive. And it's not just AC anymore.
 
-- **Six games, one dash**: AC1, ACC, AC Evo, and AC Rally over shared memory, FH5 and FH6 over UDP — auto-detected, no manual switching required
+- **Eight games, one dash**: AC1, ACC, AC Evo, and AC Rally over shared memory, FH5, FH6, F1 25, and Automobilista 2 over UDP — auto-detected, no manual switching required
 - 17 widgets across 5 categories — Motion (speed, RPM/gear, gear readout, g-force circle, input trace, boost gauge, power/torque), Controls (throttle/brake, steering angle), Tyres (temps, wear, pressures, suspension travel, brake temp where the game exposes it), Session (lap timing, fuel, status, damage, gap ahead/behind), and a stripped-down Minimal readout
 - A colored game badge in the LIVE header always shows which sim you're actually reading from — AC1, ACC, AC EVO, AC RALLY, FH5, FH6, or DEMO
 - LIVE tab: your widgets, laid out in a grid that reflows to fit
@@ -242,7 +242,7 @@ The heavy lifting runs on a Pi 5 in shinobi's setup. Everyone else just runs the
 └─────────────────────────────────┘
 ```
 
-**The app on your machine** does everything that needs real OS access: spawns and watches `acServer.exe`, listens for AC's UDP telemetry, auto-detects and reads live telemetry from whichever of the six supported sims is actually running (shared memory for the AC family, UDP for Forza) for the Live Telemetry tab, touches your AC config files, and catches `accomp://` links so invites just work. The interface itself never touches any of that directly — it all goes through Electron's IPC bridge.
+**The app on your machine** does everything that needs real OS access: spawns and watches `acServer.exe`, listens for AC's UDP telemetry, auto-detects and reads live telemetry from whichever of the eight supported sims is actually running (shared memory for the AC family, UDP for Forza/F1 25/AMS2) for the Live Telemetry tab, touches your AC config files, and catches `accomp://` links so invites just work. The interface itself never touches any of that directly — it all goes through Electron's IPC bridge.
 
 **The backend** is the one thing that has to be shared — a small always-on Node service holding the events calendar, chat history, WebRTC signaling, lap stats, host registrations, roles, and invite codes in a single SQLite database, pushing realtime updates over Socket.io. It lives on shinobi's Pi 5 as a systemd service, but there's nothing Pi-specific about it — any always-on box on the network does the job. The same Pi also serves the mobile PWA over nginx (not pictured above, for diagram simplicity) — same backend, separate codebase, separate deploy.
 
@@ -264,7 +264,7 @@ Since you asked:
 | Database | SQLite via better-sqlite3 |
 | Voice | WebRTC (browser APIs, peer-to-peer mesh) |
 | Auth | Google Sign-In (OAuth 2.0 + ID tokens), role-based access via `roles.json` |
-| Telemetry | Shared memory (AC1, ACC, AC Evo, AC Rally) + UDP Data Out (FH5, FH6), one canonical frame shape |
+| Telemetry | Shared memory (AC1, ACC, AC Evo, AC Rally) + UDP (FH5, FH6, F1 25, AMS2), one canonical frame shape |
 | Mod library | Google Drive API + OAuth (googleapis) |
 | Keystroke dispatch | robotjs (PowerShell SendKeys fallback) |
 | Mobile app | PWA (React + Vite, service worker via vite-plugin-pwa), served through nginx |
@@ -373,7 +373,7 @@ or
 Documents\Assetto Corsa\cfg\cfg.ini
 ```
 
-**Live Telemetry** — the LIVE/CONFIGURE/OVERLAY dash — auto-detects whichever supported game is running (AC1, ACC, AC Evo, AC Rally, or FH5/FH6) and needs no setup for most of them. Just open the tab. If nothing's running yet, you'll get a simulated lap until it is. Forza needs one in-game setting flipped on; full breakdown per game: **[docs/TELEMETRY_SETUP.md](docs/TELEMETRY_SETUP.md)**.
+**Live Telemetry** — the LIVE/CONFIGURE/OVERLAY dash — auto-detects whichever supported game is running (AC1, ACC, AC Evo, AC Rally, FH5/FH6, F1 25, or Automobilista 2) and needs no setup for most of them. Just open the tab. If nothing's running yet, you'll get a simulated lap until it is. Forza, F1 25, and AMS2 each need one in-game setting flipped on; full breakdown per game: **[docs/TELEMETRY_SETUP.md](docs/TELEMETRY_SETUP.md)**.
 
 ## Setting up SRP traffic
 

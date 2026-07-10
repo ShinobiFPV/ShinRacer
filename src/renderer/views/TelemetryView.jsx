@@ -10,6 +10,7 @@ const api = window.api
 const GAME_COLORS = {
   ac1: C.blue, acc: C.green, acevo: C.purple, acrally: C.orange,
   fh5: '#00A651', fh6: '#00A651', demo: C.muted,
+  f125: '#E10600', ams2: '#FF6600',
 }
 
 const GAME_SETUP = [
@@ -48,6 +49,33 @@ const GAME_SETUP = [
   {
     id: 'fh6', label: 'FH6',
     body: <div>Same as FH5. FH6 adds extra vehicle class fields, shown in the status bar once detected.</div>,
+  },
+  {
+    id: 'f125', label: 'F1 25',
+    body: (
+      <>
+        <div>Game Options → Settings → UDP Telemetry Settings:</div>
+        <ul style={{ margin: '4px 0 0 16px' }}>
+          <li>UDP Telemetry: <b>On</b></li>
+          <li>UDP Broadcast Mode: <b>Off</b></li>
+          <li>UDP IP Address: <code>127.0.0.1</code></li>
+          <li>UDP Send Rate: <b>20Hz</b></li>
+          <li>UDP Format: <b>2025</b></li>
+          <li>UDP Port: your configured port (default 20777, set in Settings → Telemetry)</li>
+          <li>Your Telemetry: <b>Public</b> (needed for full data)</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: 'ams2', label: 'AMS2',
+    body: (
+      <>
+        <div>Enable: Options → System → Shared Memory → <b>Project CARS 2</b></div>
+        <div style={{ marginTop: 4 }}>No other configuration needed — AMS2 broadcasts automatically once that's on.</div>
+        <div style={{ marginTop: 4, color: C.orange }}>If no data appears, make sure you're in a driving session, not in menus.</div>
+      </>
+    ),
   },
 ]
 

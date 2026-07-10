@@ -10,9 +10,12 @@ const { ACCSource } = require('./sources/acc')
 const { ACRallySource } = require('./sources/acRally')
 const { ACEvoSource } = require('./sources/acEvo')
 const { ForzaSource, DEFAULT_PORT } = require('./sources/forza')
+const { F125Source, DEFAULT_PORT: F125_DEFAULT_PORT } = require('./sources/f125')
+const { AMS2Source, DEFAULT_PORT: AMS2_DEFAULT_PORT } = require('./sources/ams2')
 const gameDetector = require('./gameDetector')
 const {
   normalizeAC1, normalizeACC, normalizeACEvo, normalizeACRally, normalizeForza,
+  normalizeF125, normalizeAMS2,
 } = require('./normalizer')
 
 const IDLE_POLL_MS = 5000    // no game detected — check again soon
@@ -33,6 +36,8 @@ class TelemetryManager {
   }
 
   getForzaPort() { return this.store.get('forzaTelemetryPort', DEFAULT_PORT) }
+  getF125Port() { return this.store.get('f125TelemetryPort', F125_DEFAULT_PORT) }
+  getAMS2Port() { return this.store.get('ams2TelemetryPort', AMS2_DEFAULT_PORT) }
   getAutoDetect() { return this.store.get('telemetryAutoDetect', true) }
   getManualGame() { return this.store.get('telemetryManualGame', 'ac1') }
 
@@ -44,6 +49,8 @@ class TelemetryManager {
       case 'acrally': return new ACRallySource()
       case 'fh5':
       case 'fh6': return new ForzaSource(this.getForzaPort())
+      case 'f125': return new F125Source(this.getF125Port())
+      case 'ams2': return new AMS2Source(this.getAMS2Port())
       default: return null
     }
   }
@@ -56,6 +63,8 @@ class TelemetryManager {
       case 'acrally': return normalizeACRally(raw.physics, raw.graphics, raw.static)
       case 'fh5':
       case 'fh6': return normalizeForza(raw.buf, raw.version)
+      case 'f125': return normalizeF125(raw.motion, raw.session, raw.lapData, raw.telemetry, raw.status, raw.damage)
+      case 'ams2': return normalizeAMS2(raw.telemetry, raw.gameState, raw.timing)
       default: return null
     }
   }
@@ -95,7 +104,7 @@ class TelemetryManager {
     let detected
 
     if (autoDetect) {
-      detected = await gameDetector.detect(this.getForzaPort())
+      detected = await gameDetector.detect(this.getForzaPort(), this.getF125Port(), this.getAMS2Port())
     } else {
       detected = this.getManualGame()
       if (this.activeGame === detected && this.source) return
@@ -136,6 +145,22 @@ class TelemetryManager {
   async setForzaPort(port) {
     this.store.set('forzaTelemetryPort', port)
     if (this.source instanceof ForzaSource) {
+      return this.source.setPort(port)
+    }
+    return { ok: true }
+  }
+
+  async setF125Port(port) {
+    this.store.set('f125TelemetryPort', port)
+    if (this.source instanceof F125Source) {
+      return this.source.setPort(port)
+    }
+    return { ok: true }
+  }
+
+  async setAMS2Port(port) {
+    this.store.set('ams2TelemetryPort', port)
+    if (this.source instanceof AMS2Source) {
       return this.source.setPort(port)
     }
     return { ok: true }

@@ -500,6 +500,58 @@ export function PowerTorque({ frame }) {
   )
 }
 
+// ── ERS Status (F1 25) ──────────────────────────────────────────────────────
+// Explicitly game-gated per the Phase 15 brief ("only shows when
+// game === 'f125'") — returns null rather than a "--" placeholder, unlike
+// most other widgets here, since ERS deploy modes are a genuinely F1-specific
+// concept with no sensible cross-game fallback display.
+const ERS_DEPLOY_LABELS = { 0: 'NONE', 1: 'MED', 2: 'HOTLAP', 3: 'OVERTAKE' }
+export function ERSWidget({ frame }) {
+  if (frame?.game !== 'f125') return null
+  const energy = frame?.ersStoreEnergy
+  const pct = energy == null ? 0 : Math.max(0, Math.min(1, energy / 4000000)) // 4MJ = F1's ERS store capacity
+  const deployMode = frame?.ersDeployMode
+  const deploying = deployMode != null && deployMode > 0
+  const color = energy == null ? C.muted : deploying ? C.green : C.blue
+  return (
+    <div style={{ width: 160 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <span style={{ fontFamily: C.head, fontSize: 22, color: C.textPrimary }}>{energy == null ? '--' : `${Math.round(pct * 100)}%`}</span>
+        <span style={{ fontFamily: C.head, fontSize: 11, color, border: `1px solid ${color}`, padding: '1px 6px' }}>
+          {deployMode == null ? '--' : (ERS_DEPLOY_LABELS[deployMode] || deployMode)}
+        </span>
+      </div>
+      <div style={{ height: 8, background: C.border, marginTop: 6 }}>
+        <div style={{ width: `${pct * 100}%`, height: '100%', background: color }} />
+      </div>
+      <div style={{ fontFamily: C.body, fontSize: 9, color: C.muted, marginTop: 4, textTransform: 'uppercase' }}>ERS Store</div>
+    </div>
+  )
+}
+
+// ── Boost (AMS2) ─────────────────────────────────────────────────────────
+// Distinct from BoostGauge (Forza/ACC/AC Evo's 0-1 fraction reading) — AMS2's
+// boostAmount is a 0-100 percentage with its own on/off flag, so this is its
+// own widget rather than overloading BoostGauge's shape. Gated on both game
+// and boostActive per the brief — renders nothing otherwise, same reasoning
+// as ERSWidget above.
+export function AMS2BoostWidget({ frame }) {
+  if (frame?.game !== 'ams2' || !frame?.boostActive) return null
+  const amount = frame?.boostAmount ?? 0
+  const pct = Math.max(0, Math.min(1, amount / 100))
+  return (
+    <div style={{ width: 140 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <span style={{ fontFamily: C.head, fontSize: 24, color: C.orange }}>{Math.round(amount)}%</span>
+        <span style={{ fontFamily: C.body, fontSize: 9, color: C.muted, textTransform: 'uppercase' }}>Boost</span>
+      </div>
+      <div style={{ height: 8, background: C.border, marginTop: 6 }}>
+        <div style={{ width: `${pct * 100}%`, height: '100%', background: C.orange }} />
+      </div>
+    </div>
+  )
+}
+
 // ── Widget catalog — single source of truth for the CONFIGURE checklist,
 // preset definitions, and the LIVE/overlay renderers ──────────────────────
 export const WIDGET_CATALOG = [
@@ -520,6 +572,8 @@ export const WIDGET_CATALOG = [
   { id: 'statusBar',        label: 'Status Bar',                category: 'SESSION',  component: StatusBar,        defaultSize: 'lg' },
   { id: 'damagePanel',      label: 'Damage Panel',               category: 'SESSION',  component: DamagePanel,      defaultSize: 'md' },
   { id: 'gapWidget',        label: 'Gap Ahead / Behind',         category: 'SESSION',  component: GapWidget,        defaultSize: 'sm' },
+  { id: 'ersWidget',        label: 'ERS Status (F1 25)',         category: 'SESSION',  component: ERSWidget,        defaultSize: 'sm' },
+  { id: 'ams2Boost',        label: 'Boost (AMS2)',               category: 'MOTION',   component: AMS2BoostWidget,  defaultSize: 'sm' },
   { id: 'miniSpeed',        label: 'Mini Speed + Gear',           category: 'MINIMAL',  component: MiniSpeed,        defaultSize: 'sm' },
 ]
 

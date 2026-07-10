@@ -91,6 +91,8 @@ const GAME_OPTIONS = [
   { value: 'acrally', label: 'AC Rally' },
   { value: 'fh5', label: 'FH5' },
   { value: 'fh6', label: 'FH6' },
+  { value: 'f125', label: 'F1 25' },
+  { value: 'ams2', label: 'AMS2' },
 ]
 const GAME_LABELS = Object.fromEntries(GAME_OPTIONS.map(g => [g.value, g.label]))
 
@@ -98,6 +100,8 @@ function TelemetrySection() {
   const [autoDetect, setAutoDetect] = useState(true)
   const [manualGame, setManualGame] = useState('ac1')
   const [forzaPort, setForzaPort] = useState('5300')
+  const [f125Port, setF125Port] = useState('20777')
+  const [ams2Port, setAms2Port] = useState('5606')
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null) // null | { ok, game? }
 
@@ -105,11 +109,15 @@ function TelemetrySection() {
     api.store.get('telemetryAutoDetect').then(v => setAutoDetect(v ?? true))
     api.store.get('telemetryManualGame').then(v => setManualGame(v || 'ac1'))
     api.store.get('forzaTelemetryPort').then(v => setForzaPort(String(v || 5300)))
+    api.store.get('f125TelemetryPort').then(v => setF125Port(String(v || 20777)))
+    api.store.get('ams2TelemetryPort').then(v => setAms2Port(String(v || 5606)))
   }, [])
 
   const updateAutoDetect = (v) => { setAutoDetect(v); api.store.set('telemetryAutoDetect', v) }
   const updateManualGame = (v) => { setManualGame(v); api.store.set('telemetryManualGame', v) }
   const updateForzaPort = (v) => { setForzaPort(v); const n = Number(v); if (n > 0) api.telemetry.setForzaPort(n) }
+  const updateF125Port = (v) => { setF125Port(v); const n = Number(v); if (n > 0) api.telemetry.setF125Port(n) }
+  const updateAms2Port = (v) => { setAms2Port(v); const n = Number(v); if (n > 0) api.telemetry.setAMS2Port(n) }
 
   const testTelemetry = async () => {
     setTesting(true)
@@ -147,6 +155,29 @@ function TelemetrySection() {
         </div>
         <div style={{ fontSize: 11, color: C.orange, marginTop: 2 }}>
           ⚠️ Q2's race engineer uses port 8000 — use different ports if running both.
+        </div>
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <Label>F1 25 UDP port</Label>
+        <div style={{ maxWidth: 200 }}>
+          <TextInput mono value={f125Port} onChange={updateF125Port} placeholder="20777" />
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>
+          Game Options → Settings → UDP Telemetry Settings → UDP Port
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+          Set UDP Format to "2025" in-game
+        </div>
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <Label>AMS2 UDP port</Label>
+        <div style={{ maxWidth: 200 }}>
+          <TextInput mono value={ams2Port} onChange={updateAms2Port} placeholder="5606" />
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>
+          AMS2 broadcasts — just enable Shared Memory → Project CARS 2 in Options → System. No port configuration needed in-game.
         </div>
       </div>
 

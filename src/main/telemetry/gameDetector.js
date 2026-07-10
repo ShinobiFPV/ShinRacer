@@ -10,6 +10,8 @@ const { execSync } = require('child_process')
 const { AC1Source } = require('./sources/ac1')
 const { ACEvoSource } = require('./sources/acEvo')
 const { ForzaSource } = require('./sources/forza')
+const { F125Source } = require('./sources/f125')
+const { AMS2Source } = require('./sources/ams2')
 
 // Process names used for detection. These are best-effort assumptions the
 // Phase 13 spec explicitly asked to be flagged as unverified — check the
@@ -24,6 +26,14 @@ const EXE_NAMES = {
   acrally: 'ACRally.exe',
   fh5: 'ForzaHorizon5.exe',
   fh6: 'ForzaHorizon6.exe',
+  f125: 'F1_25.exe', // TODO: exact exe name unconfirmed — check Task Manager's Details tab against a real install
+  ams2: 'AMS2AVX.exe', // TODO: exact exe name unconfirmed — same caveat
+}
+// Alternate exe names some builds/storefronts may use — checked in addition
+// to EXE_NAMES above, not instead of. Both are TODOs per the brief.
+const ALT_EXE_NAMES = {
+  f125: 'F125.exe',
+  ams2: 'Automobilista2.exe',
 }
 
 // tasklist's CSV output is double-quoted per field: "Image Name","PID","Session Name",...
@@ -44,13 +54,16 @@ function getRunningProcessNames() {
 }
 
 function processRunning(names, exeKey) {
-  return names.has((EXE_NAMES[exeKey] || '').toLowerCase())
+  if (names.has((EXE_NAMES[exeKey] || '').toLowerCase())) return true
+  const alt = ALT_EXE_NAMES[exeKey]
+  return !!alt && names.has(alt.toLowerCase())
 }
 
 // Order matters here: AC Evo's exe is checked before AC Rally/ACC/AC1 even
-// though they'd never realistically run at once, and Forza last since it's
-// checked by process only (no UDP bind during detection — see forza.js's
-// header comment on avoiding a port fight with an already-active ForzaSource).
+// though they'd never realistically run at once, and Forza/F1 25/AMS2 last
+// since they're checked by process only (no UDP bind during detection — see
+// forza.js's header comment on avoiding a port fight with an already-active
+// source for that game).
 async function detectByProcessList() {
   const names = getRunningProcessNames()
   if (processRunning(names, 'acevo')) return 'acevo'
@@ -59,6 +72,8 @@ async function detectByProcessList() {
   if (processRunning(names, 'ac1')) return 'ac1'
   if (processRunning(names, 'fh6')) return 'fh6'
   if (processRunning(names, 'fh5')) return 'fh5'
+  if (processRunning(names, 'f125')) return 'f125'
+  if (processRunning(names, 'ams2')) return 'ams2'
   return null
 }
 
@@ -84,11 +99,11 @@ async function detectByShmProbe() {
 
 // Full detection pass: process list first (cheap, authoritative when the
 // exe names match), shared-memory probe second (catches a renamed AC-family
-// exe), Forza UDP activity last (see ForzaSource.probe — briefly binds the
-// configured port and waits for one real packet; only worth trying if
-// nothing else matched, since it's the slowest check and the only one that
-// touches the network).
-async function detect(forzaPort) {
+// exe), then UDP activity for the three UDP-only games last (Forza, F1 25,
+// AMS2 — each briefly binds its configured port and waits for one real
+// packet; only worth trying if nothing else matched, since these are the
+// slowest checks and the only ones that touch the network).
+async function detect(forzaPort, f125Port, ams2Port) {
   const byProcess = await detectByProcessList()
   if (byProcess) return byProcess
 
@@ -97,6 +112,12 @@ async function detect(forzaPort) {
 
   const forzaVersion = await ForzaSource.probe(forzaPort, 1500)
   if (forzaVersion) return forzaVersion
+
+  const isF125 = await F125Source.probe(f125Port, 1500)
+  if (isF125) return 'f125'
+
+  const isAMS2 = await AMS2Source.probe(ams2Port, 500)
+  if (isAMS2) return 'ams2'
 
   return null
 }

@@ -93,6 +93,8 @@ contextBridge.exposeInMainWorld('api', {
     // Phase 13: multi-game detection
     getActiveGame: () => ipcRenderer.invoke('telemetry:getActiveGame'),
     setForzaPort:  (p) => ipcRenderer.invoke('telemetry:setForzaPort', p),
+    setF125Port:   (p) => ipcRenderer.invoke('telemetry:setF125Port', p),
+    setAMS2Port:   (p) => ipcRenderer.invoke('telemetry:setAMS2Port', p),
     onGameDetected: (cb) => {
       ipcRenderer.on('game:detected', (_, game) => cb(game))
       return () => ipcRenderer.removeAllListeners('game:detected')

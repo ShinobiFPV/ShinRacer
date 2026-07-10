@@ -1198,6 +1198,159 @@ file, and a real `map.png` track image. If the Live Axis Monitor or a
 controller preset ever look wrong against a real device, that's the first
 thing to check by hand.
 
+## Phase 15: F1 25 and AMS2 telemetry
+
+Phase 15 extended Phase 13's multi-game telemetry system with two more
+UDP-based sources — EA/Codemasters F1 25 and Automobilista 2 — following
+the exact same architecture (per-game source in `sources/`, a
+`normalizeX()` in `normalizer.js`, detection wiring in `gameDetector.js`,
+dispatch in `index.js`'s `TelemetryManager`).
+
+### Two very different confidence levels, and the file headers say so
+
+- **F1 25's UDP telemetry format is a stable, officially published
+  EA/Codemasters spec** (unchanged in shape since F1 2020, extended each
+  season) — the brief's own field lists for the header and each packet
+  struct (CarTelemetryData, CarStatusData, LapData, SessionData,
+  CarDamageData, CarMotionData) match this real spec closely, just without
+  giving cumulative byte offsets. Those were computed field-by-field in
+  `sources/f125.js` and then **verified with a standalone synthetic-packet
+  test** before calling this done: built real byte buffers for packets 0,
+  1, 2, 6, 7, and 10 with known values at every field, fed them through the
+  real `F125Source._handleMessage()`, and confirmed every parsed value came
+  back byte-exact — including `safetyCarStatus`'s position after the
+  session packet's fixed 21×5-byte marshal-zone array, the one place a
+  miscounted array size would have silently shifted everything after it.
+  `normalizeF125()` was verified the same way end-to-end (track-ID lookup,
+  tyre-compound lookup, and the full canonical frame).
+- **AMS2's UDP payload byte layout could not be verified the same way.**
+  The brief gives an explicit, confirmable 8-byte packet header
+  (packetNumber/categoryPacketNumber/partialPacketIndex/
+  partialPacketNumber/packetType/dataVersion) — implemented with the same
+  confidence as everything else in this codebase — but only *field names*
+  for the actual telemetry/game-state/timing payloads (from the separate
+  SHM struct list), with no byte offsets and no real packet capture or
+  official SDK header available in this environment to derive them from
+  independently. `sources/ams2.js`'s header comment says this explicitly:
+  every payload field offset is a best-effort sequential layout from the
+  field list order, not a confirmed fact — the same honesty standard
+  Phase 13 held AC Rally's five unconfirmed fields to. The standalone test
+  for this file confirms the code correctly implements *its own documented
+  layout* with no off-by-one bugs (a synthetic packet built at those exact
+  offsets round-trips correctly) — it does **not** confirm those offsets
+  match AMS2's real wire format, which nothing in this environment could
+  check. `docs/TELEMETRY_SETUP.md`'s AMS2 section says this plainly rather
+  than implying it's as solid as F1 25's implementation.
+- **A real bug was caught by the same synthetic-packet testing**, not
+  found by inspection: the first test run failed all AMS2 telemetry
+  checks because the test's own synthetic buffer was undersized (84 bytes
+  vs. the ~200 bytes `parseTelemetry`'s full sequential field list
+  actually reads) — `parseTelemetry`'s own try/catch correctly caught the
+  resulting out-of-bounds `readFloatLE` and returned `null`, exactly as
+  designed for a genuinely truncated real packet. Fixed the test, not the
+  parser; re-ran and all checks passed. Left as a reminder in this
+  section because it's a good demonstration of why the try/catch-per-parse
+  constraint matters even for internally-consistent code.
+- **Lap timing needed a third AMS2 packet type not in the brief's
+  "simplest approach."** The brief's own `normalizeAMS2` spec wants
+  `mCurrentTime`/`mLastLapTime`/`mBestLapTime`, but those are documented
+  under the SHM struct's separate "Timing" section, not the "Car state"
+  fields packetType 0 telemetry would realistically carry — and the
+  header's own packetType enum lists a dedicated `2 = timings` type. Added
+  `parseTiming()` for packetType 2 rather than leaving those three fields
+  permanently null, which the "simplest approach, packet type 0 only" text
+  would otherwise have implied. Same TODO/unverified-offset caveat as
+  every other AMS2 payload field.
+
+### Everything else
+- `gameDetector.js`: `EXE_NAMES` gained `f125`/`ams2` entries (both
+  TODO-flagged per the brief — "F1_25.exe"/"AMS2AVX.exe" are unconfirmed),
+  plus a new `ALT_EXE_NAMES` map for the alternate names ("F125.exe"/
+  "Automobilista2.exe") the brief also listed — `processRunning()` checks
+  both without duplicating the whole exe-name list. `detect()`'s UDP-probe
+  tail now also tries F1 25 (packetFormat===2025 on the configured port)
+  and AMS2 (any recognized packetType 0-6) after Forza's probe, in that
+  order — verified by actually running the full `detect()` pipeline in
+  this environment (no supported game running here): returned `null`
+  cleanly in ~5s with no exceptions, confirming the two new probes don't
+  break the existing detection flow.
+- `index.js`: `createSource()`/`normalize()` gained `f125`/`ams2` cases;
+  `getF125Port()`/`getAMS2Port()`/`setF125Port()`/`setAMS2Port()` added,
+  mirroring the existing Forza-port methods exactly. `detectAndStart()`'s
+  `gameDetector.detect()` call now passes all three UDP ports.
+- `main.js`/`preload.js`: `telemetry:setF125Port`/`telemetry:setAMS2Port`
+  IPC handlers and bridge methods, matching `setForzaPort`'s exact shape.
+- `normalizer.js`: `nullExtendedFields()` gained `ersDeployMode`/
+  `enginePowerICE`/`enginePowerMGUK`/`weatherCondition`/`airTemp`/
+  `trackTemp`/`boostActive`/`boostAmount` — new in Phase 15, null by
+  default for every game that isn't F1 25 or AMS2. `mapF1TyreCompound()`
+  covers the F1-modern range (16-20) with confidence; the F2 sub-range
+  (7-12) is a reasonable best-effort assignment the brief itself didn't
+  pin down precisely. `mapF1Track()` covers track IDs 0-32 (every circuit
+  through the current F1 25 calendar, beyond the brief's own "minimum 24"
+  ask) — publicly stable EA/Codemasters IDs, not a guess.
+- **One addition beyond the brief's literal field list**: F1 25's
+  `session` display field (`mapF1SessionType()`, e.g. `'RACE'`,
+  `'QUALIFYING 2'`) isn't in the brief's own canonical-frame mapping, but
+  `StatusBar`'s existing "Session" readout expects this string from every
+  other game — without it, F1 25 would permanently show "UNKNOWN" there.
+  Small, low-risk, and directly analogous to Phase 13's own
+  GapWidget/PowerTorque/SteeringAngle additions.
+- `components/telemetry/widgets.jsx`: `ERSWidget` (SESSION category, per
+  the brief) and `AMS2BoostWidget` (MOTION — a judgment call, since the
+  brief didn't specify a category for this one; matches where the existing
+  BoostGauge/PowerTorque already live). **Both explicitly return `null`
+  rather than a "--" placeholder** when their game/condition isn't met
+  (`frame.game !== 'f125'` for ERS; `frame.game !== 'ams2' ||
+  !frame.boostActive` for the boost widget) — a deliberate difference from
+  every other Phase 13 widget's "always render, show -- for missing data"
+  convention, because the brief explicitly said "only shows when..."/"only
+  render when..." for these two specifically.
+- `TelemetryView.jsx`: `GAME_COLORS` gained `f125: '#E10600'` (F1 red),
+  `ams2: '#FF6600'` (Reiza orange); `GAME_SETUP` gained accordion entries
+  for both, matching the existing per-game instructions pattern.
+- `SettingsView.jsx`: `GAME_OPTIONS` gained F1 25/AMS2 for the manual-game
+  dropdown; new "F1 25 UDP port" (default 20777) and "AMS2 UDP port"
+  (default 5606) fields, following the existing Forza port field's exact
+  shape (`TextInput` + a hint line + live `api.telemetry.setXPort()` call).
+- `docs/TELEMETRY_SETUP.md`: two new rows in the supported-games table,
+  full setup sections for both games (including the AMS2 honesty caveat
+  above), and the "Verifying it worked" game-badge list extended.
+- `README.md`: "six supported sims" → "eight," the Under the Hood table's
+  Telemetry row, and the Live Telemetry feature description all updated to
+  include F1 25/AMS2.
+
+### Verified this pass
+`npx vite build` compiles clean (164 modules, no new errors). `node --check`
+passes on every new/touched main-process file
+(`sources/f125.js`/`sources/ams2.js`/`normalizer.js`/`gameDetector.js`/
+`index.js`/`main.js`/`preload.js`). A standalone synthetic-packet test
+built real F1 25 packets (header + packets 0/1/2/6/7/10) with known field
+values and confirmed byte-exact round-trips through the real
+`F125Source`/`normalizeF125()` — this is what caught the AMS2 test's own
+undersized-buffer mistake (see above) before it could have been mistaken
+for a parser bug. `gameDetector.detect()` was run for real end-to-end in
+this environment (no F1 25/AMS2 running here) and returned `null` cleanly
+in ~5 seconds with no exceptions, confirming the two new UDP probes don't
+destabilize the existing detection pipeline.
+
+### Not independently verified
+No real F1 25 or Automobilista 2 installation exists in this environment,
+so neither source was ever exercised against genuine game traffic — only
+against the reconstructed/estimated struct layouts above and synthetic
+buffers with known values. F1 25's parsing has high confidence (a stable,
+publicly documented spec, reconstructed and verified field-by-field).
+AMS2's parsing does **not** have that same confidence — see the honesty
+caveat above and in `sources/ams2.js`'s own header comment; if a crew
+member with AMS2 sees garbage or nothing at all, that file's offsets are
+the first and most likely thing to fix, not `gameDetector.js` or
+`normalizer.js`. The exact F1 25 process name (`F1_25.exe`/`F125.exe`) and
+AMS2's (`AMS2AVX.exe`/`Automobilista2.exe`) remain unconfirmed against a
+real Task Manager listing, per the brief's own TODO instruction. No
+interactive click-through of the new Settings fields, game badges, or
+widgets was done this pass — verified by the build/syntax/logic checks
+above, not by driving the running app.
+
 ## Rename: AC1Companion → ShinRacer
 
 2026-07-09: the project folder was manually renamed from `AC1Companion` to

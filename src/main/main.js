@@ -634,6 +634,8 @@ ipcMain.handle('telemetry:shmStart', async () => startShmTelemetry())
 ipcMain.handle('telemetry:shmStop', () => stopShmTelemetry())
 ipcMain.handle('telemetry:getActiveGame', () => telemetryManager?.activeGame ?? null)
 ipcMain.handle('telemetry:setForzaPort', (_, port) => telemetryManager?.setForzaPort(port) ?? { ok: true })
+ipcMain.handle('telemetry:setF125Port', (_, port) => telemetryManager?.setF125Port(port) ?? { ok: true })
+ipcMain.handle('telemetry:setAMS2Port', (_, port) => telemetryManager?.setAMS2Port(port) ?? { ok: true })
 
 // ── IPC: Telemetry overlay window ─────────────────────────────────────────────
 ipcMain.handle('telemetry:openOverlay', async (_, config = {}) => {

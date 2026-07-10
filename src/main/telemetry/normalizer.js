@@ -48,6 +48,12 @@ function nullExtendedFields() {
     worldPosition: { x: null, y: null, z: null },
     rallyStageTime: null, rallyPenaltyTime: null, distanceToFinish: null,
     parseError: false,
+    // Phase 15 additions (F1 25 / AMS2) — null-defaulted here so every
+    // existing normalizer keeps working unchanged and the two new ones don't
+    // each have to null out fields the other game doesn't expose.
+    ersDeployMode: null, enginePowerICE: null, enginePowerMGUK: null,
+    weatherCondition: null, airTemp: null, trackTemp: null,
+    boostActive: null, boostAmount: null,
   }
 }
 
@@ -244,4 +250,140 @@ function normalizeForza(buf, version) {
   }
 }
 
-module.exports = { normalizeAC1, normalizeACC, normalizeACEvo, normalizeACRally, normalizeForza, niceGear, formatMs }
+// ── F1 25 ────────────────────────────────────────────────────────────────
+// Tyre compound IDs are the stable, publicly-documented EA/Codemasters
+// actualTyreCompound enum (F1 modern compounds 16-20, F2's own 7-12 range).
+// The F2 9-12 sub-range's exact Hard/Medium/Soft/Wet assignment isn't spelled
+// out anywhere the brief cited — this is a reasonable best-effort ordering,
+// not independently confirmed.
+const F1_TYRE_COMPOUNDS = {
+  16: 'Hard', 17: 'Medium', 18: 'Soft', 19: 'Inter', 20: 'Wet',
+  7: 'Inter', 8: 'Wet', 9: 'Hard', 10: 'Medium', 11: 'Soft', 12: 'Wet',
+}
+function mapF1TyreCompound(id) {
+  if (id == null) return null
+  return F1_TYRE_COMPOUNDS[id] || `Compound ${id}`
+}
+
+// sessionType isn't in the brief's own field-by-field canonical-frame
+// mapping, but StatusBar's existing "Session" readout expects a display
+// string every other game already provides (session: 'RACE' etc. for AC1) —
+// added so F1 25 doesn't regress that widget to a permanent "UNKNOWN".
+const F1_SESSION_TYPES = {
+  1: 'PRACTICE 1', 2: 'PRACTICE 2', 3: 'PRACTICE 3', 4: 'SHORT PRACTICE',
+  5: 'QUALIFYING 1', 6: 'QUALIFYING 2', 7: 'QUALIFYING 3', 8: 'SHORT QUALIFYING', 9: 'ONE-SHOT QUALIFYING',
+  10: 'RACE', 11: 'RACE 2', 12: 'RACE 3', 13: 'TIME TRIAL',
+}
+function mapF1SessionType(id) { return id == null ? null : (F1_SESSION_TYPES[id] || null) }
+
+// Track IDs 0-32 — the stable, publicly-documented EA/Codemasters trackId
+// enum, covering every circuit through the current F1 25 calendar (more than
+// the brief's own "minimum 24" ask). -1 = unknown. TODO: extend if a future
+// season adds a track ID beyond 32.
+const F1_TRACKS = {
+  0: 'Melbourne', 1: 'Paul Ricard', 2: 'Shanghai', 3: 'Sakhir (Bahrain)', 4: 'Catalunya',
+  5: 'Monaco', 6: 'Montreal', 7: 'Silverstone', 8: 'Hockenheim', 9: 'Hungaroring',
+  10: 'Spa', 11: 'Monza', 12: 'Singapore', 13: 'Suzuka', 14: 'Abu Dhabi',
+  15: 'Texas (COTA)', 16: 'Brazil (Interlagos)', 17: 'Austria', 18: 'Sochi', 19: 'Mexico',
+  20: 'Baku', 21: 'Sakhir Short', 22: 'Silverstone Short', 23: 'Texas Short', 24: 'Suzuka Short',
+  25: 'Hanoi', 26: 'Zandvoort', 27: 'Imola', 28: 'Portimão', 29: 'Jeddah',
+  30: 'Miami', 31: 'Las Vegas', 32: 'Losail (Qatar)',
+}
+function mapF1Track(id) {
+  if (id == null || id < 0) return null
+  return F1_TRACKS[id] || `Track ${id}`
+}
+
+function normalizeF125(motion, session, lapData, telemetry, status, damage) {
+  const currentLapMs = lapData?.currentLapTimeInMS ?? null
+  const lastLapMs = lapData?.lastLapTimeInMS ?? null
+  return {
+    game: 'f125', gameDisplayName: 'F1 25',
+    ...nullExtendedFields(),
+    throttle: telemetry?.throttle ?? null, brake: telemetry?.brake ?? null,
+    clutch: telemetry ? telemetry.clutch / 100 : null,
+    gear: telemetry?.gear ?? null, rpm: telemetry?.engineRPM ?? null, maxRpm: status?.maxRPM ?? null,
+    speed: telemetry?.speed ?? null, steerAngle: telemetry?.steer ?? null,
+    drs: telemetry ? telemetry.drs === 1 : null,
+    pitLimiter: status ? status.pitLimiterStatus === 1 : null,
+    fuel: status?.fuelInTank ?? null, maxFuel: status?.fuelCapacity ?? null, // kg, not litres
+    tyrePressure: telemetry?.tyresPressure ?? [null, null, null, null],
+    tyreTemp: telemetry?.tyresSurfaceTemperature ?? [null, null, null, null],
+    tyreTempI: telemetry?.tyresInnerTemperature ?? [null, null, null, null],
+    tyreWear: damage ? damage.tyresWear.map(w => w / 100) : [null, null, null, null],
+    brakeTemp: telemetry?.brakesTemperature ?? [null, null, null, null],
+    carDamage: damage ? [
+      damage.frontLeftWingDamage / 100, damage.frontRightWingDamage / 100,
+      damage.rearWingDamage / 100, damage.floorDamage / 100, damage.engineDamage / 100,
+    ] : [null, null, null, null, null],
+    gLat: motion?.gForceLateral ?? null, gLon: motion?.gForceLongitudinal ?? null, gVert: motion?.gForceVertical ?? null,
+    worldPosition: motion ? { x: motion.worldPositionX, y: motion.worldPositionY, z: motion.worldPositionZ } : { x: null, y: null, z: null },
+    currentLapMs, lastLapMs, bestLapMs: null, // not exposed directly via UDP
+    currentLapTime: formatMs(currentLapMs), lastLapTime: formatMs(lastLapMs), bestLapTime: formatMs(null),
+    deltaMs: null, // not directly available
+    sector: lapData?.sector ?? null, completedLaps: lapData?.currentLapNum ?? null, position: lapData?.carPosition ?? null,
+    isInPit: lapData ? lapData.pitStatus > 0 : null,
+    isValidLap: lapData ? lapData.currentLapInvalid === 0 : null,
+    sessionTimeLeft: session?.sessionTimeLeft ?? null,
+    session: mapF1SessionType(session?.sessionType),
+    carModel: null, track: mapF1Track(session?.trackId), trackLength: session?.trackLength ?? null,
+    maxPower: null, maxTorque: null,
+    ersStoreEnergy: status?.ersStoreEnergy ?? null,
+    ersDeployMode: status?.ersDeployMode ?? null,
+    enginePowerICE: status?.enginePowerICE ?? null,
+    enginePowerMGUK: status?.enginePowerMGUK ?? null,
+    weatherCondition: session?.weather ?? null,
+    airTemp: session?.airTemperature ?? null, trackTemp: session?.trackTemperature ?? null,
+    tyreCompound: status ? mapF1TyreCompound(status.actualTyreCompound) : null,
+  }
+}
+
+// ── Automobilista 2 ──────────────────────────────────────────────────────
+// See sources/ams2.js's header comment: unlike every other normalizer here,
+// the raw field offsets feeding this one are unverified best-effort
+// estimates, not confirmed against a real packet capture or SDK header.
+function normalizeAMS2(telemetry, gameState, timing) {
+  const currentLapMs = timing ? Math.round(timing.mCurrentTime * 1000) : null
+  const lastLapMs = timing && timing.mLastLapTime > 0 ? Math.round(timing.mLastLapTime * 1000) : null
+  const bestLapMs = timing && timing.mBestLapTime > 0 ? Math.round(timing.mBestLapTime * 1000) : null
+  return {
+    game: 'ams2', gameDisplayName: 'Automobilista 2',
+    ...nullExtendedFields(),
+    speed: telemetry ? telemetry.mSpeed * 3.6 : null, // m/s -> km/h
+    throttle: telemetry?.mThrottle ?? null, brake: telemetry?.mBrake ?? null, clutch: telemetry?.mClutch ?? null,
+    gear: telemetry ? telemetry.mGear - 1 : null, // AMS2: 0=R,1=N,2=1st -> -1/0/1
+    rpm: telemetry?.mRpm ?? null, maxRpm: telemetry?.mMaxRpm ?? null, steerAngle: telemetry?.mSteering ?? null,
+    gLat: telemetry ? telemetry.mLocalAcceleration[0] / 9.81 : null,
+    gVert: telemetry ? telemetry.mLocalAcceleration[1] / 9.81 : null,
+    gLon: telemetry ? telemetry.mLocalAcceleration[2] / 9.81 : null,
+    fuel: telemetry ? telemetry.mFuelLevel * telemetry.mFuelCapacity : null, // litres
+    maxFuel: telemetry?.mFuelCapacity ?? null,
+    tyrePressure: telemetry?.mAirPressure ?? [null, null, null, null],
+    tyreTemp: telemetry?.mTyreTemp ?? [null, null, null, null],
+    tyreTempI: telemetry?.mTyreInternalAirTemp ?? [null, null, null, null],
+    tyreWear: telemetry?.mTyreWear ?? [null, null, null, null],
+    brakeTemp: telemetry?.mBrakeTempCelsius ?? [null, null, null, null],
+    suspensionTravel: telemetry?.mSuspensionTravel ?? [null, null, null, null],
+    carDamage: telemetry ? [
+      telemetry.mAeroDamage, telemetry.mEngineDamage,
+      (telemetry.mBrakeDamage?.[0] ?? 0) / 100, (telemetry.mSuspensionDamage?.[0] ?? 0) / 100, 0,
+    ] : [null, null, null, null, null],
+    isInPit: telemetry ? telemetry.mPitMode > 0 : null,
+    carModel: null, track: gameState?.mTrackLocation ?? null, trackLength: gameState?.mTrackLength ?? null,
+    maxPower: null, maxTorque: null,
+    sessionTimeLeft: gameState?.mEventTimeRemaining ?? null,
+    currentLapMs, lastLapMs, bestLapMs,
+    currentLapTime: formatMs(currentLapMs), lastLapTime: formatMs(lastLapMs), bestLapTime: formatMs(bestLapMs),
+    deltaMs: bestLapMs > 0 && currentLapMs != null ? currentLapMs - bestLapMs : null,
+    rainIntensity: gameState?.mRainDensity != null ? Math.round(gameState.mRainDensity * 3) : null,
+    windSpeed: gameState?.mWindSpeed ?? null,
+    trackTemp: gameState?.mTrackTemperature ?? null, airTemp: gameState?.mAmbientTemperature ?? null,
+    boostActive: telemetry ? telemetry.mBoostActive === 1 : null,
+    boostAmount: telemetry?.mBoostAmount ?? null,
+  }
+}
+
+module.exports = {
+  normalizeAC1, normalizeACC, normalizeACEvo, normalizeACRally, normalizeForza,
+  normalizeF125, normalizeAMS2, niceGear, formatMs,
+}
