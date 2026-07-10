@@ -197,6 +197,79 @@ function TelemetrySection() {
   )
 }
 
+// ── Update section (Phase 16) — surfaced at the top of Settings since it's
+// the most important status to show; the app version is always visible even
+// before any updater:status event has arrived. ──────────────────────────────
+function UpdateSection() {
+  const [status, setStatus] = useState(null)
+  const [version, setVersion] = useState(null)
+  const [checking, setChecking] = useState(false)
+
+  useEffect(() => {
+    api.updater.getVersion().then(v => setVersion(v))
+    const unsub = api.updater.onStatus(s => setStatus(s))
+    return unsub
+  }, [])
+
+  const checkNow = async () => {
+    setChecking(true)
+    await api.updater.checkNow()
+    setChecking(false)
+  }
+
+  return (
+    <Card>
+      <SectionHead children="ShinRacer" sub={`Version ${version || '...'}`} />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: status?.releaseNotes ? 12 : 0 }}>
+        <div style={{ flex: 1 }}>
+          {!status && (
+            <div style={{ fontSize: 12, color: C.muted }}>Checking for updates…</div>
+          )}
+          {status?.status === 'up-to-date' && (
+            <div style={{ fontSize: 12, color: C.green, fontFamily: C.head, fontWeight: 700 }}>✓ UP TO DATE</div>
+          )}
+          {status?.status === 'available' && (
+            <div style={{ fontSize: 12, color: C.blue }}>
+              <span style={{ fontFamily: C.head, fontWeight: 700 }}>UPDATE AVAILABLE — {status.version}</span>
+              <span style={{ color: C.muted, marginLeft: 8 }}>Downloading in background…</span>
+            </div>
+          )}
+          {status?.status === 'downloaded' && (
+            <div style={{ fontSize: 12, color: C.green }}>
+              <span style={{ fontFamily: C.head, fontWeight: 700 }}>{status.version} READY TO INSTALL</span>
+            </div>
+          )}
+          {status?.status === 'error' && (
+            <div style={{ fontSize: 12, color: C.red }}>Update check failed: {status.error}</div>
+          )}
+        </div>
+
+        {status?.status === 'downloaded' && (
+          <Btn size="sm" onClick={() => api.updater.install()}>Restart &amp; Install</Btn>
+        )}
+
+        <Btn size="sm" variant="subtle" onClick={checkNow} disabled={checking}>{checking ? 'Checking…' : 'Check now'}</Btn>
+
+        <Btn size="sm" variant="ghost" onClick={() => api.shell.openExternal('https://github.com/ShinobiFPV/ShinRacer/releases')}>Release notes</Btn>
+      </div>
+
+      {(status?.status === 'available' || status?.status === 'downloaded') && status?.releaseNotes && (
+        <div style={{
+          marginTop: 12, padding: '10px 12px',
+          background: C.bg, border: `1px solid ${C.border}`,
+          fontSize: 11, color: C.mutedHi, lineHeight: 1.7,
+          maxHeight: 120, overflowY: 'auto', fontFamily: C.mono,
+        }}>
+          {typeof status.releaseNotes === 'string'
+            ? status.releaseNotes.replace(/<[^>]+>/g, '')
+            : JSON.stringify(status.releaseNotes)}
+        </div>
+      )}
+    </Card>
+  )
+}
+
 export default function SettingsView() {
   const { settings, saveSettings, identity, saveIdentity, backendUrl, saveBackendUrl,
     quickPhrases, saveQuickPhrases, acDetected, showToast,
@@ -263,6 +336,8 @@ export default function SettingsView() {
 
   return (
     <div style={{ padding: 28, maxWidth: 780, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <UpdateSection />
+
       <Card accent={ROLE_COLOR[role] || C.borderHi}>
         <SectionHead children="Profile" sub="Google identity — handle and color are your display preferences on top of it" />
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18 }}>

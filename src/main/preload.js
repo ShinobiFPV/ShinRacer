@@ -203,6 +203,22 @@ contextBridge.exposeInMainWorld('api', {
     },
   },
 
+  // Auto-updater (Phase 16) — main.js forwards electron-updater's events over
+  // IPC; UpdateBanner.jsx and Settings' UpdateSection own the actual UI.
+  updater: {
+    install:    () => ipcRenderer.invoke('updater:install'),
+    checkNow:   () => ipcRenderer.invoke('updater:checkNow'),
+    getVersion: () => ipcRenderer.invoke('updater:getVersion'),
+    onStatus: (cb) => {
+      ipcRenderer.on('updater:status', (_, data) => cb(data))
+      return () => ipcRenderer.removeAllListeners('updater:status')
+    },
+    onProgress: (cb) => {
+      ipcRenderer.on('updater:progress', (_, data) => cb(data))
+      return () => ipcRenderer.removeAllListeners('updater:progress')
+    },
+  },
+
   // FPV Drone Assistant (Phase 14) — sug44/FpvDroneForAC install check + preset files
   fpv: {
     checkInstall:  ()           => ipcRenderer.invoke('fpv:checkInstall'),

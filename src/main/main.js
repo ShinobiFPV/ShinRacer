@@ -189,28 +189,94 @@ function createWindow() {
   })
 }
 
-// ── Auto-updater ──────────────────────────────────────────────────────────────
-autoUpdater.on('update-available', () => {
-  log('Update available — downloading in background')
-  if (Notification.isSupported()) {
-    new Notification({ title: 'ShinRacer', body: 'ShinRacer update available — downloading in background' }).show()
+// ── Auto-updater (Phase 16) ───────────────────────────────────────────────────
+// Replaces Phase 5's minimal checkForUpdatesAndNotify() + native
+// Notification/dialog flow with a richer one the renderer drives: main.js
+// only forwards updater events over IPC (updater:status/updater:progress),
+// and UpdateBanner.jsx / SettingsView's UpdateSection own all the actual UI.
+// This is a deliberate replacement of that Phase 5 mechanism, not an
+// accidental touch of a working feature — the old Notification/dialog pair
+// and this new banner would otherwise double-notify the user for the same
+// event.
+function configureAutoUpdater() {
+  // Silent background check — no dialog unless update is found.
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = false
+  autoUpdater.logger = console
+
+  autoUpdater.on('checking-for-update', () => {
+    console.log('[updater] Checking for update...')
+  })
+
+  autoUpdater.on('update-not-available', (info) => {
+    console.log(`[updater] Up to date (${info.version})`)
+    log(`Updater: up to date (${info.version})`)
+    win?.webContents.send('updater:status', { status: 'up-to-date', version: info.version })
+  })
+
+  autoUpdater.on('update-available', (info) => {
+    console.log(`[updater] Update available: ${info.version}`)
+    log(`Updater: update available (${info.version})`)
+    win?.webContents.send('updater:status', {
+      status: 'available',
+      version: info.version,
+      releaseNotes: info.releaseNotes || null,
+      releaseDate: info.releaseDate || null,
+    })
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    win?.webContents.send('updater:progress', {
+      percent: Math.round(progress.percent),
+      transferred: progress.transferred,
+      total: progress.total,
+      bytesPerSecond: progress.bytesPerSecond,
+    })
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log(`[updater] Update downloaded: ${info.version}`)
+    log(`Updater: update downloaded (${info.version})`)
+    win?.webContents.send('updater:status', {
+      status: 'downloaded',
+      version: info.version,
+      releaseNotes: info.releaseNotes || null,
+    })
+  })
+
+  autoUpdater.on('error', (err) => {
+    console.error('[updater] Error:', err.message)
+    // Only send to renderer if it's not a network error (no internet =
+    // don't bother the user) — still logged to the rolling log either way.
+    log(`Updater error: ${err.message}`)
+    const isNetworkError = err.message?.includes('net::') ||
+      err.message?.includes('ENOTFOUND') ||
+      err.message?.includes('ECONNREFUSED') ||
+      err.message?.includes('ETIMEDOUT')
+    if (!isNetworkError) {
+      win?.webContents.send('updater:status', { status: 'error', error: err.message })
+    }
+  })
+
+  // Check on launch, then every 4 hours.
+  autoUpdater.checkForUpdates()
+  setInterval(() => autoUpdater.checkForUpdates(), 4 * 60 * 60 * 1000)
+}
+
+ipcMain.handle('updater:install', () => {
+  autoUpdater.quitAndInstall(false, true) // isSilent=false (show progress), isForceRunAfter=true (relaunch)
+})
+
+ipcMain.handle('updater:checkNow', async () => {
+  try {
+    await autoUpdater.checkForUpdates()
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e.message }
   }
 })
 
-autoUpdater.on('update-downloaded', async (info) => {
-  log(`Update downloaded: ${info.version}`)
-  const result = await dialog.showMessageBox(win, {
-    type: 'info',
-    title: 'Update ready',
-    message: `ShinRacer ${info.version} has been downloaded.`,
-    buttons: ['Restart and update', 'Later'],
-    defaultId: 0,
-    cancelId: 1,
-  })
-  if (result.response === 0) autoUpdater.quitAndInstall()
-})
-
-autoUpdater.on('error', (err) => { log(`Auto-updater error: ${err.message}`) })
+ipcMain.handle('updater:getVersion', () => app.getVersion())
 
 // ── accomp:// protocol (invite links + direct "Connect in AC" round-trips) ────
 // Windows launches a fresh process for a protocol click; if we're already
@@ -325,7 +391,7 @@ if (!gotLock) {
     createWindow()
     const startupUrl = process.argv.find(a => a.startsWith('accomp://'))
     if (startupUrl) handleAccompUrl(startupUrl)
-    if (!isDev) autoUpdater.checkForUpdatesAndNotify()
+    if (!isDev) configureAutoUpdater()
   })
 
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })

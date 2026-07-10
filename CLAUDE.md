@@ -1351,6 +1351,91 @@ interactive click-through of the new Settings fields, game badges, or
 widgets was done this pass — verified by the build/syntax/logic checks
 above, not by driving the running app.
 
+## Phase 16: Auto-Updater
+
+Phase 16 replaced Phase 5's minimal auto-update wiring (a single
+`checkForUpdatesAndNotify()` call plus a native `Notification`/
+`dialog.showMessageBox` pair) with a richer, renderer-driven one: a
+dismissible in-app banner, a Settings status card, a 4-hour recheck
+timer, and full IPC exposure so the renderer — not `electron-updater`'s
+own built-in UI hooks — owns the whole update experience.
+
+### Nothing new to install
+`electron-updater` was already a dependency (`^6.8.9`, newer than this
+phase's own `^6.3.0` ask — left alone rather than downgraded) and
+`package.json`'s `build.publish` block (GitHub, `ShinobiFPV/ShinRacer`,
+`releaseType: release`) already existed exactly as specced, both from
+Phase 5/12. Confirmed `node_modules/electron-updater` was actually
+installed at that version (not just listed) before assuming `npm install`
+wasn't needed — it wasn't.
+
+### A deliberate replacement, not an accidental touch of working code
+`main.js`'s old `autoUpdater.on('update-available'/'update-downloaded'/
+'error', ...)` handlers (Notification + `dialog.showMessageBox`) and the
+`app.whenReady()` call to `checkForUpdatesAndNotify()` were removed
+outright, not layered alongside the new IPC-based flow — running both
+would have double-notified the user for the same event (a native OS
+notification *and* the new banner appearing at once). This is the one
+place this phase touches something CLAUDE.md elsewhere calls a "Phase 1-15
+confirmed working feature," and it's touched on purpose: overhauling that
+exact mechanism is what this phase's brief asked for. The new
+`configureAutoUpdater()` keeps every one of the old handler's actual
+side effects that still make sense (logging to the rolling log file via
+the existing `log()` helper, in addition to `console` per the brief's own
+`autoUpdater.logger = console` instruction) — nothing about update
+*detection* changed, only how the result reaches the user.
+- `src/main/main.js`: `configureAutoUpdater()` (called from
+  `app.whenReady()` only when `!isDev`, exactly per the constraint —
+  dev mode never sees an update prompt), plus `updater:install`/
+  `updater:checkNow`/`updater:getVersion` IPC handlers, implemented
+  verbatim from the brief.
+- `src/main/preload.js`: `updater.install`/`checkNow`/`getVersion`/
+  `onStatus`/`onProgress` bridge, matching every other IPC bridge's shape
+  in this file.
+- `src/renderer/components/UpdateBanner.jsx` (new): the dismissible banner,
+  implemented essentially verbatim from the brief's own component code.
+  Per-session dismissal resets on any new `updater:status` event, so a
+  user who dismissed "update available" still sees "ready to install" once
+  the download finishes.
+- `src/renderer/App.jsx`: `UpdateBanner` rendered between the page header
+  and the view content, inside `Inner()`'s main column.
+- `src/renderer/views/SettingsView.jsx`: new `UpdateSection` at the very
+  top of Settings (above Profile/Host Status/everything else) — always
+  shows the current version via `updater:getVersion` even before any
+  `updater:status` event has arrived, plus Check Now / Restart & Install /
+  Release Notes actions.
+- `.github/release-template.md`: added an "Auto-update" note.
+- `docs/RELEASING.md`: added a "How auto-update works" section, verbatim
+  from the brief.
+
+### Verified this pass
+`npx vite build` compiles clean (165 modules, up from 164 for the new
+`UpdateBanner.jsx`). `node --check` passes on `main.js` and `preload.js`.
+Ran a real `npm run dev` boot: `App started` → `AC detected` with no
+errors in the rolling log, confirming the renderer (including the new
+`UpdateBanner` import in `App.jsx` and `UpdateSection` in
+`SettingsView.jsx`) and the rest of `main.js` all still load and run
+cleanly with the new code present — `configureAutoUpdater()` itself
+correctly did *not* fire in this run, since `--dev` mode gates it off per
+the constraint, exactly as intended. Incidentally found and cleaned up a
+genuinely stale, long-orphaned Vite dev-server process left over from
+much earlier in this session (no Electron window had been consuming it
+for some time) while getting a clean port to test against.
+
+### Not independently verified
+No real GitHub Release exists yet at a version newer than what's
+installed, so the actual update-available → download → "Restart &
+Install" flow was never exercised end-to-end against real GitHub API
+traffic — deliberately not forced in this pass, since doing so would mean
+either faking `isDev` off or manually invoking the update-check IPC handler
+to trigger a real, unprompted outbound call to GitHub's public releases
+API. The banner's and Settings' rendering were verified by reading the
+resulting JSX against the brief's own component code (which this
+implementation follows closely), not by driving a real update through the
+UI. Network-error classification (the `isNetworkError` string-matching
+check) was implemented verbatim from the brief and not independently
+tested against a real offline scenario.
+
 ## Rename: AC1Companion → ShinRacer
 
 2026-07-09: the project folder was manually renamed from `AC1Companion` to

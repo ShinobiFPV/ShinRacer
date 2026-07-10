@@ -3,6 +3,7 @@ import { AppStoreProvider, useStore } from './store/AppStore'
 import { C, GLOBAL_CSS, StatusDot, Toast } from './components/primitives'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import Tooltip, { TooltipProvider } from './components/Tooltip'
+import UpdateBanner from './components/UpdateBanner'
 import Wizard from './components/Wizard'
 import ServerWizard from './components/ServerWizard'
 import { deployConfig, presetFromConfig } from './lib/deploy'
@@ -309,6 +310,9 @@ function Inner() {
                 </span>
               )}
             </div>
+
+            {/* Update banner — sits between header and content */}
+            <UpdateBanner />
 
             {/* View */}
             <div style={{ flex:1, overflow:'auto' }}>

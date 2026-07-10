@@ -15,3 +15,8 @@ This build is pre-configured for the ShinTech crew backend. Make sure you're on 
 ### Requirements
 - Windows 10/11 x64
 - Assetto Corsa (optional — needed for server hosting and lap stats)
+
+### Auto-update
+ShinRacer will automatically detect this release and prompt users to update
+on next launch. Users on older builds will see the update banner within 4
+hours, or immediately on restart.

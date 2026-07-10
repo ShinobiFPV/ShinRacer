@@ -101,6 +101,33 @@ width/height and decompressed byte count match exactly — and by an actual
 Electron window boot showing a correctly-rendered "SR" icon in the Windows
 taskbar, not just a valid-on-paper file.
 
+## How auto-update works
+
+1. On launch (and every 4 hours), the app silently checks
+   `github.com/ShinobiFPV/ShinRacer/releases/latest`.
+2. If a newer version is found, it downloads in the background.
+3. A banner appears at the top of the app when ready
+   (`src/renderer/components/UpdateBanner.jsx`), and the same status is
+   also shown in Settings (`UpdateSection` in `SettingsView.jsx`).
+4. User clicks "Restart & Install" — the app restarts with the new version.
+5. Network errors are silently ignored (no internet = no popup) — only
+   surfaced as a small "Update check failed" line in Settings, never a
+   banner or dialog.
+
+The update check uses GitHub's public releases API — no auth token needed
+for users. `GH_TOKEN` (see the release workflow above) is only needed when
+*publishing*.
+
+To trigger an update for all users:
+
+```powershell
+npm run version:patch  # or minor/major
+npm run release
+```
+
+Wait for GitHub Actions to build and publish the `.exe` — users will see the
+update banner within 4 hours, or immediately if they restart the app sooner.
+
 ## Verifying a release worked
 
 - The GitHub Release for the new tag has exactly one asset:
