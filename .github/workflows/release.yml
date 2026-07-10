@@ -5,6 +5,17 @@ on:
     tags:
       - 'v*.*.*'
 
+# electron-builder's GitHub publisher and `gh release edit` below both need
+# a token with permission to create/edit releases in this repo. Using the
+# auto-provided GITHUB_TOKEN (scoped to just this repo, no manual secret
+# setup required) instead of a custom GH_TOKEN secret — the previous
+# workflow referenced secrets.GH_TOKEN, which was never actually populated
+# in this repo's Actions secrets, causing every publish step to fail with
+# "GitHub Personal Access Token is not set." contents:write is required
+# because the default GITHUB_TOKEN permissions are read-only.
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: windows-latest
@@ -20,7 +31,7 @@ jobs:
 
       - run: npm run release
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_BACKEND_URL: http://192.168.1.203:3000
 
       # electron-builder --publish always (npm run release) already created
@@ -34,4 +45,4 @@ jobs:
           $body = (Get-Content .github/release-template.md -Raw) -replace '\{\{VERSION\}\}', $tag
           gh release edit $tag --notes "$body"
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

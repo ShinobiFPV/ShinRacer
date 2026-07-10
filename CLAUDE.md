@@ -1477,18 +1477,38 @@ than burning a version number on a build that never shipped anything.
 
 ### Verified this pass
 The `npx prebuild-install --verbose` test above was run for real against
-the actual installed `robotjs` package, not assumed. Whether bumping to
-Node 24 actually fixes the CI build is being verified by re-running the
-real release workflow against the same tag — see the next entry (or this
-one's own follow-up, if edited in place) for the outcome. If it *doesn't*
-fix it, the next thing to try is explicitly installing a node-gyp-compatible
-VS Build Tools component via a dedicated CI step (e.g.
-`microsoft/setup-msbuild` or a pinned VS installer), or having the CI
-build tolerate `robotjs` being entirely absent from the packaged app (the
-existing PowerShell `SendKeys` fallback in `main.js` already handles
-`require('robotjs')` throwing at runtime — see Phase 11 — so a release
-missing robotjs's native binary wouldn't crash the app, just always use
-the SendKeys path for Cluster Fucker keystrokes).
+the actual installed `robotjs` package, not assumed. The Node 24 bump was
+verified by actually re-running the real release workflow against the
+same tag: `npm install` succeeded this time, and electron-builder's own
+native-rebuild step for `robotjs` (which hit a genuine `404` fetching a
+prebuilt binary from robotjs's GitHub releases, confirming no real
+prebuilt exists for this target at all) fell back to building from source
+successfully too — no VS-detection error this time. So the Node-version
+fix was real and correct, not a guess that happened to look plausible.
+
+### A second, unrelated blocker found by the same re-run
+Getting past `npm install` surfaced a second, completely different failure
+further into the same job: `npm run release` (electron-builder's GitHub
+publish step) failed with `GitHub Personal Access Token is not set,
+neither programmatically, nor using env "GH_TOKEN"` — the workflow's
+`env: GH_TOKEN: ${{ secrets.GH_TOKEN }}` was literally empty at runtime,
+meaning the `GH_TOKEN` repository secret this workflow has referenced
+since Phase 5 was never actually populated in this repo's Actions
+secrets. Rather than asking William to mint and store a custom PAT,
+switched both the `npm run release` step and the "Apply release notes
+template" step (which also calls `gh release edit`) to GitHub's
+automatically-provided `secrets.GITHUB_TOKEN` — no manual secret setup
+needed, since it's injected into every workflow run for free — and added
+a top-level `permissions: contents: write` block, since the auto-token's
+default permissions are read-only and creating/editing a release needs
+write access. This is the standard, idiomatic fix for "publish a release
+in the same repo the workflow runs in," and is arguably a better fix than
+what Phase 5 originally shipped, not just a workaround.
+
+Whether this second fix actually works is being verified the same way as
+the first — by deleting and re-pushing the `v1.1.0` tag again and
+watching the real workflow run, not by assuming a plausible-looking fix
+is correct.
 
 ## Rename: AC1Companion → ShinRacer
 
