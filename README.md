@@ -10,7 +10,7 @@
 
 ![Platform](https://img.shields.io/badge/platform-Windows-blue) ![Electron](https://img.shields.io/badge/electron-28-47848F) ![Node](https://img.shields.io/badge/node-24-green) ![License](https://img.shields.io/badge/license-MIT-yellow) ![Status](https://img.shields.io/badge/status-active-brightgreen) ![Built with Claude](https://img.shields.io/badge/built%20with-Claude-blueviolet)
 
-One installer. One download link. Sign in with Google and go — there's no portable build, no zip to pick by mistake, no second app to remember for your phone.
+One installer. One download link. Sign in with Google and go — there's no portable build, no zip to pick by mistake, there's even a handy app for your phone.
 
 ## What is this?
 
