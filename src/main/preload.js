@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('api', {
   shell: {
     openPath:     (p)   => ipcRenderer.invoke('shell:openPath', p),
     openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+    runCommand:   (cmd) => ipcRenderer.invoke('shell:runCommand', cmd),
   },
 
   // Filesystem
@@ -198,5 +199,15 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.on('cluster:loadPreset', (_, data) => cb(data))
       return () => ipcRenderer.removeAllListeners('cluster:loadPreset')
     },
+  },
+
+  // FPV Drone Assistant (Phase 14) — sug44/FpvDroneForAC install check + preset files
+  fpv: {
+    checkInstall:  ()           => ipcRenderer.invoke('fpv:checkInstall'),
+    readPresets:   ()           => ipcRenderer.invoke('fpv:readPresets'),
+    readPreset:    (name)       => ipcRenderer.invoke('fpv:readPreset', name),
+    writePreset:   (name, data) => ipcRenderer.invoke('fpv:writePreset', { name, data }),
+    deletePreset:  (name)       => ipcRenderer.invoke('fpv:deletePreset', name),
+    readMapImage:  (track)      => ipcRenderer.invoke('fpv:readMapImage', track),
   },
 })

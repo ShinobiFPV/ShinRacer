@@ -5,7 +5,7 @@ const os = require('os')
 const dgram = require('dgram')
 const net = require('net')
 const http = require('http')
-const { spawn, execSync, execFileSync } = require('child_process')
+const { spawn, execSync, execFileSync, exec } = require('child_process')
 const Store = require('electron-store')
 const { autoUpdater } = require('electron-updater')
 
@@ -1031,4 +1031,120 @@ ipcMain.handle('ac:scanTracks', (_, acPath) => {
   } catch (e) {
     return { ok: false, error: e.message, tracks: [] }
   }
+})
+
+// ── IPC: FPV Drone Assistant (Phase 14) ───────────────────────────────────────
+// sug44/FpvDroneForAC — a CSP Lua app that turns any car into a flyable FPV
+// drone. Everything here is plain fs/exec against the mod's own on-disk
+// files under {acPath}\apps\lua\FpvDrone\ — no mod files are ever written to
+// except its settings/presets/*.json, and never FpvDrone.lua itself.
+const FPV_DIR = (acPath) => path.join(acPath, 'apps', 'lua', 'FpvDrone')
+const FPV_PRESETS_DIR = (acPath) => path.join(FPV_DIR(acPath), 'settings', 'presets')
+
+ipcMain.handle('fpv:checkInstall', async () => {
+  const settings = store.get('settings') || {}
+  const acPath = settings.acPath || ''
+
+  const cspVersionPath = path.join(acPath, 'extension', 'version')
+  let cspVersion = null
+  let cspCompatible = false
+  try {
+    cspVersion = fs.readFileSync(cspVersionPath, 'utf8').trim()
+    // Real CSP version strings look like "0.1.79" or "0.1.80-preview115" — the
+    // "115" is a separate preview-build counter appended after a hyphen, NOT
+    // a fourth dotted version component. A naive /(\d+)\.(\d+)\.(\d+)/ match
+    // against "0.1.80-preview116" only ever captures "0.1.80" (patch=80),
+    // silently dropping the preview number entirely — verified this actually
+    // breaks (patch stuck at 80 regardless of the preview number) with a
+    // standalone test before writing the fix below, not assumed.
+    const dotted = cspVersion.match(/(\d+)\.(\d+)\.(\d+)/)
+    if (dotted) {
+      const [, , , patch] = dotted.map(Number)
+      if (patch < 80) cspCompatible = true // 0.1.79 and earlier
+      else if (patch > 80) cspCompatible = false // 0.1.81+
+      else {
+        // patch === 80: only the preview builds up to preview115 are safe.
+        // A bare "0.1.80" with no preview suffix at all is treated as
+        // incompatible rather than assumed safe — conservative on purpose,
+        // since the whole point of this check is steering people away from
+        // the jitter-causing versions.
+        const preview = cspVersion.match(/preview[- ]?(\d+)/i)
+        cspCompatible = !!preview && Number(preview[1]) <= 115
+      }
+    }
+  } catch (e) { /* CSP not installed, or version file unreadable — cspVersion stays null */ }
+
+  // "AC running" reuses the exact same process-list check the multi-game
+  // telemetry detector already uses (EXE_NAMES.ac1) rather than a second,
+  // separate implementation — see gameDetector.js.
+  const { getRunningProcessNames, EXE_NAMES } = require('./telemetry/gameDetector')
+  const acRunning = getRunningProcessNames().has(EXE_NAMES.ac1.toLowerCase())
+
+  return {
+    acPath,
+    cspFound: fs.existsSync(path.join(acPath, 'extension', 'ext_config.ini')),
+    cspVersion,
+    cspCompatible,
+    modInstalled: fs.existsSync(path.join(FPV_DIR(acPath), 'FpvDrone.lua')),
+    acRunning,
+  }
+})
+
+ipcMain.handle('fpv:readPresets', () => {
+  const settings = store.get('settings') || {}
+  const presetsPath = FPV_PRESETS_DIR(settings.acPath || '')
+  try {
+    const files = fs.readdirSync(presetsPath).filter(f => f.endsWith('.json'))
+    return { ok: true, presets: files.map(f => f.replace(/\.json$/, '')) }
+  } catch (e) { return { ok: false, error: e.message, presets: [] } }
+})
+
+ipcMain.handle('fpv:readPreset', (_, name) => {
+  const settings = store.get('settings') || {}
+  const filePath = path.join(FPV_PRESETS_DIR(settings.acPath || ''), `${name}.json`)
+  try {
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+    return { ok: true, data }
+  } catch (e) { return { ok: false, error: e.message } }
+})
+
+ipcMain.handle('fpv:writePreset', (_, { name, data }) => {
+  const settings = store.get('settings') || {}
+  const presetsDir = FPV_PRESETS_DIR(settings.acPath || '')
+  const filePath = path.join(presetsDir, `${name}.json`)
+  try {
+    fs.mkdirSync(presetsDir, { recursive: true })
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8')
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e.message } }
+})
+
+// Not in the original spec's IPC list, but the Settings tab's "Delete
+// preset" button (explicitly required) has nothing to call without it —
+// there's no generic fs:deleteFile bridge exposed anywhere else in this
+// app to reuse.
+ipcMain.handle('fpv:deletePreset', (_, name) => {
+  const settings = store.get('settings') || {}
+  const filePath = path.join(FPV_PRESETS_DIR(settings.acPath || ''), `${name}.json`)
+  try {
+    fs.unlinkSync(filePath)
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e.message } }
+})
+
+ipcMain.handle('fpv:readMapImage', (_, trackName) => {
+  const settings = store.get('settings') || {}
+  const mapPath = path.join(settings.acPath || '', 'content', 'tracks', trackName, 'map.png')
+  try {
+    const buf = fs.readFileSync(mapPath)
+    return { ok: true, base64: buf.toString('base64') }
+  } catch (e) { return { ok: false } }
+})
+
+// ── IPC: run an arbitrary shell command (joy.cpl launcher today) ─────────────
+// Trusted-user local app, no untrusted input reaches this — no shell
+// injection hardening attempted, per explicit spec.
+ipcMain.handle('shell:runCommand', (_, cmd) => {
+  exec(cmd)
+  return { ok: true }
 })

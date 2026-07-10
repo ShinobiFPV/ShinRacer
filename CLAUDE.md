@@ -1056,6 +1056,148 @@ confirming a plain `crew` account can now actually reach Build/Deploy/
 Garage/Telemetry/Traffic and see the "I'll host" card — verified by
 reading the resulting conditionals only.
 
+## Phase 14: FPV Drone Assistant
+
+Phase 14 added a dedicated FPV Drone Assistant page — mod install/CSP
+compatibility checking, HID controller detection + axis calibration, a live
+JSON settings editor for the mod's own preset files, a crew position/chase
+map, and a static reference guide — for sug44/FpvDroneForAC.
+
+### A real bug caught by actually testing, not just reading
+
+The spec's own CSP-compatibility check code (`/(\d+)\.(\d+)\.(\d+)/` against
+a version string, comparing the 2nd/3rd captured groups to `80`/`115`) looks
+plausible but is wrong for the real version format it describes elsewhere:
+CSP versions look like `0.1.80-preview115`, where `115` is a separate
+preview-build counter appended after a hyphen — **not** a fourth dotted
+version component. A three-group regex against that string only ever
+matches `0.1.80` (patch=80), silently dropping the preview number entirely
+regardless of whether it's 115 or 900. This was caught by writing a
+standalone six-case test (`0.1.79`, `0.1.80-preview115`,
+`0.1.80-preview116`, `0.1.80-preview200`, `0.1.81`, `0.1.78`) against the
+spec's literal code before shipping it — it failed 3 of 6. Fixed in
+`main.js`'s `fpv:checkInstall`: the dotted version's third component
+(`patch`) decides compatibility outright when it's not exactly `80`
+(`<80` → compatible, `>80` → not); when `patch === 80`, a separate
+`preview[- ]?(\d+)` match extracts the real preview number and compares
+*that* to 115. A bare `0.1.80` with no preview suffix at all is treated as
+incompatible rather than assumed safe — deliberately conservative, since
+the entire point of this check is steering people away from the
+jitter-causing versions. Re-ran the same six-case test against the fix:
+all six pass.
+
+### Backend
+- **`backend/socket.js`**: `socket.on('fpv:position', ...)` relays a
+  position to every *other* connected client, relay-only, nothing
+  persisted — this is the only way another player's position becomes
+  visible at all, since AC's shared memory only ever exposes the local
+  player's own position. Broadcasts the client-chosen `handle` (same one
+  chat/presence already use), not `socket.user`'s Google display name — the
+  spec's own two code snippets disagreed on this (one used `data.handle`,
+  the other `socket.user?.name || data.handle`, which in practice always
+  picks the Google name since `socket.user` is guaranteed non-null post-auth)
+  — `handle` was kept for consistency with how every other view in this app
+  already identifies people.
+- `scripts/deploy-backend.ps1` already had `backend/socket.js` in its scp
+  list from an earlier phase — no change needed there.
+
+### Main process (`src/main/main.js`, `preload.js`)
+- `fpv:checkInstall`, `fpv:readPresets`, `fpv:readPreset`, `fpv:writePreset`,
+  `fpv:readMapImage` implemented as specified. `acRunning` is a real check
+  (`getRunningProcessNames().has('acs.exe')`, reusing gameDetector.js's exact
+  process-list mechanism from Phase 13) rather than the spec's own stub,
+  which hardcoded `acRunning: false` with a "checked via game detector
+  already" comment that didn't actually wire anything up — leaving it
+  hardcoded would have made that checklist item permanently red.
+- **`fpv:deletePreset` added, not in the spec's own IPC list.** The
+  Settings tab's "Delete preset" button is explicitly required, but nothing
+  in the given IPC additions backs it, and there's no generic
+  `fs:deleteFile` bridge anywhere else in this app to reuse. A one-line
+  `fs.unlinkSync` handler, mirroring the shape of every other `fpv:*`
+  handler.
+- `shell:runCommand` (bare `exec`, no injection hardening) added exactly as
+  specced, for the Controller tab's "Open joy.cpl" button.
+
+### Renderer
+- **`src/renderer/hooks/useFpvBroadcast.js`** (new): polls the latest frame
+  via refs on a 200ms interval rather than re-subscribing an effect on
+  every frame tick (telemetry frames update at 60fps) — same throttling
+  shape `useTelemetryShm.js` already uses for its own backend mirror.
+  Only ever broadcasts real frames, never demo/mock ones — matching that
+  same hook's established "never mirror fake data to the backend"
+  convention, so idling on the FPV tab with AC not running never pollutes
+  the crew map with fabricated positions.
+- **`src/renderer/views/FpvView.jsx`** (new, ~750 lines): five tabs (Setup,
+  Controller, Settings, Map, Guide) sharing one lifted `activePreset`/
+  `presetData` state at the root so the Controller tab's axis calibration
+  and the Settings tab's flight/rate/camera editing both read and write the
+  *same* in-memory preset object — `updateField`/`updateFields` always
+  spread the existing object, so unknown fields the UI doesn't expose
+  (anything in the mod's JSON beyond what's listed in the spec) survive a
+  save untouched, per the "merge, don't overwrite" constraint.
+- `useTelemetryShm()` and `useFpvBroadcast()` are called **inside `MapTab`
+  specifically**, not at `FpvView`'s root — only one of the five tabs
+  needs live telemetry, so the SHM reader process only starts while a user
+  is actually on the Map tab, not the moment they open the FPV page at all.
+- **Map projection is a deliberate simplification of the spec's fuller
+  zoom/pan language.** The spec only ever asks for `[+]`/`[-]` zoom buttons,
+  a Reset button, and an auto-follow toggle — no drag-to-pan control is
+  described anywhere. Implemented exactly that: a fixed 400×400 viewBox,
+  positions projected via a uniform-scale fit of either (a) all currently
+  known points with 10% padding, or (b) — when auto-follow is on — a fixed
+  ±60-unit window centered on the local player. Zoom is a CSS `transform:
+  scale()` on the `<svg>`; Reset turns auto-follow off and zoom back to 1
+  (which naturally re-fits every known point, since that's what non-follow
+  mode already does).
+- **Gamepad polling runs at one rate (16ms/~60fps), not two.** The spec
+  asks for the device list at "every 100ms" and the Live Axis Monitor at
+  60fps — polling everything at 60fps is simpler than two separate timers
+  and is strictly more responsive than the device list's own ask, at
+  negligible cost (`navigator.getGamepads()` is a cheap synchronous call).
+- **Controller detection collapses DJI FPV Controller 2 and 3 into one
+  matcher/preset** — both share an identical axis layout in the spec, and
+  there's no way to distinguish "2" from "3" from `navigator.getGamepads()`'s
+  `id` string alone anyway.
+- **"Install from Mods library" navigates to the Mods tab but does not
+  prefill a "fpv" search.** `ModsView.jsx` has no initial-search-query prop
+  today, and adding one would mean modifying a view file outside this
+  phase's explicit file list — the button still does the useful 90% (gets
+  you to the right tab), just without the last-mile search prefill.
+- NAV placement: the spec said "insert between 'links' and 'cluster'," but
+  in `App.jsx`'s actual array order `cluster` comes *before* `replays`,
+  `mods`, and `links` — the two names never appear adjacent to each other
+  either way. Placed immediately before `links` (i.e., right after `mods`),
+  which is the most literal reading of "in that neighborhood" the real
+  array order allows.
+
+### Verified this pass
+`npx vite build` compiles clean (164 modules, up from 162, no new
+errors/warnings). `node --check` passes on `main.js`, `preload.js`, and
+`backend/socket.js`. The CSP version-compatibility parser was tested
+standalone against six real version strings before and after the fix (see
+above — this is the one piece of this phase that was actually exercised
+with real inputs, not just read). `gameDetector.js`'s
+`getRunningProcessNames()`/`EXE_NAMES` were loaded and run for real from a
+standalone script (not just assumed importable) — returned a real
+69-process snapshot of this machine and correctly reported `acs.exe` not
+running.
+
+### Not independently verified
+No interactive click-through of the FPV tab itself. An Electron window
+from an earlier session in this same conversation was still holding the
+app's `requestSingleInstanceLock()` when this phase finished — launching a
+fresh `npm run dev` instance to click through would either silently no-op
+(blocked by the lock) or risk interfering with whatever's open in that
+existing window, so it wasn't forced. A stray orphaned Vite dev-server
+process spawned by the blocked launch attempt was identified by PID and
+stopped directly; the pre-existing `electron.exe` processes from the
+earlier session were left untouched. Also not exercised in this
+environment: `navigator.getGamepads()` against a real plugged-in
+controller, a real FPV Drone Lua mod install, a real CSP install/version
+file, and a real `map.png` track image. If the Live Axis Monitor or a
+controller preset ever look wrong against a real device, that's the first
+thing to check by hand.
+
 ## Rename: AC1Companion → ShinRacer
 
 2026-07-09: the project folder was manually renamed from `AC1Companion` to

@@ -58,6 +58,17 @@ module.exports = function attachSocket(io) {
       io.emit('chat:message', msg)
     })
 
+    // FPV Drone Assistant (Phase 14) live map: AC's shared memory only ever
+    // exposes the LOCAL player's position, so each client broadcasts its own
+    // and this just relays it to every other connected client — relay-only,
+    // nothing persisted. `handle` is the client-chosen display name (same
+    // one chat/presence already use), not socket.user's Google account name,
+    // so the map stays consistent with how everyone's identified elsewhere
+    // in the app.
+    socket.on('fpv:position', ({ handle, x, y, z, track }) => {
+      socket.broadcast.emit('fpv:position', { handle, x, y, z, track, ts: Date.now() })
+    })
+
     socket.on('rtc:offer',  ({ to, payload }) => io.to(to).emit('rtc:offer',  { from: socket.id, payload }))
     socket.on('rtc:answer', ({ to, payload }) => io.to(to).emit('rtc:answer', { from: socket.id, payload }))
     socket.on('rtc:ice',    ({ to, payload }) => io.to(to).emit('rtc:ice',    { from: socket.id, payload }))
