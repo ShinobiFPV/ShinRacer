@@ -1,11 +1,35 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import axios from 'axios'
+import qrcode from 'qrcode-generator'
 import { C, Card, Label, Btn, TextInput } from './primitives'
 import { DEFAULT_QUICK_PHRASES, DEFAULT_BACKEND_URL } from '../store/AppStore'
 import { useStore } from '../store/AppStore'
 import httpApi from '../lib/api'
 
 const api = window.api
+
+// The PWA is served by nginx on the same host as the backend, minus the
+// backend's own :3000 port. `qrcode-generator` is already a dependency
+// (used by DeployView's invite QR and ClusterView's share QR) — these two
+// helpers live here rather than in a `lib/qr.js` module so this step stays
+// a self-contained addition to this one file.
+function getPwaUrl(backendUrl) {
+  try {
+    const u = new URL(backendUrl)
+    u.port = ''
+    return u.toString().replace(/\/$/, '')
+  } catch {
+    return (backendUrl || '').replace(/:\d+$/, '')
+  }
+}
+
+function generateQRSvg(text, size = 200) {
+  const qr = qrcode(0, 'M')
+  qr.addData(text)
+  qr.make()
+  const cellSize = Math.max(1, Math.floor(size / (qr.getModuleCount() + 4)))
+  return qr.createSvgTag(cellSize, cellSize * 2)
+}
 const IDENTITY_COLORS = [C.yellow, C.blue, C.green, C.red, C.orange, '#8E44AD', C.white, C.mutedHi]
 const GRID_TEXTURE = 'repeating-linear-gradient(0deg, transparent, transparent 40px, #0A0C1210 40px, #0A0C1210 41px),' +
   'repeating-linear-gradient(90deg, transparent, transparent 40px, #0A0C1210 40px, #0A0C1210 41px)'
@@ -296,6 +320,76 @@ function PhrasesStep({ data, setData }) {
   )
 }
 
+// ── Step: PWA on your phone ──────────────────────────────────────────────────
+const PWA_FEATURES = [
+  { icon: '📅', label: 'Events', desc: 'See upcoming sessions and accept invites' },
+  { icon: '🎙️', label: 'Comms', desc: 'Voice and text chat with the crew' },
+  { icon: '📦', label: 'Mods', desc: 'Browse and download the mod library' },
+]
+
+function PwaStep({ backendUrl }) {
+  const pwaUrl = useMemo(() => getPwaUrl(backendUrl || DEFAULT_BACKEND_URL), [backendUrl])
+  const qrSvg = useMemo(() => generateQRSvg(pwaUrl, 200), [pwaUrl])
+
+  return (
+    <Card style={{ width: 680 }}>
+      <div style={{ fontFamily: C.head, fontSize: 28, letterSpacing: 1, marginBottom: 4 }}>GET IT ON YOUR PHONE</div>
+      <div style={{ fontFamily: C.body, fontSize: 13, color: C.muted, marginBottom: 20 }}>
+        ShinRacer runs as an app on iOS and Android. No App Store. No Play Store. 30 seconds to set up.
+      </div>
+
+      <div style={{ display: 'flex', gap: 28 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 232, flexShrink: 0 }}>
+          <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, padding: 16 }}
+            dangerouslySetInnerHTML={{ __html: qrSvg }} />
+          <div style={{ fontFamily: C.mono, fontSize: 12, color: C.blue, marginTop: 10, textAlign: 'center', userSelect: 'all', wordBreak: 'break-all' }}>
+            {pwaUrl}
+          </div>
+          <div style={{ fontFamily: C.body, fontSize: 11, color: C.muted, marginTop: 4 }}>Scan with your phone camera</div>
+        </div>
+
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: C.head, fontSize: 16, color: C.white, marginBottom: 6 }}>📱 iPhone / iPad</div>
+          <ol style={{ fontFamily: C.body, fontSize: 13, lineHeight: 1.6, color: C.mutedHi, margin: '0 0 6px', paddingLeft: 20 }}>
+            <li>Open Safari — must be Safari, not Chrome</li>
+            <li>Scan the QR code or type the URL above</li>
+            <li>Tap the Share button ⬆ at the bottom of the screen</li>
+            <li>Tap "Add to Home Screen"</li>
+            <li>Tap "Add" — ShinRacer appears on your home screen</li>
+          </ol>
+          <div style={{ fontFamily: C.body, fontSize: 11, color: C.muted, marginBottom: 16 }}>Chrome on iOS cannot install PWAs.</div>
+
+          <div style={{ fontFamily: C.head, fontSize: 16, color: C.white, marginBottom: 6, marginTop: 16 }}>🤖 Android</div>
+          <ol style={{ fontFamily: C.body, fontSize: 13, lineHeight: 1.6, color: C.mutedHi, margin: '0 0 6px', paddingLeft: 20 }}>
+            <li>Open Chrome</li>
+            <li>Scan the QR code or type the URL above</li>
+            <li>Tap the menu ⋮ in the top right</li>
+            <li>Tap "Add to Home Screen" or "Install App"</li>
+            <li>Tap "Add"</li>
+          </ol>
+          <div style={{ fontFamily: C.body, fontSize: 11, color: C.muted }}>Works on Chrome, Edge, and most Android browsers.</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 20, marginTop: 20, paddingTop: 16, borderTop: `1px solid ${C.border}` }}>
+        {PWA_FEATURES.map(f => (
+          <div key={f.label} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flex: 1 }}>
+            <span style={{ fontSize: 16 }}>{f.icon}</span>
+            <div style={{ fontFamily: C.body, fontSize: 12, color: C.mutedHi }}>
+              <strong style={{ color: C.white }}>{f.label}</strong> — {f.desc}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ background: `${C.blue}18`, border: `1px solid ${C.blue}40`, borderRadius: 0,
+        padding: '12px 16px', marginTop: 16, fontFamily: C.body, fontSize: 13, color: C.blue }}>
+        💡 Do it now while you're here — it takes 30 seconds. Check events and jump into comms from your phone before race night.
+      </div>
+    </Card>
+  )
+}
+
 // ── Step: Done ────────────────────────────────────────────────────────────────
 const ROLE_COPY = {
   crew: 'You can join events, talk to the crew, and download mods. Have fun.',
@@ -376,7 +470,7 @@ export default function Wizard({ onComplete }) {
   const steps = useMemo(() => {
     const base = ['welcome', 'connecting', 'identity', 'backend']
     if (isHostOrAdmin) base.push('acpath', 'hostcheck')
-    base.push('phrases', 'done')
+    base.push('phrases', 'pwa', 'done')
     return base
   }, [isHostOrAdmin])
   const stepId = steps[stepIdx] || 'welcome'
@@ -442,11 +536,11 @@ export default function Wizard({ onComplete }) {
 
   const primaryEnabled = {
     welcome: true, connecting: false, identity: data.handle.trim().length >= 2,
-    backend: true, acpath: acPathValid, hostcheck: true, phrases: true, done: !finishing,
+    backend: true, acpath: acPathValid, hostcheck: true, phrases: true, pwa: true, done: !finishing,
   }[stepId]
   const primaryAction = {
     welcome: handleSignIn, connecting: () => {}, identity: goNext, backend: goNext,
-    acpath: goNext, hostcheck: goNext, phrases: goNext, done: finish,
+    acpath: goNext, hostcheck: goNext, phrases: goNext, pwa: goNext, done: finish,
   }[stepId]
 
   useEffect(() => {
@@ -482,12 +576,22 @@ export default function Wizard({ onComplete }) {
           <HostCheckStep data={data} backendOnline={backendOnline} registered={hostRegistered} onRegister={registerAsHost} />
         )}
         {stepId === 'phrases' && <PhrasesStep data={data} setData={setData} />}
+        {stepId === 'pwa' && <PwaStep backendUrl={data.backendUrl} />}
         {stepId === 'done' && <DoneStep data={data} googleUser={user} role={role || 'crew'} onFinish={finish} />}
       </div>
       {!isBookend && (
-        <div style={{ padding: '18px 32px', display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: `1px solid ${C.border}` }}>
-          <Btn variant="ghost" onClick={goBack}>← Back</Btn>
-          <Btn onClick={goNext} disabled={!primaryEnabled}>Next →</Btn>
+        <div style={{ padding: '18px 32px', display: 'flex', justifyContent: stepId === 'pwa' ? 'space-between' : 'flex-end', gap: 10, borderTop: `1px solid ${C.border}` }}>
+          {stepId === 'pwa' ? (
+            <>
+              <Btn variant="ghost" onClick={goNext}>SKIP — I'll do this later</Btn>
+              <Btn onClick={goNext}>DONE — I'm set up</Btn>
+            </>
+          ) : (
+            <>
+              <Btn variant="ghost" onClick={goBack}>← Back</Btn>
+              <Btn onClick={goNext} disabled={!primaryEnabled}>Next →</Btn>
+            </>
+          )}
         </div>
       )}
     </div>
