@@ -26,6 +26,8 @@ Hover anything you don't recognize — every control explains what it actually d
 
 Your server. Up. Without touching a single config file.
 
+![Server Manager — track picker and live server_cfg.ini preview](docs/screenshots/build.png)
+
 - Track and car picker that actually scans your AC folders — no typing paths
 - Practice, qualify, race — set lap counts and durations and go
 - Driver aids per server: TC, ABS, stability, autoclutch, tyre blankets, your call
@@ -50,6 +52,8 @@ Don't want to think about ports and INI keys? Answer a few questions instead.
 
 Shutoko at 2am with actual traffic feels different. ShinRacer makes that easy to set up.
 
+![Traffic Manager — behaviour, spawning, and roster controls](docs/screenshots/traffic-manager.png)
+
 - Load any track's existing `traffic_config.ini` straight into the editor
 - Full behaviour control — aggression, speed limits, lane discipline, gaps, spawn distances, every CSP `[BEHAVIOR]`/`[SPAWNING]` key there is
 - Build your car roster — model, skin, weight, max count — with a live probability breakdown so you know what's actually going to spawn
@@ -60,6 +64,8 @@ Shutoko at 2am with actual traffic feels different. ShinRacer makes that easy to
 ### 📅 Events Calendar
 
 Stop spamming the group chat trying to organise a race night. Propose it, track who's in, done.
+
+![Events Calendar — month view with propose/accept flow](docs/screenshots/events.png)
 
 - Month view, color-coded dots for Proposed / Happening / Past
 - Propose an event — name, type, track, cars, required mods, poster image if you've got one
@@ -74,6 +80,8 @@ Stop spamming the group chat trying to organise a race night. Propose it, track 
 
 Voice comms built in. No Discord. No bots. No latency from a server in another country. Just your crew.
 
+![Comms Hub — voice panel and quick-phrase text chat](docs/screenshots/comms.png)
+
 - Full-mesh WebRTC voice, peer to peer — Tailscale handles the routing, no relay server needed
 - Pick your mic and speakers, watch a live input meter to make sure you're actually being heard
 - Push-to-talk (rebind the key) or leave the mic open
@@ -87,6 +95,8 @@ Voice comms built in. No Discord. No bots. No latency from a server in another c
 
 Find out exactly how much faster you actually are. Or slower. We don't judge.
 
+![Lap Stats — live telemetry capture and session leaderboard](docs/screenshots/stats.png)
+
 - Captured live off AC's own UDP broadcast on port 9996 — no plugin, no third-party tool
 - Every lap split into S1/S2/S3, stacked into a bar chart with your personal best drawn right across it
 - Full session leaderboard, ranked by best lap
@@ -98,6 +108,8 @@ Find out exactly how much faster you actually are. Or slower. We don't judge.
 ### 📡 Live Telemetry
 
 Live data. Every sensor the sim exposes. Tyres, g-force, delta, damage — all of it on screen while you drive. And it's not just AC anymore.
+
+![Live Telemetry — the LIVE dash in demo mode, no game running yet](docs/screenshots/telemetry.png)
 
 - **Eight games, one dash**: AC1, ACC, AC Evo, and AC Rally over shared memory, FH5, FH6, F1 25, and Automobilista 2 over UDP — auto-detected, no manual switching required
 - 17 widgets across 5 categories — Motion (speed, RPM/gear, gear readout, g-force circle, input trace, boost gauge, power/torque), Controls (throttle/brake, steering angle), Tyres (temps, wear, pressures, suspension travel, brake temp where the game exposes it), Session (lap timing, fuel, status, damage, gap ahead/behind), and a stripped-down Minimal readout
@@ -113,6 +125,8 @@ Live data. Every sensor the sim exposes. Tyres, g-force, delta, damage — all o
 
 Build your own button box. Design a custom panel of buttons, toggles, gauges, and displays — then run it your way.
 
+![The Cluster Fucker — drag-and-drop editor with the full widget palette](docs/screenshots/cluster.png)
+
 - Full drag-and-drop editor — momentary buttons, toggles, rocker switches, rotary encoders, sliders, an XY pad, indicator lights, gauges, text readouts, image panels, labels. No code, no external tools
 - Bind any button to a real keystroke (fires straight into AC) or a ShinRacer function — push-to-talk, quick phrases, launching a server, marking a lap, and more
 - Runs as a real overlay window you can drag anywhere over AC, or full-screen on the PWA on a phone propped up next to your wheel — build it once on desktop, publish it, and pull the same layout up on mobile in seconds
@@ -124,6 +138,8 @@ Build your own button box. Design a custom panel of buttons, toggles, gauges, an
 
 Music, game audio, and Comms voice, all in one three-channel mixer — because alt-tabbing to Spotify mid-race is how you end up in the wall.
 
+![Car Stereo — Now Playing bar and the MUSIC/GAME/COMMS mixer](docs/screenshots/car-stereo.png)
+
 - Spotify (Premium), YouTube Music, and Apple Music — plus local mp3/flac/wav/ogg/m4a/aac files with real ID3-tag metadata and artwork
 - Spotify gets full native control (play/pause/skip/seek/shuffle/repeat, search, playlists) via its official SDK; YTM and Apple Music run in an embedded browser panel since neither has a public playback API
 - A real three-channel mixer — MUSIC / GAME / COMMS — with per-channel VU meters, mute, solo, a linked master fader, and four built-in presets (RACE / CRUISE / STREAM / QUIET), plus your own
@@ -134,6 +150,8 @@ Music, game audio, and Comms voice, all in one three-channel mixer — because a
 ### 🎬 Replay Browser
 
 That lap you hit last night? It's in here. Tagged, saved, and one click from reliving it.
+
+![Replay Browser — sorted list pulled straight from real replay files](docs/screenshots/replays.png)
 
 - Scans `Documents\Assetto Corsa\replay\` automatically, no digging through File Explorer
 - Pulls track, layout, cars, and driver names straight out of the replay file itself
@@ -148,6 +166,8 @@ That lap you hit last night? It's in here. Tagged, saved, and one click from rel
 
 The crew's mod collection, in the app. Click install. Done. No zip files. No dragging folders.
 
+![Mod Manager — category browser and upload](docs/screenshots/mods.png)
+
 - Browse Cars, Tracks, and Tools straight out of the shared Drive folder
 - One click downloads and drops it right into your AC content folders
 - A badge tells you the moment something you've got installed is out of date
@@ -159,6 +179,8 @@ The crew's mod collection, in the app. Click install. Done. No zip files. No dra
 
 Everywhere the crew actually goes for mods, tools, and guides — one tab, not a pinned Discord message from eight months ago.
 
+![Useful Links — the built-in crew link library](docs/screenshots/links.png)
+
 - ~25 links, hand-picked, across five categories: Tracks & Cars, Tools & Apps, Communities, YouTube, and Setup & Guides — RaceDepartment, Overtake.gg, Content Manager, CSP, sol, CrewChief, the AC subreddit, and more
 - Don't need one? Hide it. It's not gone, just out of the way — bring it back whenever
 - Add your own on top — name, URL, description, category — edit or delete anytime
@@ -169,6 +191,8 @@ Everywhere the crew actually goes for mods, tools, and guides — one tab, not a
 ### 🔐 Roles & Admin Panel
 
 Every crew member is Admin, Host, or Crew. Nobody types in a password to get there — Google sign-in decides who you are, `roles.json` decides what you can do.
+
+![Admin panel — crew management, host status, server overview, system health](docs/screenshots/admin.png)
 
 - Three roles: **Admin** (William) manages everyone and everything, **Host** can also volunteer their PC for event servers, **Crew** gets events/comms/stats/mods/links — which covers almost everyone
 - Role-gated nav — Host/Admin-only tabs aren't shown-and-disabled to Crew, they're just not there
