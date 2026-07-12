@@ -3218,3 +3218,51 @@ interactive click-through of the new step (no throwaway Playwright script
 this pass) — the QR's actual scannability against a real phone camera and
 the on-device "Add to Home Screen" flow on real iOS/Android were not
 exercised, only the SVG generation logic and the clean build above.
+
+## Follow-up: fixed AC auto-detect clobbering `setupComplete` on hydrate
+
+2026-07-12: found while driving the app live (a throwaway Playwright
+`_electron` script, same technique as Phases 4-9/13/18) to capture
+screenshots for the README. Seeding an isolated profile with
+`settings.setupComplete: true` but an empty `acPath` — a real state for
+anyone who's already onboarded but cleared or never had an AC path saved
+— caused the first-run Wizard to reappear instead of landing on the main
+app.
+
+Root cause was in `AppStore.jsx`'s mount effect, the branch that fills in
+`acPath`/`acServerExe` after `api.ac.detect()` finds a real install:
+
+```js
+if (detected.found && !saved.settings?.acPath) {
+  const acPath = detected.path
+  const exe    = `${acPath}\\server\\acServer.exe`
+  const next   = { ...DEFAULT_SETTINGS, acPath, acServerExe: exe }   // bug
+  setSettingsState(next)
+  await api.store.set('settings', next)
+}
+```
+
+`next` was built from `DEFAULT_SETTINGS` alone, not `saved.settings` —
+so any already-persisted field other than `acPath`/`acServerExe` (most
+importantly `setupComplete`, but also `serverName`/`adminPassword`) got
+silently reset back to its default the moment AC auto-detection ran with
+an empty `acPath` on file. Since `showWizard = !settings.setupComplete ||
+!isSignedIn` in `App.jsx`, that reset was enough to re-show the Wizard to
+a fully onboarded user.
+
+Fix: spread `saved.settings` in before the two detected fields —
+`{ ...DEFAULT_SETTINGS, ...saved.settings, acPath, acServerExe: exe }` —
+so auto-detection only ever *adds* the AC path instead of discarding
+whatever else was already saved.
+
+Verified live, not just read: reproduced the exact failure first (seeded
+profile, `setupComplete: true`, empty `acPath`, launched via the
+Playwright driver, confirmed `settings.setupComplete` came back `false`
+in the on-disk `config.json` and the Wizard rendered instead of the main
+app), then re-ran the identical repro after the fix and confirmed
+`settings.setupComplete` stayed `true`, `acPath` was correctly auto-filled
+to the real detected Steam path, and the app landed straight on the main
+UI (Live Servers view, full nav) with no Wizard flash. `npx vite build`
+also compiles clean after the change. Fixed in
+`src/renderer/store/AppStore.jsx`, committed and pushed separately from
+the README screenshots work.
