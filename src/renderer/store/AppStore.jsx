@@ -111,7 +111,7 @@ export function AppStoreProvider({ children }) {
       if (detected.found && !saved.settings?.acPath) {
         const acPath = detected.path
         const exe    = `${acPath}\\server\\acServer.exe`
-        const next   = { ...DEFAULT_SETTINGS, acPath, acServerExe: exe }
+        const next   = { ...DEFAULT_SETTINGS, ...saved.settings, acPath, acServerExe: exe }
         setSettingsState(next)
         await api.store.set('settings', next)
       }
