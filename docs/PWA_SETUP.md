@@ -66,7 +66,7 @@ it's always been.
 
 1. **Join Tailscale** on the phone — [tailscale.com/download](https://tailscale.com/download).
    Get an invite link from William if you don't have one yet.
-2. Open **`http://192.168.1.203`** in the phone's browser (Safari on iOS,
+2. Open **`http://192.168.1.203:8080`** in the phone's browser (Safari on iOS,
    Chrome on Android).
 3. Add it to the home screen — see below. From then on it opens like any
    other installed app: own icon, no browser chrome, works offline for
@@ -85,7 +85,9 @@ No App Store, no Play Store — just the link, same as any other bookmark.
 
 ## Verifying it worked
 
-- Visiting `http://192.168.1.203/` loads the ShinRacer sign-in/onboarding flow.
+- Visiting `http://192.168.1.203:8080/` loads the ShinRacer sign-in/onboarding flow.
+  (Note: the bare IP root on port 80 is imq2's Q2 web app, not ShinRacer —
+  ShinRacer runs on its own port specifically so it doesn't collide with that.)
 - The four-step onboarding completes and lands on Events.
 - `Settings → Notifications → Enable notifications` prompts for permission,
   and `Test notification` (once granted) actually shows a system

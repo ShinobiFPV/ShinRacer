@@ -53,10 +53,12 @@ first time, before `sites-available/shinracer` exists.)
 
 ## 4. Verifying it worked
 
-- `http://192.168.1.203/` (or `http://shinracer.local/` if you've set up mDNS)
-  should load the PWA.
-- `http://192.168.1.203/api/health` should return the same JSON the backend
-  itself returns on port 3000 — proof the reverse proxy is wired correctly.
+- `http://192.168.1.203:8080/` (or `http://shinracer.local:8080/` if you've
+  set up mDNS) should load the PWA. Port 8080, not 80 — the bare IP root on
+  this Pi is already claimed by imq2's own web app.
+- `http://192.168.1.203:8080/api/health` should return the same JSON the
+  backend itself returns on port 3000 — proof the reverse proxy is wired
+  correctly.
 - `sudo nginx -t` should always report `syntax is ok` / `test is successful`
   before a reload — `deploy-pwa.ps1` already runs this for you on every deploy.
 

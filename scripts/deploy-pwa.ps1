@@ -29,5 +29,5 @@ Write-Host "--- Step 8: reloading nginx ---" -ForegroundColor Cyan
 ssh shinobi@192.168.1.203 "sudo systemctl reload nginx"
 Write-Host "--- Step 8 complete ---" -ForegroundColor Green
 Write-Host "--- Step 9: health check ---" -ForegroundColor Cyan
-ssh shinobi@192.168.1.203 "curl -s http://localhost/api/health"
+ssh shinobi@192.168.1.203 "curl -s http://localhost:8080/api/health"
 Write-Host "=== Deploy finished - health check JSON printed above ===" -ForegroundColor Cyan

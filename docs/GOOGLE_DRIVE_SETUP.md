@@ -53,8 +53,8 @@ and add these to **Authorized redirect URIs** (in addition to `accomp://oauth`,
 which stays for the Electron app):
 
 ```
-http://192.168.1.203/auth/callback
-http://shinracer.local/auth/callback
+http://192.168.1.203:8080/auth/callback
+http://shinracer.local:8080/auth/callback
 ```
 
 Only add the `shinracer.local` one if you've actually set up mDNS for that

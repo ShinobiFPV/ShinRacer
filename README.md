@@ -237,7 +237,7 @@ chrome once it's installed.
 - Sign in with Google, same as desktop — the same mandatory account, the
   same Admin/Host/Crew role, no separate guest mode to keep straight
 
-**On Tailscale?** Open `http://192.168.1.203`, sign in, tap Share → Add to
+**On Tailscale?** Open `http://192.168.1.203:8080`, sign in, tap Share → Add to
 Home Screen, done. No App Store. No Play Store. Just a link.
 
 Full mobile setup, VAPID push notifications, and the nginx config that
