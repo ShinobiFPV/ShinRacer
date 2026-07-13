@@ -8,19 +8,18 @@ import httpApi from '../lib/api'
 
 const api = window.api
 
-// The PWA is served by nginx on the same host as the backend, minus the
-// backend's own :3000 port. `qrcode-generator` is already a dependency
-// (used by DeployView's invite QR and ClusterView's share QR) — these two
-// helpers live here rather than in a `lib/qr.js` module so this step stays
-// a self-contained addition to this one file.
+// The PWA is served by nginx on the same host as the backend, on port 8080
+// (not 80 — shinobi already runs imq2 on 80, see the PWA's own deploy notes).
+// `qrcode-generator` is already a dependency (used by DeployView's invite QR
+// and ClusterView's share QR) — these two helpers live here rather than in a
+// `lib/qr.js` module so this step stays a self-contained addition to this one file.
+const DEFAULT_PWA_URL = 'http://192.168.1.203:8080'
+
 function getPwaUrl(backendUrl) {
-  try {
-    const u = new URL(backendUrl)
-    u.port = ''
-    return u.toString().replace(/\/$/, '')
-  } catch {
-    return (backendUrl || '').replace(/:\d+$/, '')
-  }
+  if (!backendUrl) return DEFAULT_PWA_URL
+  // Backend runs on :3000, the PWA on :8080 — swap the port rather than
+  // stripping it (stripping left the URL portless, defaulting to :80).
+  return backendUrl.replace(':3000', ':8080').replace(/\/$/, '')
 }
 
 function generateQRSvg(text, size = 200) {

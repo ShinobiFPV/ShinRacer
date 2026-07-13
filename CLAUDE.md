@@ -3219,6 +3219,35 @@ this pass) — the QR's actual scannability against a real phone camera and
 the on-device "Add to Home Screen" flow on real iOS/Android were not
 exercised, only the SVG generation logic and the clean build above.
 
+## Follow-up: fixed PWA QR port (8080, not 80)
+
+2026-07-13: a request described `getPwaUrl()` as living in
+`src/renderer/lib/qr.js` and asked to fix it to point at port 8080 instead
+of 80. Checked first, same as the OAuth false-premise follow-ups above:
+`src/renderer/lib/qr.js` doesn't exist — `getPwaUrl()`/`generateQRSvg()`
+are defined directly in `Wizard.jsx` (see that file's own comment on why:
+kept local rather than a shared module). `SettingsView.jsx` has no PWA
+section at all, and `AppStore.jsx` has no `pwaUrl` store key or override —
+neither was ever wired up to read one.
+
+The underlying bug was real, though: `getPwaUrl()` built the PWA URL by
+parsing `backendUrl` and setting `u.port = ''` — blanking the port
+entirely rather than mapping `:3000` → `:8080` — which defaults to port 80,
+wrong now that the PWA moved to 8080 (see "Serve the PWA from /var/www
+instead of /home/shinobi" / "Move ShinRacer PWA to port 8080..." commits).
+Fixed in `Wizard.jsx` itself (not a new `lib/qr.js`, per the
+no-new-files constraint): `getPwaUrl()` now does a plain
+`backendUrl.replace(':3000', ':8080')`, with `DEFAULT_PWA_URL =
+'http://192.168.1.203:8080'` as the fallback when no backend URL is set
+yet. `AppStore.jsx` was left untouched — it never hardcoded a PWA URL, so
+there was nothing there to fix.
+
+Verified: `npx vite build` compiles clean (176 modules, no new
+errors/warnings — same file, no new module). Not independently verified:
+no interactive click-through confirming the QR actually now encodes
+`http://192.168.1.203:8080` in the running Wizard — verified by reading
+the fixed function and the clean build only.
+
 ## Follow-up: fixed AC auto-detect clobbering `setupComplete` on hydrate
 
 2026-07-12: found while driving the app live (a throwaway Playwright
