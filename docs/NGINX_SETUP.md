@@ -1,7 +1,8 @@
 # nginx Setup — Companion PWA
 
-The PWA is a static build served by nginx on `shinobi`, on port 80/443, alongside
-the existing Express backend on port 3000. nginx serves the PWA's files directly
+The PWA is a static build served by nginx on `shinobi`, on port 8080 (not 80 —
+the bare IP root is already claimed by imq2's own web app), alongside the
+existing Express backend on port 3000. nginx serves the PWA's files directly
 and reverse-proxies `/api/` and `/socket.io/` through to the backend, so the PWA
 and the backend look like a single origin to the browser.
 
@@ -34,9 +35,13 @@ first time, before `sites-available/shinracer` exists.)
 
 ## 3. What the config does
 
-- Serves `/home/shinobi/shinracer-pwa` (the PWA's built `dist/` output) as
+- Serves `/var/www/shinracer-pwa` (the PWA's built `dist/` output) as
   static files, with SPA fallback (`try_files ... /index.html`) so client-side
-  routes like `/events/evt_123` don't 404 on a hard refresh.
+  routes like `/events/evt_123` don't 404 on a hard refresh. Deliberately
+  outside `/home/shinobi` — a Pi user's home directory defaults to `700`,
+  which blocks nginx's `www-data` worker from even traversing into it;
+  `/var/www` is the standard, world-traversable location for this exact
+  reason.
 - `/auth/callback` explicitly falls through to `index.html` too — it's a
   client-side route (`AuthCallbackPage`), not a real file, but it needs its
   own `location` block since it doesn't have an extension nginx would
@@ -68,7 +73,11 @@ first time, before `sites-available/shinracer` exists.)
   Check `sudo systemctl status ac-companion`.
 - **Blank page / assets 404** — `dist/` wasn't actually deployed, or nginx's
   `root` doesn't match where `deploy-pwa.ps1` copied it
-  (`/home/shinobi/shinracer-pwa`). Confirm with `ls /home/shinobi/shinracer-pwa`.
+  (`/var/www/shinracer-pwa`). Confirm with `ls /var/www/shinracer-pwa`.
+- **500 / "Permission denied" in `nginx error.log`** — nginx's `www-data`
+  worker can't read the static root. Confirm ownership/permissions with
+  `namei -om /var/www/shinracer-pwa/index.html` — every directory in the
+  chain needs at least execute (traversal) permission for `www-data`.
 - **Socket.io falls back to polling instead of websockets** — check that the
   `Upgrade`/`Connection` headers in the `/socket.io/` block weren't stripped
   by an intermediate proxy (unlikely on a direct Tailscale/LAN connection,

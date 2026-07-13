@@ -8,10 +8,10 @@ Write-Host "--- Step 1: building PWA ---" -ForegroundColor Cyan
 cmd /c "cd pwa && npm run build"
 Write-Host "--- Step 1 complete ---" -ForegroundColor Green
 Write-Host "--- Step 2: creating remote directory ---" -ForegroundColor Cyan
-ssh shinobi@192.168.1.203 "mkdir -p /home/shinobi/shinracer-pwa"
+ssh shinobi@192.168.1.203 "sudo mkdir -p /var/www/shinracer-pwa && sudo chown shinobi:shinobi /var/www/shinracer-pwa"
 Write-Host "--- Step 2 complete ---" -ForegroundColor Green
 Write-Host "--- Step 3: copying built files ---" -ForegroundColor Cyan
-scp -r pwa\dist\* shinobi@192.168.1.203:/home/shinobi/shinracer-pwa/
+scp -r pwa\dist\* shinobi@192.168.1.203:/var/www/shinracer-pwa/
 Write-Host "--- Step 3 complete ---" -ForegroundColor Green
 Write-Host "--- Step 4: copying nginx config ---" -ForegroundColor Cyan
 scp backend\nginx\shinracer.conf shinobi@192.168.1.203:/tmp/shinracer.conf

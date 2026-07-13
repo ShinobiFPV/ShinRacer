@@ -57,7 +57,7 @@ existing OAuth client setup steps, for exactly what to add and where.
 ```
 
 Builds the PWA locally (`vite build`), copies `pwa/dist/*` to
-`/home/shinobi/shinracer-pwa` on the Pi, installs/refreshes the nginx config,
+`/var/www/shinracer-pwa` on the Pi, installs/refreshes the nginx config,
 and prints a health check. Re-run this any time PWA code changes — the
 backend (`.\scripts\deploy-backend.ps1`) is still a separate deploy, same as
 it's always been.
