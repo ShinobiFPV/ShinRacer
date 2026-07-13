@@ -3248,6 +3248,40 @@ no interactive click-through confirming the QR actually now encodes
 `http://192.168.1.203:8080` in the running Wizard — verified by reading
 the fixed function and the clean build only.
 
+## Follow-up: deployed the PWA to shinobi, fixed two real bugs in deploy-pwa.ps1
+
+2026-07-13: ran `scripts/deploy-pwa.ps1` for real for the first time (prior
+phases had only parse-checked it, never executed it against shinobi).
+Confirmed SSH connectivity first, then ran it — nginx was already correctly
+installed and serving on 8080 from the earlier port-migration commits, so
+only the static files needed refreshing.
+
+Two real bugs surfaced from actually running it, not just reading it:
+- **Steps 2/5/6/7/8's `sudo` calls fail non-interactively** — shinobi has
+  no passwordless sudo configured for `mkdir`/`chown`/`cp`/`ln`/`nginx -t`/
+  `systemctl reload nginx` (unlike `deploy-backend.ps1`'s own
+  `systemctl restart ac-companion`, which already has a documented sudoers
+  rule). Harmless this run since the directory and nginx site already
+  existed from first-time setup, but would leave a fresh Pi's nginx config
+  never actually installed with no visible failure beyond a `sudo:` line in
+  the output. Documented in the script's header comment (matching
+  `deploy-backend.ps1`'s existing convention) with the exact
+  `/etc/sudoers.d/` NOPASSWD rule needed — not fixed in the script itself,
+  since that requires a manual edit on the Pi this repo has no access to.
+- **Step 3's `scp -r pwa\dist\*` silently failed** (`stat local "pwadist*":
+  No such file or directory` — the backslashes were stripped entirely
+  before reaching `scp.exe`). Fixed by switching that path and step 4's
+  nginx-conf path to forward slashes, which resolve correctly regardless of
+  which shell invokes the script. Re-ran the full script after the fix and
+  confirmed the file copy actually landed (new file mtimes on shinobi,
+  `index-Cmn86qsh.js` matching this build's real output hash) and
+  `http://192.168.1.203:8080/` returns 200.
+
+Verified this pass: real SSH/scp round-trip against shinobi (not simulated)
+both before and after the fix, confirming the before-state actually failed
+and the after-state actually works. `[scriptblock]::Create()` parse-check
+still passes post-edit.
+
 ## Follow-up: fixed AC auto-detect clobbering `setupComplete` on hydrate
 
 2026-07-12: found while driving the app live (a throwaway Playwright
