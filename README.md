@@ -18,7 +18,7 @@ ShinRacer is the app your AC friend group never knew it needed but won't be able
 
 One app. Everything the crew needs. Server up in 30 seconds, traffic dialed in for a 2am Shutoko run, race night on the calendar, everyone in voice, lap times already logged before you've tabbed back out. No Discord bots stitched to a spreadsheet. No third-party SaaS holding your data hostage. It all runs on a Raspberry Pi in shinobi's setup and a private Tailscale network — nobody outside the crew even knows it exists. One Google sign-in gets you in; there's no password to remember and no account to create.
 
-Hover anything you don't recognize — every control explains what it actually does, not just what its label already told you. And it doesn't look like a spreadsheet with buttons bolted on: true black, sharp edges, electric blue, gauges built to read at a glance. Gold means exactly three things — your personal best, a favorited replay, first place on the board. Everywhere else, you'll just feel it.
+Hover anything you don't recognize — every control explains what it actually does, not just what its label already told you. And it doesn't look like a spreadsheet with buttons bolted on: pure black, monospace, amber accents, rounded corners — the same terminal-dashboard look as the rest of the ShinTech fleet, built to actually read at a glance instead of just looking sharp in a screenshot.
 
 ## What it does
 
@@ -40,6 +40,8 @@ Your server. Up. Without touching a single config file.
 ### ✨ Server Builder Wizard
 
 Don't want to think about ports and INI keys? Answer a few questions instead.
+
+![Server Builder Wizard — pick tonight's vibe, step 1 of 6](docs/screenshots/server-wizard.png)
 
 - Step 1 sets the whole vibe — Race Night, Drift Session, Hotlap Practice, or Cruise — and every step after adapts to it
 - Track and car pickers pull from your real AC content, same as the full Build form
@@ -203,6 +205,8 @@ Every crew member is Admin, Host, or Crew. Nobody types in a password to get the
 ### 🧙 First-Run Wizard
 
 New to the crew? Sign in with Google and you're in — the app fills in the rest from there.
+
+![First-Run Wizard — the welcome screen, Google sign-in only](docs/screenshots/wizard-welcome.png)
 
 - **Sign in with Google** is step one; your handle and color default from your Google profile and are yours to change right after
 - Finds your AC install on its own from the usual Steam paths
