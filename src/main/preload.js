@@ -279,4 +279,12 @@ contextBridge.exposeInMainWorld('api', {
       return () => ipcRenderer.removeAllListeners('stereo:state')
     },
   },
+
+  // AI Race Engineer — optional, client-side LLM chat (Claude/OpenAI/local)
+  // + push-to-talk voice (Deepgram STT/TTS, no wake word)
+  aiEngineer: {
+    chat: (req) => ipcRenderer.invoke('ai:chat', req),
+    transcribe: (req) => ipcRenderer.invoke('ai:transcribe', req),
+    speak: (req) => ipcRenderer.invoke('ai:speak', req),
+  },
 })

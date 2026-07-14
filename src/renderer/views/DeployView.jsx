@@ -417,9 +417,17 @@ export default function DeployView({ onBuild, onOpenWizard }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ padding: '16px 24px 0', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+      {/* In-content header row — was previously a button floating in the window's
+          top-right drag region, but that's also where Windows draws its native
+          minimize/maximize/close overlay (see main.js's titleBarOverlay), so it
+          kept getting crowded/hidden under those controls. Living in the page
+          content instead sidesteps that entirely. */}
+      <div style={{ padding: '16px 24px 0', flexShrink: 0, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
         <Tooltip text="Enter an invite code to see connection details">
           <Btn variant="ghost" size="sm" onClick={openJoinModal}>Join server</Btn>
+        </Tooltip>
+        <Tooltip text="Open the server builder to configure and launch a new server">
+          <Btn size="sm" onClick={onBuild}>+ New server</Btn>
         </Tooltip>
       </div>
 

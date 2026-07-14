@@ -24,6 +24,7 @@ import FpvView     from './views/FpvView'
 import ForzaMapView from './views/ForzaMapView'
 import StereoView  from './views/StereoView'
 import LinksView   from './views/LinksView'
+import EngineerView from './views/EngineerView'
 import SettingsView from './views/SettingsView'
 import AdminView   from './views/AdminView'
 import OverlayApp  from './OverlayApp'
@@ -52,6 +53,7 @@ const NAV = [
   { id:'forzamap', icon:'🗺️', label:'Forza Map',       role:'crew'  },
   { id:'stereo',   icon:'🎵', label:'Car Stereo',      role:'crew'  },
   { id:'links',    icon:'🔗', label:'Links',           role:'crew'  },
+  { id:'engineer', icon:'🧠', label:'AI Engineer',     role:'crew'  },
   { id:'settings', icon:'⚙',  label:'Settings',        role:'crew'  },
   { id:'admin',    icon:'🔐', label:'Admin',           role:'admin' },
 ]
@@ -168,7 +170,7 @@ function AccessRestricted() {
 // ── Inner app (has store access) ──────────────────────────────────────────────
 function Inner() {
   const { liveServers, settings, profiles, saveProfiles, addLiveServer, toast, backendUrl, backendOnline, hydrated, showToast,
-    saveSettings, saveBackendUrl, saveQuickPhrases,
+    saveSettings, saveBackendUrl, saveQuickPhrases, saveAiEngineer,
     user, role, isSignedIn, authLoading } = useStore()
   const [view, setView]   = useState('deploy')
   const [buildCfg, setBuildCfg] = useState(null)
@@ -182,10 +184,11 @@ function Inner() {
   // non-auth pieces (AC path, backend URL, quick phrases) once the wizard's
   // done. Identity (handle/color) lives on googleAuth and is saved via
   // saveIdentity from within the wizard's own Identity step instead.
-  const finishSetup = async ({ settings: s, backendUrl: bUrl, quickPhrases }) => {
+  const finishSetup = async ({ settings: s, backendUrl: bUrl, quickPhrases, aiEngineer }) => {
     await saveSettings(s)
     await saveBackendUrl(bUrl)
     await saveQuickPhrases(quickPhrases)
+    if (aiEngineer) await saveAiEngineer(aiEngineer)
   }
 
   // Shared with BuildView's own deploy/save flow via lib/deploy.js — the
@@ -302,18 +305,6 @@ function Inner() {
                 color:C.textPrimary, WebkitAppRegion:'no-drag' }}>
                 {currentNavItem?.label}
               </span>
-              {view==='deploy' && (
-                <span style={{ marginLeft:'auto', WebkitAppRegion:'no-drag' }}>
-                  <Tooltip text="Open the server builder to configure and launch a new server" position="left">
-                    <button onClick={() => goToBuild()}
-                      style={{ background:C.blue, color:'#000000', border:'none',
-                        borderRadius: 8, padding:'6px 18px', fontFamily:C.body, fontWeight:700, textTransform:'uppercase',
-                        letterSpacing:1.5, fontSize:12, cursor:'pointer' }}>
-                      + New server
-                    </button>
-                  </Tooltip>
-                </span>
-              )}
             </div>
 
             {/* Update banner — sits between header and content */}
@@ -338,6 +329,7 @@ function Inner() {
                   {view==='forzamap'&& <ForzaMapView />}
                   {view==='stereo'  && <StereoView />}
                   {view==='links'   && <LinksView />}
+                  {view==='engineer'&& <EngineerView onGoSettings={() => setView('settings')} />}
                   {view==='settings'&& <SettingsView />}
                   {view==='admin'   && <AdminView />}
                 </>}

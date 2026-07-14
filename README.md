@@ -190,6 +190,18 @@ Everywhere the crew actually goes for mods, tools, and guides — one tab, not a
 - One click to visit (opens in your real browser, never trapped in the app) or copy the link
 - Fully local — the built-in list ships with the app, your additions live on your machine, nothing phones home
 
+### 🎙️ AI Race Engineer
+
+Optional. Off by default. Bring your own key and it actually talks back.
+
+- Bring your own Claude or OpenAI key, or point it at a local model (Ollama, LM Studio, anything OpenAI-compatible) — your call, your cost, your data
+- Text chat that sees your live telemetry every turn — ask "how's my fuel?" and it answers with real numbers pulled straight from whichever sim you're running, not a guess
+- Proactive alerts — fuel, tyre temps, tyre wear, wheel slip, damage, flags — toasted the moment a threshold's crossed, silent the rest of the time
+- Push-to-talk voice — hold the mic button, ask your question, hear it talk back — one Deepgram key handles both speech-to-text and text-to-speech
+- No wake word, no always-listening mic — it only hears you while you're actually holding the button down
+- Entirely client-side: your key, your telemetry, and everything you say to it go straight to whichever provider you picked and nowhere else — never through the backend, never anywhere near any other ShinTech app
+- Set it up during the first-run wizard or any time after from Settings — skip it entirely if you don't want it
+
 ### 🔐 Roles & Admin Panel
 
 Every crew member is Admin, Host, or Crew. Nobody types in a password to get there — Google sign-in decides who you are, `roles.json` decides what you can do.
@@ -213,6 +225,7 @@ New to the crew? Sign in with Google and you're in — the app fills in the rest
 - Host or Admin? Two extra steps appear — AC path confirmation and a host-readiness check. Everyone else skips straight past them
 - Backend URL's already filled in — just hit test and confirm it connects
 - Set up your quick-phrases while you're at it
+- AI Race Engineer step — paste a Claude/OpenAI key or point it at a local server, or just skip it; entirely optional and just as easy to turn on later from Settings
 - Nothing saves until you hit "Done" on the last screen
 
 ## For the crew on mobile
@@ -287,7 +300,7 @@ The heavy lifting runs on a Pi 5 in shinobi's setup. Everyone else just runs the
 
 Every request to the backend — from the desktop app, the PWA, either one — carries a Google ID token, verified against Google's own servers on every single call. Nothing in this diagram trusts a client just because it asked nicely.
 
-Server Manager, Traffic Manager, Live Telemetry, and the Replay Browser don't need the backend at all — that's just you and your AC install. Events, Comms, Stats, and the Admin panel do, because those are the parts that are actually shared. Mod Manager needs it too for browsing and downloads (it's just proxying Drive), and — since Phase 12 — so does everything else, because signing in is how ShinRacer knows who you are at all now.
+Server Manager, Traffic Manager, Live Telemetry, the Replay Browser, and the AI Race Engineer don't need the backend at all — that's just you, your AC install, and (for the AI Race Engineer) whichever LLM/Deepgram provider you brought your own key for. Events, Comms, Stats, and the Admin panel do, because those are the parts that are actually shared. Mod Manager needs it too for browsing and downloads (it's just proxying Drive), and — since Phase 12 — so does everything else, because signing in is how ShinRacer knows who you are at all now.
 
 ## Under the hood
 
@@ -301,7 +314,9 @@ Since you asked:
 | Backend | Node.js 24 + Express |
 | Realtime | Socket.io 4 |
 | Database | SQLite via better-sqlite3 |
-| Voice | WebRTC (browser APIs, peer-to-peer mesh) |
+| Voice (Comms) | WebRTC (browser APIs, peer-to-peer mesh) |
+| AI Race Engineer | Bring-your-own-key: Claude, OpenAI, or any local OpenAI-compatible server (Ollama, LM Studio) — client-side only, no backend involved |
+| AI voice (STT/TTS) | Deepgram REST API, push-to-talk only — no wake word |
 | Auth | Google Sign-In (OAuth 2.0 + ID tokens), role-based access via `roles.json` |
 | Telemetry | Shared memory (AC1, ACC, AC Evo, AC Rally) + UDP (FH5, FH6, F1 25, AMS2), one canonical frame shape |
 | Music | Spotify Web Playback SDK + Web API, embedded BrowserViews for YouTube Music/Apple Music, music-metadata for local file tags |

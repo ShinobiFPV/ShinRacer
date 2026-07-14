@@ -29,6 +29,29 @@ export const DEFAULT_QUICK_PHRASES = [
   'Ready when you are', 'Give me 2 mins', 'On my way to grid', 'GG',
 ]
 
+// AI Race Engineer — optional, off by default. Independent top-level store
+// key (never nested inside `settings` — see Phase 2's backendUrl bug note in
+// CLAUDE.md). API key/model/baseUrl are entirely the driver's own; nothing
+// here is ever sent to backendUrl or any Q2/imq2 endpoint.
+export const DEFAULT_AI_ENGINEER = {
+  enabled: false,
+  provider: 'claude', // 'claude' | 'openai' | 'local'
+  apiKey: '',
+  model: '',
+  localBaseUrl: '',
+  alertsEnabled: true,
+  // Voice — push-to-talk only, no wake word. Deepgram handles both directions
+  // (speech-to-text for the mic button, text-to-speech for spoken replies),
+  // same as imq2's voice pipeline, but with only the Deepgram backend and no
+  // VAD/wake-word auto-listening — every turn is an explicit hold-to-talk.
+  voice: {
+    enabled: false,
+    deepgramApiKey: '',
+    sttModel: 'nova-3',
+    ttsModel: 'aura-2-zeus-en',
+  },
+}
+
 function shapeAuthUser(data) {
   return { uid: data.uid, email: data.email, name: data.name, picture: data.picture }
 }
@@ -37,6 +60,7 @@ export function AppStoreProvider({ children }) {
   const [settings, setSettingsState]   = useState(DEFAULT_SETTINGS)
   const [backendUrl, setBackendUrlState] = useState(DEFAULT_BACKEND_URL)
   const [quickPhrases, setQuickPhrasesState] = useState(DEFAULT_QUICK_PHRASES)
+  const [aiEngineer, setAiEngineerState] = useState(DEFAULT_AI_ENGINEER)
   const [liveServers, setLiveServers]  = useState([])   // { id, name, config, startedAt, pid, logPath }
   const [profiles, setProfiles]        = useState([])   // server config presets
   const [trafficProfiles, setTrafficProfiles] = useState([])
@@ -104,6 +128,7 @@ export function AppStoreProvider({ children }) {
         setApiBackendUrl(saved.backendUrl)
       }
       if (saved.quickPhrases?.length) setQuickPhrasesState(saved.quickPhrases)
+      if (saved.aiEngineer) setAiEngineerState({ ...DEFAULT_AI_ENGINEER, ...saved.aiEngineer })
 
       // Detect AC install
       const detected = await api.ac.detect()
@@ -288,6 +313,12 @@ export function AppStoreProvider({ children }) {
     await api.store.set('quickPhrases', next)
   }, [])
 
+  const saveAiEngineer = useCallback(async (patch) => {
+    const next = { ...DEFAULT_AI_ENGINEER, ...aiEngineer, ...patch }
+    setAiEngineerState(next)
+    await api.store.set('aiEngineer', next)
+  }, [aiEngineer])
+
   const saveProfiles = useCallback(async (next) => {
     setProfiles(next)
     await api.store.set('profiles', next)
@@ -307,6 +338,7 @@ export function AppStoreProvider({ children }) {
       identity, saveIdentity,
       backendUrl, saveBackendUrl,
       quickPhrases, saveQuickPhrases,
+      aiEngineer, saveAiEngineer,
       profiles, saveProfiles,
       trafficProfiles, saveTrafficProfiles,
       liveServers, addLiveServer, removeLiveServer,

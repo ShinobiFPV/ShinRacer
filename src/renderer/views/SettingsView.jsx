@@ -3,6 +3,7 @@ import axios from 'axios'
 import httpApi from '../lib/api'
 import { C, Card, SectionHead, Label, Btn, TextInput, Select, Toggle } from '../components/primitives'
 import Tooltip from '../components/Tooltip'
+import AiEngineerSetup from '../components/AiEngineerSetup'
 import { useStore, DEFAULT_QUICK_PHRASES } from '../store/AppStore'
 
 const api = window.api
@@ -193,6 +194,20 @@ function TelemetrySection() {
           )
         )}
       </div>
+    </Card>
+  )
+}
+
+// ── AI Race Engineer section ────────────────────────────────────────────────
+// Instant-save (like TelemetrySection above) rather than the page-level
+// dirty/save-button flow — this isn't part of the AC-path/backend batch and
+// there's no reason to make "enable the race engineer" wait on "Save settings".
+function AiEngineerSection() {
+  const { aiEngineer, saveAiEngineer } = useStore()
+  return (
+    <Card accent={C.borderHi}>
+      <SectionHead children="AI Race Engineer" sub="Optional — a telemetry-aware chat assistant and proactive alerts, powered by your own LLM key. Off by default; never sent to ShinTech's servers." />
+      <AiEngineerSetup value={aiEngineer} onChange={saveAiEngineer} />
     </Card>
   )
 }
@@ -505,6 +520,7 @@ export default function SettingsView() {
 
       <TelemetrySection />
       <ForzaMapSection />
+      <AiEngineerSection />
 
       <Card accent={C.borderHi}>
         <SectionHead children="Server defaults" sub="Used as starting values when creating a new server config" />

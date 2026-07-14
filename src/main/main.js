@@ -1059,6 +1059,19 @@ ipcMain.handle('network:localIp', () => {
 // ── IPC: Machine hostname (Phase 12 host registration) ───────────────────────
 ipcMain.handle('system:hostname', () => os.hostname())
 
+// ── IPC: AI Race Engineer ─────────────────────────────────────────────────────
+// Optional, off-by-default feature — the driver brings their own Claude/OpenAI
+// key or points at a local OpenAI-compatible server (Ollama/LM Studio). Calls
+// go straight from this main process to the chosen provider; never relayed
+// through backend/ (the Pi-hosted service) and never touches imq2/Q2.
+const { chatCompletion } = require('./ai/providers')
+ipcMain.handle('ai:chat', (_, req) => chatCompletion(req))
+
+// Voice — push-to-talk only, no wake word. See ai/deepgram.js's header comment.
+const { transcribe, synthesize } = require('./ai/deepgram')
+ipcMain.handle('ai:transcribe', (_, req) => transcribe(req))
+ipcMain.handle('ai:speak', (_, req) => synthesize(req))
+
 // ── IPC: Port availability (Host Status readiness checklist) ────────────────
 ipcMain.handle('net:checkPortAvailable', (_, port) => new Promise((resolve) => {
   const tester = net.createServer()

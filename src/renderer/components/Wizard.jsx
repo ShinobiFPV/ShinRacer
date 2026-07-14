@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import axios from 'axios'
 import qrcode from 'qrcode-generator'
 import { C, Card, Label, Btn, TextInput } from './primitives'
-import { DEFAULT_QUICK_PHRASES, DEFAULT_BACKEND_URL } from '../store/AppStore'
+import { DEFAULT_QUICK_PHRASES, DEFAULT_BACKEND_URL, DEFAULT_AI_ENGINEER } from '../store/AppStore'
 import { useStore } from '../store/AppStore'
 import httpApi from '../lib/api'
+import AiEngineerSetup from './AiEngineerSetup'
 
 const api = window.api
 
@@ -303,6 +304,21 @@ function HostCheckStep({ data, backendOnline, registered, onRegister }) {
   )
 }
 
+// ── Step: AI Race Engineer (optional) ────────────────────────────────────────
+function AiEngineerStep({ data, setData }) {
+  const setAiEngineer = (patch) => setData(d => ({ ...d, aiEngineer: { ...d.aiEngineer, ...patch } }))
+  return (
+    <Card style={{ width: 520 }}>
+      <div style={{ fontFamily: C.head, fontSize: 22, letterSpacing: 1, marginBottom: 6 }}>AI Race Engineer (optional)</div>
+      <div style={{ fontSize: 13, color: C.muted, marginBottom: 18 }}>
+        A telemetry-aware chat assistant and proactive alerts, powered by your own Claude/OpenAI key or a local
+        server. Off by default — skip this and set it up in Settings any time.
+      </div>
+      <AiEngineerSetup value={data.aiEngineer} onChange={setAiEngineer} />
+    </Card>
+  )
+}
+
 // ── Step: Quick phrases ──────────────────────────────────────────────────────
 function PhrasesStep({ data, setData }) {
   const setPhrase = (i, v) => setData(d => ({ ...d, quickPhrases: d.quickPhrases.map((p, idx) => (idx === i ? v : p)) }))
@@ -429,6 +445,7 @@ export default function Wizard({ onComplete }) {
     handle: '', color: C.blue,
     backendUrl: storeBackendUrl || DEFAULT_BACKEND_URL, backendSkipped: false,
     quickPhrases: [...DEFAULT_QUICK_PHRASES],
+    aiEngineer: { ...DEFAULT_AI_ENGINEER },
   })
 
   // Detection: AC root via api.ac.detect(), then confirm acServer.exe itself exists.
@@ -469,7 +486,7 @@ export default function Wizard({ onComplete }) {
   const steps = useMemo(() => {
     const base = ['welcome', 'connecting', 'identity', 'backend']
     if (isHostOrAdmin) base.push('acpath', 'hostcheck')
-    base.push('phrases', 'pwa', 'done')
+    base.push('phrases', 'aiengineer', 'pwa', 'done')
     return base
   }, [isHostOrAdmin])
   const stepId = steps[stepIdx] || 'welcome'
@@ -530,16 +547,17 @@ export default function Wizard({ onComplete }) {
       settings: { acPath: data.acPath, acServerExe: data.acServerExe, setupComplete: true },
       backendUrl: data.backendUrl,
       quickPhrases: data.quickPhrases,
+      aiEngineer: data.aiEngineer,
     })
   }, [data, onComplete, saveIdentity])
 
   const primaryEnabled = {
     welcome: true, connecting: false, identity: data.handle.trim().length >= 2,
-    backend: true, acpath: acPathValid, hostcheck: true, phrases: true, pwa: true, done: !finishing,
+    backend: true, acpath: acPathValid, hostcheck: true, phrases: true, aiengineer: true, pwa: true, done: !finishing,
   }[stepId]
   const primaryAction = {
     welcome: handleSignIn, connecting: () => {}, identity: goNext, backend: goNext,
-    acpath: goNext, hostcheck: goNext, phrases: goNext, pwa: goNext, done: finish,
+    acpath: goNext, hostcheck: goNext, phrases: goNext, aiengineer: goNext, pwa: goNext, done: finish,
   }[stepId]
 
   useEffect(() => {
@@ -575,6 +593,7 @@ export default function Wizard({ onComplete }) {
           <HostCheckStep data={data} backendOnline={backendOnline} registered={hostRegistered} onRegister={registerAsHost} />
         )}
         {stepId === 'phrases' && <PhrasesStep data={data} setData={setData} />}
+        {stepId === 'aiengineer' && <AiEngineerStep data={data} setData={setData} />}
         {stepId === 'pwa' && <PwaStep backendUrl={data.backendUrl} />}
         {stepId === 'done' && <DoneStep data={data} googleUser={user} role={role || 'crew'} onFinish={finish} />}
       </div>
