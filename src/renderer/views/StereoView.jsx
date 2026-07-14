@@ -778,7 +778,7 @@ function MixerBar({ stereo }) {
 
   return (
     <div style={{ height: 120, flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 20px', gap: 4,
-      background: C.surface, borderTop: `1px solid ${C.border}`, overflowX: 'auto' }}>
+      background: C.surface, borderBottom: `1px solid ${C.border}`, overflowX: 'auto' }}>
       <ChannelStrip label="MUSIC" sublabel={activeSource.toUpperCase()} value={volumes.music} onChange={v => setVolume('music', v)}
         onReset={() => setVolume('music', 100)} muted={muted.music} onToggleMute={() => toggleMute('music')}
         solo={solo} onToggleSolo={() => toggleSolo()} level={activeSource === 'local' ? musicLevel : musicSimLevel} color={C.blue} />
@@ -840,6 +840,7 @@ export default function StereoView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      <MixerBar stereo={stereo} />
       <NowPlayingBar stereo={stereo} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '12px 20px 0' }}>
@@ -857,7 +858,6 @@ export default function StereoView() {
           {tab === 'settings' && <StereoSettingsTab stereo={stereo} />}
         </div>
       </div>
-      <MixerBar stereo={stereo} />
     </div>
   )
 }

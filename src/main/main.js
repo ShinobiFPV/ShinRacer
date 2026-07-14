@@ -807,14 +807,43 @@ ipcMain.handle('telemetry:setForzaPort', (_, port) => telemetryManager?.setForza
 ipcMain.handle('telemetry:setF125Port', (_, port) => telemetryManager?.setF125Port(port) ?? { ok: true })
 ipcMain.handle('telemetry:setAMS2Port', (_, port) => telemetryManager?.setAMS2Port(port) ?? { ok: true })
 
+// Saved overlay x/y (from a corner-snap or a manual drag) can point at a
+// monitor that's no longer connected — e.g. the overlay was last positioned
+// on a second display that's since been unplugged. A window created at
+// those coordinates is technically real (visible: true, no error) but
+// invisible to the user, which looks exactly like "the pop-out never
+// appeared." Same class of fix already applied to the main window's own
+// saved bounds on Phase 3's Track 5 — just never extended to the overlays.
+function clampToVisibleDisplay(x, y, width, height) {
+  if (typeof x !== 'number' || typeof y !== 'number') return { x: undefined, y: undefined }
+  const rect = { x, y, width: width || 1, height: height || 1 }
+  const onScreen = screen.getAllDisplays().some(d => {
+    const a = d.workArea
+    return rect.x < a.x + a.width && rect.x + rect.width > a.x &&
+      rect.y < a.y + a.height && rect.y + rect.height > a.y
+  })
+  return onScreen ? { x, y } : { x: undefined, y: undefined }
+}
+
 // ── IPC: Telemetry overlay window ─────────────────────────────────────────────
 ipcMain.handle('telemetry:openOverlay', async (_, config = {}) => {
-  if (overlayWindow) { overlayWindow.focus(); return { ok: true, alreadyOpen: true } }
+  if (overlayWindow) {
+    try {
+      overlayWindow.focus()
+      return { ok: true, alreadyOpen: true }
+    } catch (e) {
+      // Stale reference to an already-destroyed window (focus() throws
+      // "Object has been destroyed") — clear it and fall through to create
+      // a fresh one instead of silently no-op'ing the whole request.
+      overlayWindow = null
+    }
+  }
   try {
+    const safePos = clampToVisibleDisplay(config.x, config.y, config.width || 800, config.height || 200)
     overlayWindow = new BrowserWindow({
       width: config.width || 800,
       height: config.height || 200,
-      x: config.x, y: config.y,
+      x: safePos.x, y: safePos.y,
       alwaysOnTop: config.alwaysOnTop ?? true,
       transparent: true,
       frame: false,
@@ -911,13 +940,24 @@ ipcMain.handle('cluster:sendKey', async (_, { key }) => {
 })
 
 ipcMain.handle('cluster:openOverlay', async (_, config) => {
-  if (clusterOverlayWindow) { clusterOverlayWindow.focus(); return { ok: true, alreadyOpen: true } }
+  if (clusterOverlayWindow) {
+    try {
+      clusterOverlayWindow.focus()
+      return { ok: true, alreadyOpen: true }
+    } catch (e) {
+      // Stale reference to an already-destroyed window — clear it and fall
+      // through to create a fresh one instead of silently no-op'ing.
+      clusterOverlayWindow = null
+    }
+  }
   try {
+    const cw = config.layout.canvasWidth + 16, ch = config.layout.canvasHeight + 16
+    const safePos = clampToVisibleDisplay(config.x ?? 100, config.y ?? 100, cw, ch)
     clusterOverlayWindow = new BrowserWindow({
-      width: config.layout.canvasWidth + 16,
-      height: config.layout.canvasHeight + 16,
-      x: config.x ?? 100,
-      y: config.y ?? 100,
+      width: cw,
+      height: ch,
+      x: safePos.x ?? 100,
+      y: safePos.y ?? 100,
       alwaysOnTop: config.alwaysOnTop ?? true,
       transparent: true,
       frame: false,

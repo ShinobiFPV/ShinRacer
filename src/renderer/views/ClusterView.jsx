@@ -704,6 +704,8 @@ function EditorTab({ layout, setLayout, identity, localPresets, saveLocalPresets
 
   function launchOverlay() {
     win.cluster.openOverlay({ layout, alwaysOnTop: true, opacity: 1 })
+      .then(res => { if (!res?.ok) showToast(res?.error || 'Could not open the overlay window', C.red) })
+      .catch(e => showToast(e.message || 'Could not open the overlay window', C.red))
   }
 
   if (preview) {
@@ -779,7 +781,11 @@ function EditorTab({ layout, setLayout, identity, localPresets, saveLocalPresets
 function MyClustersTab({ localPresets, saveLocalPresets, onEdit, identity, showToast }) {
   const [importError, setImportError] = useState(null)
 
-  function launch(layout) { win.cluster.openOverlay({ layout, alwaysOnTop: true, opacity: 1 }) }
+  function launch(layout) {
+    win.cluster.openOverlay({ layout, alwaysOnTop: true, opacity: 1 })
+      .then(res => { if (!res?.ok) showToast(res?.error || 'Could not open the overlay window', C.red) })
+      .catch(e => showToast(e.message || 'Could not open the overlay window', C.red))
+  }
 
   async function del(record) {
     if (record.backendId) {
@@ -896,7 +902,8 @@ function PublicLibraryTab({ identity, onEdit, localPresets, saveLocalPresets, sh
     try {
       const { data } = await api.get(`/api/cluster/presets/${preset.id}`)
       if (!data.ok) { showToast(data.error, C.red); return }
-      win.cluster.openOverlay({ layout: data.data.layout, alwaysOnTop: true, opacity: 1 })
+      const res = await win.cluster.openOverlay({ layout: data.data.layout, alwaysOnTop: true, opacity: 1 })
+      if (!res?.ok) showToast(res?.error || 'Could not open the overlay window', C.red)
     } catch (e) {
       showToast(e.message, C.red)
     }

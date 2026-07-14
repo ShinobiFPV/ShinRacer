@@ -401,7 +401,7 @@ function ConfigureTab({ enabledWidgets, setEnabledWidgets, activePresetId, apply
 }
 
 // ── OVERLAY tab ──────────────────────────────────────────────────────────
-function OverlayTab({ overlayOpen, overlayConfig, updateOverlayConfig, onOpen, onClose }) {
+function OverlayTab({ overlayOpen, overlayConfig, updateOverlayConfig, onOpen, onClose, overlayError }) {
   const activePreset = overlayConfig.presetId
 
   const applyPreset = (presetId) => {
@@ -430,6 +430,7 @@ function OverlayTab({ overlayOpen, overlayConfig, updateOverlayConfig, onOpen, o
             </Tooltip>
           )}
         </div>
+        {overlayError && <div style={{ color: C.red, fontSize: 12, marginTop: 10 }}>✕ {overlayError}</div>}
       </Card>
 
       <Card accent={C.borderHi}>
@@ -500,6 +501,7 @@ export default function TelemetryView() {
     alwaysOnTop: true, opacity: 0.85, presetId: 'minimal', width: 320, height: 50, x: 100, y: 100,
   })
   const [overlayOpen, setOverlayOpen] = useState(false)
+  const [overlayError, setOverlayError] = useState(null)
 
   const persistLayout = (widgets, presetId) => {
     setEnabledWidgetsState(widgets)
@@ -546,9 +548,14 @@ export default function TelemetryView() {
   }
 
   const openOverlay = async () => {
-    const res = await api.telemetry.openOverlay(overlayConfig)
-    if (res?.ok) setOverlayOpen(true)
     setTab('overlay')
+    try {
+      const res = await api.telemetry.openOverlay(overlayConfig)
+      if (res?.ok) { setOverlayOpen(true); setOverlayError(null) }
+      else setOverlayError(res?.error || 'Could not open the overlay window')
+    } catch (e) {
+      setOverlayError(e.message || 'Could not open the overlay window')
+    }
   }
   const closeOverlay = async () => {
     await api.telemetry.closeOverlay()
@@ -571,7 +578,7 @@ export default function TelemetryView() {
             activePresetId={activePresetId} applyPreset={applyPreset} />
         )}
         {tab === 'overlay' && (
-          <OverlayTab overlayOpen={overlayOpen} overlayConfig={overlayConfig}
+          <OverlayTab overlayOpen={overlayOpen} overlayConfig={overlayConfig} overlayError={overlayError}
             updateOverlayConfig={updateOverlayConfig} onOpen={openOverlay} onClose={closeOverlay} />
         )}
       </div>
