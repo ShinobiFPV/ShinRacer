@@ -194,13 +194,17 @@ Everywhere the crew actually goes for mods, tools, and guides — one tab, not a
 
 Optional. Off by default. Bring your own key and it actually talks back.
 
+![AI Race Engineer — telemetry-aware chat plus a live alert feed](docs/screenshots/ai-engineer.png)
+
 - Bring your own Claude or OpenAI key, or point it at a local model (Ollama, LM Studio, anything OpenAI-compatible) — your call, your cost, your data
-- Text chat that sees your live telemetry every turn — ask "how's my fuel?" and it answers with real numbers pulled straight from whichever sim you're running, not a guess
-- Proactive alerts — fuel, tyre temps, tyre wear, wheel slip, damage, flags — toasted the moment a threshold's crossed, silent the rest of the time
-- Push-to-talk voice — hold the mic button, ask your question, hear it talk back — one Deepgram key handles both speech-to-text and text-to-speech
-- No wake word, no always-listening mic — it only hears you while you're actually holding the button down
+- Text chat that sees your live telemetry every turn — ask "how's my fuel?" and it answers with the actual numbers pulled straight from whichever of the eight supported sims you're running, never a guess
+- Proactive alerts, no polling required — fuel critical/low, tyre temps cold or overheating, tyre wear past 80%, wheel slip past 0.8, any damage, and race flags — toasted the moment a threshold's crossed, then quiet again until it changes
+- Push-to-talk voice — hold the mic button, ask your question out loud, hear it talk back. One Deepgram key handles both directions: `nova-3` for speech-to-text, `aura-2-zeus-en` for the reply, both swappable for any other Deepgram model
+- No wake word, no always-listening mic, no voice activity detection — it only hears you while you're physically holding the button down, full stop
+- Model, key, and voice settings are all plain text fields — nothing here is locked to a specific provider version, so it keeps working as models change
 - Entirely client-side: your key, your telemetry, and everything you say to it go straight to whichever provider you picked and nowhere else — never through the backend, never anywhere near any other ShinTech app
-- Set it up during the first-run wizard or any time after from Settings — skip it entirely if you don't want it
+- A "Test connection" and a "Test voice" button in Settings, so you know it's working before you're mid-lap depending on it
+- Set it up during the first-run wizard or any time after from Settings — skip it entirely if you don't want it, and toggling it off doesn't lose your key, it just stops using it
 
 ### 🔐 Roles & Admin Panel
 
