@@ -36,7 +36,7 @@ function ReplayRow({ replay, meta, anno, selected, onSelect, onToggleFavorite })
   const carCount = meta?.parsed ? meta.cars.length : null
   return (
     <div onClick={onSelect}
-      style={{ display: 'flex', gap: 12, padding: '10px 10px 10px 8px', alignItems: 'center', cursor: 'pointer', borderRadius: 0,
+      style={{ display: 'flex', gap: 12, padding: '10px 10px 10px 8px', alignItems: 'center', cursor: 'pointer', borderRadius: 8,
         background: selected ? `${C.blue}14` : 'transparent',
         borderLeft: `3px solid ${hashColor(track || replay.filename)}` }}>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -130,7 +130,7 @@ function DetailPanel({ replay, meta, anno, onUpdateAnnotation, onLaunch, onOpenF
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {meta.cars.map((c, i) => (
               <div key={i} style={{ display: 'flex', gap: 10, padding: '6px 10px', background: C.bg,
-                border: `1px solid ${C.border}`, borderRadius: 0, fontSize: 12 }}>
+                border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }}>
                 <span style={{ fontFamily: C.mono, color: C.mutedHi, flex: 1 }}>{c.model || 'Unknown car'}</span>
                 <span style={{ color: c.driver ? C.textPrimary : C.muted, fontStyle: c.driver ? 'normal' : 'italic' }}>
                   {c.driver || 'Unknown driver'}
@@ -181,7 +181,7 @@ function DetailPanel({ replay, meta, anno, onUpdateAnnotation, onLaunch, onOpenF
         <Label>Notes</Label>
         <textarea value={notes} onChange={e => scheduleNotesSave(e.target.value)} onBlur={flushNotesSave}
           rows={4} placeholder="Notes about this replay…"
-          style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0,
+          style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8,
             color: C.textPrimary, padding: '8px 10px', fontSize: 12, fontFamily: C.body, resize: 'vertical', outline: 'none' }} />
       </div>
 
@@ -212,7 +212,7 @@ function NoReplaysState({ onOpenFolder }) {
 
 function FolderMissingBanner({ onGoSettings }) {
   return (
-    <div style={{ background: `${C.orange}18`, border: `1px solid ${C.orange}60`, borderRadius: 0,
+    <div style={{ background: `${C.orange}18`, border: `1px solid ${C.orange}60`, borderRadius: 8,
       padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, margin: '16px 24px 0' }}>
       <span style={{ color: C.orange, fontSize: 13, fontWeight: 600, flex: 1 }}>
         ⚠ Replay folder not found — check your AC path in Settings
@@ -315,7 +315,7 @@ export default function ReplayView({ onGoSettings, showToast }) {
             {[{ id: 'all', label: 'All' }, { id: 'favorites', label: 'Favorites ★' },
               ...allTags.map(t => ({ id: t, label: t }))].map(f => (
               <button key={f.id} onClick={() => setFilterTag(f.id)}
-                style={{ fontSize: 11, fontFamily: C.mono, padding: '4px 10px', borderRadius: 0, cursor: 'pointer',
+                style={{ fontSize: 11, fontFamily: C.mono, padding: '4px 10px', borderRadius: 8, cursor: 'pointer',
                   background: filterTag === f.id ? `${C.blue}18` : 'transparent',
                   color: filterTag === f.id ? C.blue : C.muted,
                   border: `1px solid ${filterTag === f.id ? C.blue : C.border}` }}>
@@ -327,7 +327,7 @@ export default function ReplayView({ onGoSettings, showToast }) {
           <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
             {[{ id: 'date', label: 'Date' }, { id: 'track', label: 'Track A-Z' }, { id: 'size', label: 'Size' }].map(s => (
               <button key={s.id} onClick={() => setSortMode(s.id)}
-                style={{ fontSize: 10, fontFamily: C.head, padding: '3px 8px', borderRadius: 0, cursor: 'pointer',
+                style={{ fontSize: 10, fontFamily: C.head, padding: '3px 8px', borderRadius: 8, cursor: 'pointer',
                   background: 'none', color: sortMode === s.id ? C.blue : C.muted,
                   border: `1px solid ${sortMode === s.id ? C.blue : 'transparent'}` }}>
                 {s.label}

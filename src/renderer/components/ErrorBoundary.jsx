@@ -24,7 +24,7 @@ export class ErrorBoundary extends Component {
             <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
             <div style={{ fontFamily: C.head, fontSize: 24, letterSpacing: 1.5, textTransform: 'uppercase', color: C.red, marginBottom: 8 }}>Something went wrong</div>
             <div style={{ fontFamily: C.mono, fontSize: 11, color: C.muted, background: C.bg, border: `1px solid ${C.border}`,
-              borderRadius: 0, padding: 12, marginBottom: 16, textAlign: 'left', whiteSpace: 'pre-wrap', maxHeight: 160, overflowY: 'auto' }}>
+              borderRadius: 8, padding: 12, marginBottom: 16, textAlign: 'left', whiteSpace: 'pre-wrap', maxHeight: 160, overflowY: 'auto' }}>
               {details}
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>

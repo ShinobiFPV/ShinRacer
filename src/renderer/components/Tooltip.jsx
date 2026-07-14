@@ -92,7 +92,7 @@ export function TooltipProvider({ children }) {
             zIndex: 9999,
             background: C.overlay,
             border: `1px solid ${C.borderHi}`,
-            borderRadius: 0,
+            borderRadius: 8,
             padding: '5px 10px',
             fontSize: 11,
             lineHeight: 1.4,

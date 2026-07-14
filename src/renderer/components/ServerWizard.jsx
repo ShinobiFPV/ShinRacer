@@ -95,7 +95,7 @@ function SessionTypeStep({ value, onSelect }) {
           <button key={t.id} onClick={() => onSelect(t.id)}
             style={{ background: value === t.id ? C.overlay : C.raised,
               border: `1px solid ${C.border}`, borderLeft: `3px solid ${value === t.id ? C.blue : C.border}`,
-              borderRadius: 0, padding: 20, cursor: 'pointer', textAlign: 'left', transition: 'all .15s' }}>
+              borderRadius: 8, padding: 20, cursor: 'pointer', textAlign: 'left', transition: 'all .15s' }}>
             <div style={{ fontSize: 26, marginBottom: 8 }}>{t.emoji}</div>
             <div style={{ fontFamily: C.head, fontSize: 18, marginBottom: 4, color: C.textPrimary }}>{t.label}</div>
             <div style={{ fontSize: 12, color: C.muted }}>{t.tagline}</div>
@@ -123,7 +123,7 @@ function TrackStep({ acPath, subtitle, value, onSelect, onGoSettings }) {
   return (
     <StepShell emoji="🗺️" name="Pick a track" subtitle={subtitle}>
       {!acPath ? (
-        <div style={{ background: `${C.orange}18`, border: `1px solid ${C.orange}60`, borderRadius: 0,
+        <div style={{ background: `${C.orange}18`, border: `1px solid ${C.orange}60`, borderRadius: 8,
           padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ color: C.orange, fontSize: 13, flex: 1 }}>Set your AC path in Settings to browse tracks</span>
           <Btn size="sm" variant="subtle" onClick={onGoSettings}>Go to Settings</Btn>
@@ -138,7 +138,7 @@ function TrackStep({ acPath, subtitle, value, onSelect, onGoSettings }) {
             {filtered.map(t => (
               <button key={t.name} onClick={() => onSelect(t)}
                 style={{ background: value?.name === t.name ? `${C.blue}12` : C.raised,
-                  border: `1px solid ${value?.name === t.name ? C.blue : C.border}`, borderRadius: 0,
+                  border: `1px solid ${value?.name === t.name ? C.blue : C.border}`, borderRadius: 8,
                   padding: '10px 14px', textAlign: 'left', display: 'flex', justifyContent: 'space-between',
                   alignItems: 'center', cursor: 'pointer' }}>
                 <span style={{ fontFamily: C.mono, fontSize: 12, color: C.textPrimary }}>{t.name}</span>
@@ -193,7 +193,7 @@ function CarsStep({ acPath, subtitle, sessionType, selected, onChange }) {
           <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
             {filtered.map(car => (
               <Tooltip key={car} text="Select which car models players can choose from">
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 0,
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 8,
                   background: selected.includes(car) ? `${C.blue}12` : C.raised,
                   border: `1px solid ${selected.includes(car) ? C.blueDim : C.border}`, cursor: 'pointer' }}>
                   <input type="checkbox" checked={selected.includes(car)} onChange={() => toggle(car)} />
@@ -217,7 +217,7 @@ function ConditionsStep({ weather, timeOfDay, onWeather, onTime }) {
         {WEATHER_OPTIONS.map(w => (
           <button key={w.value} onClick={() => onWeather(w.value)}
             style={{ background: weather === w.value ? `${C.blue}12` : C.raised,
-              border: `${weather === w.value ? 2 : 1}px solid ${weather === w.value ? C.blue : C.border}`, borderRadius: 0,
+              border: `${weather === w.value ? 2 : 1}px solid ${weather === w.value ? C.blue : C.border}`, borderRadius: 8,
               padding: '12px 8px', textAlign: 'center', cursor: 'pointer' }}>
             <div style={{ fontSize: 20, marginBottom: 4 }}>{w.icon}</div>
             <div style={{ fontSize: 11, color: C.textPrimary }}>{w.label}</div>
@@ -229,7 +229,7 @@ function ConditionsStep({ weather, timeOfDay, onWeather, onTime }) {
         {TIME_OPTIONS.map(t => (
           <button key={t.value} onClick={() => onTime(t.value)}
             style={{ background: t.gradient, border: `2px solid ${timeOfDay === t.value ? C.blue : 'transparent'}`,
-              borderRadius: 0, padding: '14px 8px', textAlign: 'center', cursor: 'pointer', color: '#fff' }}>
+              borderRadius: 8, padding: '14px 8px', textAlign: 'center', cursor: 'pointer', color: '#fff' }}>
             <div style={{ fontSize: 20, marginBottom: 4 }}>{t.icon}</div>
             <div style={{ fontSize: 11, fontWeight: 600 }}>{t.label}</div>
           </button>
@@ -295,7 +295,7 @@ function LaunchStep({ cfg, sessionType, track, weather, timeOfDay, maxClients, d
     <StepShell emoji="🏁" name="Launch it" subtitle={summary}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 22 }}>
         {cells.map(([label, val]) => (
-          <div key={label} style={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 0, padding: '10px 8px', textAlign: 'center' }}>
+          <div key={label} style={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 8px', textAlign: 'center' }}>
             <div style={{ fontFamily: C.mono, fontSize: 13, fontWeight: 700, color: C.blue }}>{val}</div>
             <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 2 }}>{label}</div>
           </div>
@@ -396,7 +396,7 @@ export default function ServerWizard({ onClose, onDeploy, onSave, onGoSettings }
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer' }}>✕</button>
           </div>
         </div>
-        <div style={{ height: 4, background: C.border, borderRadius: 0, overflow: 'hidden' }}>
+        <div style={{ height: 4, background: C.border, borderRadius: 8, overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${(step / TOTAL_STEPS) * 100}%`, background: C.blue, transition: 'width .25s ease' }} />
         </div>
       </div>

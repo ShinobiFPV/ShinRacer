@@ -351,7 +351,7 @@ function ConfigureTab({ enabledWidgets, setEnabledWidgets, activePresetId, apply
                       <div style={{ display: 'flex', gap: 4, marginTop: 5, marginLeft: 22 }}>
                         {Object.entries(SIZE_PRESETS).map(([key, info]) => (
                           <button key={key} onClick={() => setSize(w.id, key)}
-                            style={{ fontSize: 9, padding: '2px 8px', background: 'transparent', cursor: 'pointer', borderRadius: 0,
+                            style={{ fontSize: 9, padding: '2px 8px', background: 'transparent', cursor: 'pointer', borderRadius: 8,
                               border: `1px solid ${current?.size === key ? C.blue : C.border}`, color: current?.size === key ? C.blue : C.muted,
                               fontFamily: C.body }}>
                             {info.label}

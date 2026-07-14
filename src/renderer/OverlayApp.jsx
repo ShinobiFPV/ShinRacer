@@ -15,7 +15,7 @@ function OverlayWidget({ item, frame }) {
   if (!entry) return null
   const Component = entry.component
   return (
-    <div style={{ background: 'rgba(5, 5, 7, 0.75)', border: '1px solid rgba(28, 34, 51, 0.8)', borderRadius: 0,
+    <div style={{ background: 'rgba(5, 5, 7, 0.75)', border: '1px solid rgba(28, 34, 51, 0.8)', borderRadius: 8,
       padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <Component frame={frame} config={item.config} />
     </div>

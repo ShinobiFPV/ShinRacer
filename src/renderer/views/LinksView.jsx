@@ -160,7 +160,7 @@ function LinkModal({ initial, onClose, onSave }) {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 100,
       display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 460, background: C.surface, border: `1px solid ${C.border}`,
-        borderRadius: 0, padding: 24, animation: 'fadeUp .18s ease' }}>
+        borderRadius: 8, padding: 24, animation: 'fadeUp .18s ease' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 17 }}>{isEdit ? 'Edit link' : 'Add link'}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 18, cursor: 'pointer' }}>✕</button>
@@ -175,7 +175,7 @@ function LinkModal({ initial, onClose, onSave }) {
         <Label>Description (optional)</Label>
         <div style={{ marginBottom: 12 }}>
           <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} placeholder="What is this?"
-            style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, color: C.textPrimary,
+            style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.textPrimary,
               padding: '8px 10px', fontSize: 12, fontFamily: C.body, resize: 'vertical', outline: 'none' }} />
         </div>
 

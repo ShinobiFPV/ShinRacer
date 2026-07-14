@@ -1,55 +1,57 @@
 import { useState } from 'react'
 
 export const C = {
-  // Backgrounds — true black, not grey-black
-  bg:        '#050507',      // near-pure black, slight blue tint
-  surface:   '#0A0C12',      // panel background
-  raised:    '#0F1218',      // elevated elements
-  overlay:   '#141820',      // modals, overlays
+  // Backgrounds — pure black terminal look (Port Manager style)
+  bg:        '#000000',      // pure black
+  surface:   '#0A0A0A',      // panel background
+  raised:    '#101010',      // elevated elements, inputs
+  overlay:   '#161616',      // modals, overlays
 
-  // Borders — sharp, visible, not subtle
-  border:    '#1C2233',      // default border
-  borderHi:  '#2A3A5C',      // hover/active border
-  borderAcc: '#1E3A6E',      // accent-adjacent border
+  // Borders — low-contrast, subtle
+  border:    '#1A1A1A',      // default border
+  borderHi:  '#2A2A2A',      // hover/active border
+  borderAcc: '#3A2E10',      // accent-adjacent border
 
-  // Primary accent — electric blue, not soft blue
-  blue:      '#0066FF',      // primary CTA, active states
-  blueDim:   '#003A99',      // muted blue
-  blueGlow:  '#0044CC',      // glow/shadow colour
+  // Primary accent — amber/gold, matching the Port Manager dashboard
+  blue:      '#FFB400',      // primary CTA, active states (kept the "blue" key name so every existing view retints automatically)
+  blueDim:   '#8A6200',      // muted amber
+  blueGlow:  '#FFB400',      // glow/shadow colour
 
-  // Secondary accent — cold white, used sparingly
-  white:     '#E8F0FF',      // primary text, slightly blue-tinted
-  whiteHot:  '#FFFFFF',      // pure white for maximum contrast moments
+  // Secondary — pure white, used for primary text
+  white:     '#FFFFFF',
+  whiteHot:  '#FFFFFF',
 
-  // Status colours — high contrast, unambiguous
-  green:     '#00CC44',      // success, online, installed
-  greenDim:  '#007722',
-  red:       '#FF1A1A',      // danger, error, stop
-  redDim:    '#990000',
+  // Status colours — same vocabulary Port Manager uses for its port cards
+  green:     '#00FF88',      // success, online, listening
+  greenDim:  '#00A855',
+  red:       '#FF4444',      // danger, error, offline
+  redDim:    '#A82222',
   orange:    '#FF6600',      // warning, update available
-  yellow:    '#FFD700',      // gold — used ONLY for personal bests,
-                              // top rank, and favorite stars
-                              // NOT as primary accent anymore
+  yellow:    '#FFD700',      // gold — personal bests, top rank, favorite stars only
 
   // Text hierarchy
-  textPrimary:  '#E8F0FF',   // main readable text
-  textSec:      '#7A90B8',   // secondary, labels
-  muted:        '#3A4A66',   // disabled, placeholder
-  mutedHi:      '#5A70A0',   // slightly more visible muted
+  textPrimary:  '#FFFFFF',   // main readable text
+  textSec:      '#A8A8A8',   // secondary, labels
+  muted:        '#5C5C5C',   // disabled, placeholder
+  mutedHi:      '#8C8C8C',   // slightly more visible muted
 
-  // Typography
-  head:  "'Bebas Neue', 'Barlow Condensed', sans-serif",
-  body:  "'Barlow Condensed', 'Inter', sans-serif",
-  mono:  "'JetBrains Mono', 'Cascadia Code', monospace",
+  // Typography — one monospace family everywhere, Port Manager style.
+  // Bebas Neue/Barlow Condensed's ultra-condensed all-caps look was hard to
+  // read at small sizes; JetBrains Mono (falling back to Courier New) reads
+  // cleanly at any size and matches the terminal-dashboard look of the other
+  // ShinTech tools.
+  head:  "'JetBrains Mono', 'Courier New', monospace",
+  body:  "'JetBrains Mono', 'Courier New', monospace",
+  mono:  "'JetBrains Mono', 'Courier New', monospace",
 
-  // Geometry — sharp, not rounded
-  radius:    '0px',          // default border radius: ZERO
-  radiusSm:  '2px',          // only for tiny inline elements (tags, badges)
-  radiusMd:  '0px',          // cards, panels: sharp corners
+  // Geometry — rounded, soft (Port Manager uses 6-10px throughout)
+  radius:    '10px',         // default border radius
+  radiusSm:  '4px',          // tiny inline elements (tags, badges)
+  radiusMd:  '8px',          // cards, panels, buttons, inputs
 }
 
 export const GLOBAL_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body, #root { height: 100%; background: ${C.bg}; color: ${C.textPrimary}; font-family: ${C.body}; overflow: hidden; }
   ::selection { background: ${C.blue}44; color: ${C.whiteHot}; }
@@ -69,13 +71,13 @@ export const GLOBAL_CSS = `
   @keyframes speakPulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.3); } }
   @keyframes peerGlow { 0%,100% { border-left-color: var(--glow, ${C.blue}); } 50% { border-left-color: ${C.whiteHot}; } }
   @keyframes shimmer { 0% { background-position: -300px 0; } 100% { background-position: 300px 0; } }
-  .shimmer-block { background: linear-gradient(90deg, ${C.raised} 25%, #0A1428 50%, ${C.raised} 75%);
-    background-size: 600px 100%; animation: shimmer 1.6s infinite linear; border-radius: 0; }
+  .shimmer-block { background: linear-gradient(90deg, ${C.raised} 25%, #1E1E1E 50%, ${C.raised} 75%);
+    background-size: 600px 100%; animation: shimmer 1.6s infinite linear; border-radius: ${C.radiusSm}; }
 `
 
 export function Label({ children, muted, style: sx = {} }) {
   return (
-    <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase',
+    <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 1.5, textTransform: 'uppercase',
       color: muted ? C.muted : C.textSec, marginBottom: 6, fontFamily: C.body, ...sx }}>
       {children}
     </div>
@@ -84,9 +86,9 @@ export function Label({ children, muted, style: sx = {} }) {
 
 export function Tag({ children, color = C.blue, size = 'sm' }) {
   return (
-    <span style={{ fontSize: size === 'xs' ? 8 : 9, fontWeight: 700, letterSpacing: 1.5,
-      textTransform: 'uppercase', color, border: `1px solid ${color}`, borderRadius: C.radiusSm,
-      padding: '2px 6px', fontFamily: C.mono, flexShrink: 0, whiteSpace: 'nowrap' }}>
+    <span style={{ fontSize: size === 'xs' ? 8 : 9, fontWeight: 700, letterSpacing: 1,
+      textTransform: 'uppercase', color, background: `${color}12`, border: `1px solid ${color}40`,
+      borderRadius: C.radiusSm, padding: '2px 7px', fontFamily: C.mono, flexShrink: 0, whiteSpace: 'nowrap' }}>
       {children}
     </span>
   )
@@ -100,29 +102,29 @@ export function Btn({ children, onClick, variant = 'primary', size = 'md', disab
     lg: { fontSize: 14, padding: '10px 28px' },
   }
   const vars = {
-    primary: { background: C.blue, color: C.whiteHot, border: `1px solid ${C.blueDim}`, borderLeft: '2px solid #0088FF' },
+    primary: { background: C.blue, color: '#000000', border: 'none' },
     ghost:   { background: 'transparent', color: C.textPrimary, border: `1px solid ${C.border}` },
-    danger:  { background: 'transparent', color: C.red, border: `1px solid ${C.redDim}` },
+    danger:  { background: `${C.red}12`, color: C.red, border: `1px solid ${C.red}40` },
     subtle:  { background: C.raised, color: C.textSec, border: `1px solid ${C.border}` },
-    success: { background: 'transparent', color: C.green, border: `1px solid ${C.greenDim}` },
+    success: { background: `${C.green}12`, color: C.green, border: `1px solid ${C.green}40` },
   }
   const hoverIn = {
-    primary: e => { e.currentTarget.style.background = '#0055EE'; e.currentTarget.style.boxShadow = `0 0 12px ${C.blueGlow}44` },
+    primary: e => { e.currentTarget.style.background = '#FFC833'; e.currentTarget.style.boxShadow = `0 0 12px ${C.blueGlow}44` },
     ghost:   e => { e.currentTarget.style.borderColor = C.blue; e.currentTarget.style.color = C.blue },
-    danger:  e => { e.currentTarget.style.background = `${C.red}15`; e.currentTarget.style.borderColor = C.red },
+    danger:  e => { e.currentTarget.style.background = `${C.red}22`; e.currentTarget.style.borderColor = C.red },
     subtle:  e => { e.currentTarget.style.borderColor = C.borderHi },
-    success: e => { e.currentTarget.style.background = `${C.green}15`; e.currentTarget.style.borderColor = C.green },
+    success: e => { e.currentTarget.style.background = `${C.green}22`; e.currentTarget.style.borderColor = C.green },
   }
   const hoverOut = {
     primary: e => { e.currentTarget.style.background = C.blue; e.currentTarget.style.boxShadow = 'none' },
     ghost:   e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textPrimary },
-    danger:  e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = C.redDim },
+    danger:  e => { e.currentTarget.style.background = `${C.red}12`; e.currentTarget.style.borderColor = `${C.red}40` },
     subtle:  e => { e.currentTarget.style.borderColor = C.border },
-    success: e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = C.greenDim },
+    success: e => { e.currentTarget.style.background = `${C.green}12`; e.currentTarget.style.borderColor = `${C.green}40` },
   }
   return (
     <button onClick={onClick} disabled={disabled} title={title}
-      style={{ borderRadius: 0, fontFamily: C.body, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase',
+      style={{ borderRadius: C.radiusMd, fontFamily: C.body, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase',
         cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1,
         transition: 'background .15s, border-color .15s, color .15s, box-shadow .15s',
         ...sizes[size], ...vars[variant], ...sx }}
@@ -137,9 +139,8 @@ export function Card({ children, style: sx = {}, accent, onClick, onMouseEnter, 
   return (
     <div onClick={onClick} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}
       style={{ background: C.surface, border: `1px solid ${C.border}`,
-        ...(accent ? { borderLeft: `2px solid ${accent}` } : {}),
-        borderRadius: 0, padding: 18, cursor: onClick ? 'pointer' : 'default',
-        boxShadow: `inset 2px 2px 0 0 ${C.borderHi}`,
+        ...(accent ? { borderLeft: `3px solid ${accent}` } : {}),
+        borderRadius: C.radiusMd, padding: 16, cursor: onClick ? 'pointer' : 'default',
         ...sx }}>
       {children}
     </div>
@@ -149,8 +150,8 @@ export function Card({ children, style: sx = {}, accent, onClick, onMouseEnter, 
 export function SectionHead({ children, sub }) {
   return (
     <div style={{ marginBottom: 18 }}>
-      <div style={{ fontFamily: C.head, fontSize: 18, letterSpacing: 1, color: C.textPrimary, textTransform: 'uppercase' }}>{children}</div>
-      <div style={{ width: 40, height: 1, background: C.blue, marginTop: 4 }} />
+      <div style={{ fontFamily: C.head, fontSize: 15, fontWeight: 700, letterSpacing: 0.5, color: C.textPrimary }}>{children}</div>
+      <div style={{ width: 32, height: 2, background: C.blue, borderRadius: 1, marginTop: 6 }} />
       {sub && <div style={{ fontSize: 12, fontFamily: C.body, color: C.muted, marginTop: 6 }}>{sub}</div>}
     </div>
   )
@@ -176,10 +177,10 @@ export function Toggle({ label, value, onChange, hint }) {
   return (
     <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 12 }}>
       <div onClick={() => onChange(!value)}
-        style={{ width: 36, height: 20, borderRadius: 2, background: value ? C.blue : C.border,
+        style={{ width: 36, height: 20, borderRadius: 10, background: value ? C.blue : C.border,
           position: 'relative', transition: 'background .2s', flexShrink: 0 }}>
         <div style={{ position: 'absolute', top: 3, left: value ? 18 : 3, width: 14, height: 14,
-          borderRadius: 1, background: value ? C.whiteHot : C.mutedHi, transition: 'left .2s' }} />
+          borderRadius: '50%', background: value ? '#000000' : C.mutedHi, transition: 'left .2s' }} />
       </div>
       <div>
         <div style={{ fontSize: 13, fontFamily: C.body, fontWeight: 500, color: C.textPrimary }}>{label}</div>
@@ -194,10 +195,9 @@ export function TextInput({ value, onChange, placeholder, mono, style: sx = {}, 
   return (
     <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
       onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} onKeyDown={onKeyDown}
-      style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`,
-        borderBottom: `${focused ? 2 : 1}px solid ${focused ? C.blue : C.borderHi}`,
-        borderRadius: 0, color: C.textPrimary, padding: '7px 10px', fontSize: 12,
-        fontFamily: mono ? C.mono : C.body, outline: 'none', ...sx }} />
+      style={{ width: '100%', background: C.raised, border: `1px solid ${focused ? C.blue : C.border}`,
+        borderRadius: C.radiusMd, color: C.textPrimary, padding: '7px 10px', fontSize: 12,
+        fontFamily: mono ? C.mono : C.body, outline: 'none', transition: 'border-color .15s', ...sx }} />
   )
 }
 
@@ -206,11 +206,10 @@ export function Select({ value, onChange, options, style: sx = {} }) {
   return (
     <select value={value} onChange={e => onChange(e.target.value)}
       onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-      style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`,
-        borderBottom: `${focused ? 2 : 1}px solid ${focused ? C.blue : C.borderHi}`,
-        borderRadius: 0, color: C.textPrimary, padding: '7px 24px 7px 10px', fontSize: 12, outline: 'none',
-        cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
-        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpolyline points='0,0 5,6 10,0' stroke='%235A70A0' fill='none' stroke-width='1.5'/%3E%3C/svg%3E")`,
+      style={{ width: '100%', background: C.raised, border: `1px solid ${focused ? C.blue : C.border}`,
+        borderRadius: C.radiusMd, color: C.textPrimary, padding: '7px 24px 7px 10px', fontSize: 12, outline: 'none',
+        cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', transition: 'border-color .15s',
+        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpolyline points='0,0 5,6 10,0' stroke='%238C8C8C' fill='none' stroke-width='1.5'/%3E%3C/svg%3E")`,
         backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center',
         ...sx }}>
       {options.map(o => (
@@ -250,12 +249,12 @@ export function Toast({ msg, color = C.blue, onDone }) {
   const filled = color === C.blue
   return (
     <div style={{ position: 'fixed', bottom: 28, right: 28,
-      background: filled ? C.blue : 'transparent',
-      border: filled ? 'none' : `1px solid ${color}`,
-      color: filled ? C.whiteHot : color,
-      fontFamily: C.body, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1,
-      fontSize: 13, padding: '10px 20px', borderRadius: 0,
-      boxShadow: filled ? '0 4px 24px rgba(0,0,0,.5)' : 'none', zIndex: 9999, animation: 'fadeUp .2s ease' }}>
+      background: filled ? C.blue : `${color}14`,
+      border: filled ? 'none' : `1px solid ${color}50`,
+      color: filled ? '#000000' : color,
+      fontFamily: C.body, fontWeight: 700, letterSpacing: 0.5,
+      fontSize: 13, padding: '10px 20px', borderRadius: C.radiusMd,
+      boxShadow: '0 4px 24px rgba(0,0,0,.6)', zIndex: 9999, animation: 'fadeUp .2s ease' }}>
       {msg}
     </div>
   )
@@ -274,8 +273,8 @@ export function TabBar({ tabs, active, onChange }) {
           {t.icon && <span>{t.icon}</span>}
           {t.label}
           {t.badge != null && (
-            <span style={{ background: 'transparent', border: `1px solid ${t.badge > 0 ? C.red : C.border}`,
-              color: t.badge > 0 ? C.red : C.muted, borderRadius: 0,
+            <span style={{ background: t.badge > 0 ? `${C.red}18` : 'transparent', border: `1px solid ${t.badge > 0 ? C.red : C.border}`,
+              color: t.badge > 0 ? C.red : C.muted, borderRadius: C.radiusSm,
               fontSize: 10, padding: '1px 6px', fontFamily: C.mono }}>{t.badge}</span>
           )}
         </button>

@@ -139,7 +139,7 @@ function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backend
         <span style={{ fontFamily:C.body, letterSpacing:1, textTransform:'uppercase' }}>ShinTech Electronics</span><br/>
         <span style={{ fontFamily:C.head, letterSpacing:1 }}>acServer v1.16.x compat</span>
         <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:6 }}>
-          <span style={{ width:4, height:4, borderRadius:0, background: backendOnline ? C.green : C.red, flexShrink:0,
+          <span style={{ width:4, height:4, borderRadius: 8, background: backendOnline ? C.green : C.red, flexShrink:0,
             boxShadow: backendOnline ? `0 0 4px ${C.green}` : 'none',
             animation: backendOnline ? 'none' : 'pulse 1s infinite' }} />
           <span style={{ fontFamily:C.mono, fontSize:9, color:C.muted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
@@ -306,8 +306,8 @@ function Inner() {
                 <span style={{ marginLeft:'auto', WebkitAppRegion:'no-drag' }}>
                   <Tooltip text="Open the server builder to configure and launch a new server" position="left">
                     <button onClick={() => goToBuild()}
-                      style={{ background:C.blue, color:C.whiteHot, border:`1px solid ${C.blueDim}`, borderLeft:'2px solid #0088FF',
-                        borderRadius: 0, padding:'6px 18px', fontFamily:C.body, fontWeight:700, textTransform:'uppercase',
+                      style={{ background:C.blue, color:'#000000', border:'none',
+                        borderRadius: 8, padding:'6px 18px', fontFamily:C.body, fontWeight:700, textTransform:'uppercase',
                         letterSpacing:1.5, fontSize:12, cursor:'pointer' }}>
                       + New server
                     </button>

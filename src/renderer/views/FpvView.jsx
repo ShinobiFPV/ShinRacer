@@ -87,7 +87,7 @@ const DEFAULT_PRESET_FIELDS = {
 // thing on this whole page.
 function CspWarningBanner() {
   return (
-    <div style={{ background: `${C.red}18`, border: `1px solid ${C.red}60`, borderRadius: 0, padding: '10px 16px', flexShrink: 0 }}>
+    <div style={{ background: `${C.red}18`, border: `1px solid ${C.red}60`, borderRadius: 8, padding: '10px 16px', flexShrink: 0 }}>
       <div style={{ fontFamily: C.head, fontSize: 14, letterSpacing: 1, color: C.red }}>⚠ CSP VERSION WARNING</div>
       <div style={{ fontSize: 12, color: C.textSec, marginTop: 3, lineHeight: 1.5 }}>
         This mod requires CSP 0.1.79 or {CSP_MAX_VERSION} maximum. Newer CSP versions cause drone jitter and stuttering.

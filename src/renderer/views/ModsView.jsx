@@ -40,7 +40,7 @@ function parseUploadCategory(description) {
 
 function SkeletonCard() {
   return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 0, padding: 14 }}>
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: 14 }}>
       <div className="shimmer-block" style={{ width: '100%', height: 4, marginBottom: 12 }} />
       <div className="shimmer-block" style={{ width: '70%', height: 16, marginBottom: 10 }} />
       <div className="shimmer-block" style={{ width: '100%', height: 11, marginBottom: 6 }} />
@@ -67,7 +67,7 @@ function ModCard({ mod, category, installs, onSelect, selected }) {
   return (
     <div onClick={onSelect} style={{ background: C.surface, border: `1px solid ${selected ? C.blue : C.border}`,
       borderLeft: `2px solid ${CATEGORY_COLOR[category] || C.muted}`,
-      borderRadius: 0, overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column' }}>
+      borderRadius: 8, overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
           <div style={{ fontFamily: C.head, fontSize: 18, lineHeight: 1.2 }}>{mod.name}</div>
@@ -129,13 +129,13 @@ function DetailPanel({ mod, category, installs, settings, identity, onInstalled,
       </div>
 
       {!settings.acPath ? (
-        <div style={{ background: `${C.orange}18`, border: `1px solid ${C.orange}60`, borderRadius: 0,
+        <div style={{ background: `${C.orange}18`, border: `1px solid ${C.orange}60`, borderRadius: 8,
           padding: '10px 12px', fontSize: 12, color: C.orange, marginBottom: 14 }}>
           Set AC path in Settings to install
         </div>
       ) : progress ? (
         <div style={{ marginBottom: 14 }}>
-          <div style={{ height: 6, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, overflow: 'hidden', marginBottom: 6 }}>
+          <div style={{ height: 6, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden', marginBottom: 6 }}>
             <div style={{ height: '100%', width: progress === 'done' ? '100%' : '60%', background: C.blue,
               transition: 'width .3s', animation: progress === 'done' ? 'none' : 'pulse 1.2s infinite' }} />
           </div>
@@ -216,7 +216,7 @@ function UploadModal({ onClose, onUploaded, googleAuth, showToast }) {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 100,
       display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 440, background: C.surface, border: `1px solid ${C.border}`,
-        borderRadius: 0, padding: 24, animation: 'fadeUp .18s ease' }}>
+        borderRadius: 8, padding: 24, animation: 'fadeUp .18s ease' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ fontFamily: C.head, fontWeight: 700, fontSize: 17 }}>Upload mod</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 18, cursor: 'pointer' }}>✕</button>
@@ -235,7 +235,7 @@ function UploadModal({ onClose, onUploaded, googleAuth, showToast }) {
         <div style={{ marginBottom: 14 }}>
           <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
             rows={3} placeholder="What is this mod?"
-            style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0,
+            style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8,
               color: C.textPrimary, padding: '8px 10px', fontSize: 12, fontFamily: C.body, resize: 'vertical', outline: 'none' }} />
         </div>
 
@@ -379,7 +379,7 @@ export default function ModsView() {
             <Tooltip key={n.id} text={n.id === 'uploads' ? "Mods you've submitted — pending review by William" : 'Filter mods by type'}>
               <button onClick={() => { setCategory(n.id); setSelected(null) }}
                 style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
-                  borderRadius: 0, border: 'none', cursor: 'pointer', marginBottom: 2,
+                  borderRadius: 8, border: 'none', cursor: 'pointer', marginBottom: 2,
                   background: 'transparent',
                   color: category === n.id ? C.blue : C.muted,
                   fontFamily: C.body, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, fontSize: 13, textAlign: 'left' }}>
@@ -424,7 +424,7 @@ export default function ModsView() {
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 20px' }}>
           {driveError ? (
-            <div style={{ background: `${C.red}18`, border: `1px solid ${C.red}60`, borderRadius: 0,
+            <div style={{ background: `${C.red}18`, border: `1px solid ${C.red}60`, borderRadius: 8,
               padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
               <span style={{ color: C.red, fontSize: 13, fontWeight: 600 }}>⚠ Could not reach Google Drive — check backend configuration</span>
               <button onClick={() => win.shell.openExternal(SETUP_GUIDE_URL)}

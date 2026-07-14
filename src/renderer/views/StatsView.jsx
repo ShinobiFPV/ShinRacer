@@ -89,7 +89,7 @@ function SessionLeaderboard({ laps }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {rows.map((r, i) => (
         <div key={r.handle} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px',
-          background: i === 0 ? `${C.yellow}12` : C.bg, border: `1px solid ${i === 0 ? `${C.yellow}80` : C.border}`, borderRadius: 0 }}>
+          background: i === 0 ? `${C.yellow}12` : C.bg, border: `1px solid ${i === 0 ? `${C.yellow}80` : C.border}`, borderRadius: 8 }}>
           <span style={{ fontFamily: C.mono, color: i === 0 ? C.yellow : C.muted, width: 20 }}>{i + 1}</span>
           <span style={{ flex: 1, fontFamily: C.head, fontWeight: 600 }}>{r.handle}</span>
           <span style={{ fontFamily: C.mono, color: C.mutedHi }}>{formatLapTime(r.lap_time_ms)}</span>
@@ -151,7 +151,7 @@ function SectorBarChart({ laps }) {
       </svg>
       {hover && (
         <div style={{ position: 'absolute', top: 4, right: 4, background: C.bg, border: `1px solid ${C.border}`,
-          borderRadius: 0, padding: '8px 12px', fontSize: 11, fontFamily: C.mono, color: C.mutedHi, pointerEvents: 'none' }}>
+          borderRadius: 8, padding: '8px 12px', fontSize: 11, fontFamily: C.mono, color: C.mutedHi, pointerEvents: 'none' }}>
           <div style={{ color: C.textPrimary, fontWeight: 700, marginBottom: 4 }}>{hover.handle} · Lap {hover.lap_number ?? '—'}</div>
           <div><span style={{ color: C.blue }}>S1</span> {formatLapTime(hover.s1_ms)}</div>
           <div><span style={{ color: C.textSec }}>S2</span> {formatLapTime(hover.s2_ms)}</div>
@@ -162,7 +162,7 @@ function SectorBarChart({ laps }) {
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8, fontSize: 11, color: C.mutedHi }}>
         {handles.map(h => (
           <div key={h} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 0, background: driverColors[h] }} />
+            <span style={{ width: 8, height: 8, borderRadius: 8, background: driverColors[h] }} />
             {h}
           </div>
         ))}
@@ -213,7 +213,7 @@ function FriendsComparison({ leaderboard, selfHandle }) {
                 const delta = self && r.handle !== selfHandle ? r.best_ms - self.best_ms : null
                 return (
                   <div key={r.handle} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 10px',
-                    background: r.handle === selfHandle ? `${C.blue}10` : C.bg, border: `1px solid ${C.border}`, borderRadius: 0 }}>
+                    background: r.handle === selfHandle ? `${C.blue}10` : C.bg, border: `1px solid ${C.border}`, borderRadius: 8 }}>
                     <span style={{ flex: 1, fontFamily: C.head, color: r.handle === selfHandle ? C.blue : C.textPrimary }}>{r.handle}</span>
                     <span style={{ fontFamily: C.mono }}>{formatLapTime(r.best_ms)}</span>
                     {delta != null && (
@@ -242,7 +242,7 @@ function TelemetrySnippet() {
         {open ? '▾' : '▸'} Enable AC telemetry
       </button>
       {open && (
-        <div style={{ marginTop: 8, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, padding: 12, textAlign: 'left' }}>
+        <div style={{ marginTop: 8, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: 12, textAlign: 'left' }}>
           <pre style={{ margin: 0, fontFamily: C.mono, fontSize: 11, color: C.mutedHi, whiteSpace: 'pre-wrap' }}>{TELEMETRY_SNIPPET}</pre>
           <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
             <Btn size="xs" variant="subtle" onClick={() => navigator.clipboard.writeText(TELEMETRY_SNIPPET)}>Copy snippet</Btn>

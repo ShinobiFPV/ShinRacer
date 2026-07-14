@@ -157,13 +157,13 @@ function IdentityStep({ data, setData, googleUser }) {
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         {IDENTITY_COLORS.map(c => (
           <button key={c} onClick={() => setData(d => ({ ...d, color: c }))}
-            style={{ width: 24, height: 24, borderRadius: 0, background: c, cursor: 'pointer',
+            style={{ width: 24, height: 24, borderRadius: 8, background: c, cursor: 'pointer',
               border: data.color === c ? `2px solid ${C.whiteHot}` : '2px solid transparent',
               boxShadow: data.color === c ? `0 0 0 2px ${c}` : 'none' }} />
         ))}
       </div>
 
-      <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, padding: '10px 14px' }}>
+      <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 14px' }}>
         <span style={{ fontFamily: C.head, color: data.color }}>
           Hello, {data.handle.trim() || '…'}
         </span>
@@ -236,12 +236,12 @@ function AcPathStep({ data, setData, valid }) {
 
       {valid ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: `${C.green}18`,
-          border: `1px solid ${C.green}60`, borderRadius: 0, padding: '8px 12px', marginBottom: 16 }}>
+          border: `1px solid ${C.green}60`, borderRadius: 8, padding: '8px 12px', marginBottom: 16 }}>
           <span style={{ color: C.green }}>✓</span>
           <span style={{ fontFamily: C.mono, fontSize: 11, color: C.mutedHi }}>{data.acPath}</span>
         </div>
       ) : (
-        <div style={{ background: `${C.orange}18`, border: `1px solid ${C.orange}60`, borderRadius: 0,
+        <div style={{ background: `${C.orange}18`, border: `1px solid ${C.orange}60`, borderRadius: 8,
           padding: '8px 12px', marginBottom: 16, fontSize: 12, color: C.orange }}>
           Not auto-detected — set path manually.
         </div>
@@ -339,7 +339,7 @@ function PwaStep({ backendUrl }) {
 
       <div style={{ display: 'flex', gap: 28 }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 232, flexShrink: 0 }}>
-          <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, padding: 16 }}
+          <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: 16 }}
             dangerouslySetInnerHTML={{ __html: qrSvg }} />
           <div style={{ fontFamily: C.mono, fontSize: 12, color: C.blue, marginTop: 10, textAlign: 'center', userSelect: 'all', wordBreak: 'break-all' }}>
             {pwaUrl}
@@ -381,7 +381,7 @@ function PwaStep({ backendUrl }) {
         ))}
       </div>
 
-      <div style={{ background: `${C.blue}18`, border: `1px solid ${C.blue}40`, borderRadius: 0,
+      <div style={{ background: `${C.blue}18`, border: `1px solid ${C.blue}40`, borderRadius: 8,
         padding: '12px 16px', marginTop: 16, fontFamily: C.body, fontSize: 13, color: C.blue }}>
         💡 Do it now while you're here — it takes 30 seconds. Check events and jump into comms from your phone before race night.
       </div>

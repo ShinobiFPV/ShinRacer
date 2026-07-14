@@ -47,7 +47,7 @@ export default function ColorPicker({ label, value, onChange, allowNull }) {
           onKeyDown={e => { if (e.key === 'Enter') commit(e.currentTarget.value) }}
           placeholder={allowNull ? 'none' : '#0066ff'}
           style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary,
-            padding: '5px 8px', fontFamily: C.mono, fontSize: 12, outline: 'none', borderRadius: 0 }}
+            padding: '5px 8px', fontFamily: C.mono, fontSize: 12, outline: 'none', borderRadius: 8 }}
         />
         {value && (
           <div title="Glow preview" style={{

@@ -439,7 +439,7 @@ export default function SettingsView() {
           {IDENTITY_COLORS.map(c => (
             <Tooltip key={c} text="Choose your crew color — shown next to your name in Events and Comms">
               <button onClick={() => setIdentity('color', c)}
-                style={{ width: 24, height: 24, borderRadius: 0, background: c, cursor: 'pointer',
+                style={{ width: 24, height: 24, borderRadius: 8, background: c, cursor: 'pointer',
                   border: identityLocal.color === c ? `2px solid ${C.whiteHot}` : `2px solid transparent`,
                   boxShadow: identityLocal.color === c ? `0 0 0 2px ${c}` : 'none' }} />
             </Tooltip>
@@ -455,7 +455,7 @@ export default function SettingsView() {
 
       {/* AC detection banner */}
       {acDetected?.found && (
-        <div style={{ background: `${C.green}18`, border: `1px solid ${C.green}60`, borderRadius: 0, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ background: `${C.green}18`, border: `1px solid ${C.green}60`, borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 18 }}>✓</span>
           <div>
             <div style={{ fontFamily: C.head, fontSize: 16, letterSpacing: 0.5, color: C.green }}>Assetto Corsa detected</div>
@@ -464,7 +464,7 @@ export default function SettingsView() {
         </div>
       )}
       {acDetected && !acDetected.found && (
-        <div style={{ background: `${C.orange}18`, border: `1px solid ${C.orange}60`, borderRadius: 0, padding: '12px 16px' }}>
+        <div style={{ background: `${C.orange}18`, border: `1px solid ${C.orange}60`, borderRadius: 8, padding: '12px 16px' }}>
           <div style={{ fontFamily: C.head, fontSize: 16, letterSpacing: 0.5, color: C.orange }}>AC not auto-detected — set path manually below</div>
           <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Checked default Steam library paths</div>
         </div>

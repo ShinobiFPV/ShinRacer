@@ -62,7 +62,7 @@ function TrackPicker({ acPath, value, onChange }) {
           <button key={t.name} onClick={() => onChange(t)}
             style={{ background: value?.name === t.name ? `${C.blue}18` : C.bg,
               border: `1px solid ${value?.name === t.name ? C.blue : C.border}`,
-              borderRadius: 0, height: 36, padding: '0 12px', textAlign: 'left', color: C.textPrimary,
+              borderRadius: 8, height: 36, padding: '0 12px', textAlign: 'left', color: C.textPrimary,
               display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontFamily: C.mono, fontSize: 12 }}>{t.name}</span>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -113,7 +113,7 @@ function CarPicker({ acPath, selected, onChange }) {
         {filtered.map(car => (
           <Tooltip key={car} text="Select which car models players can choose from">
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px',
-              borderRadius: 0, background: selected.includes(car) ? `${C.blue}12` : 'transparent',
+              borderRadius: 8, background: selected.includes(car) ? `${C.blue}12` : 'transparent',
               border: `1px solid ${selected.includes(car) ? C.blueDim : 'transparent'}`, cursor: 'pointer' }}>
               <input type="checkbox" checked={selected.includes(car)} onChange={() => toggle(car)} />
               <span style={{ fontFamily: C.mono, fontSize: 11 }}>{car}</span>
@@ -125,7 +125,7 @@ function CarPicker({ acPath, selected, onChange }) {
         <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           {selected.map(c => (
             <button key={c} onClick={() => toggle(c)}
-              style={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 0,
+              style={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 8,
                 color: C.muted, fontSize: 10, padding: '2px 6px', fontFamily: C.mono }}>
               {c} ✕
             </button>
@@ -347,7 +347,7 @@ export default function BuildView({ initialCfg, onDeployed, onOpenWizard }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 420, overflowY: 'auto' }}>
                 {entrySlots.map((slot, i) => (
                   <div key={i} style={{ display: 'grid', gridTemplateColumns: '46px 2fr 1fr 1.2fr 1.4fr', gap: 8,
-                    alignItems: 'center', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, padding: '6px 10px' }}>
+                    alignItems: 'center', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px' }}>
                     <span style={{ fontFamily: C.mono, fontSize: 11, color: C.muted }}>{String(i).padStart(2, '0')}</span>
                     <Select value={slot.car} onChange={v => updateSlot(i, 'car', v)}
                       options={[{ value: '', label: '— none —' }, ...cfg.cars.map(c => ({ value: c, label: c }))]} />
@@ -369,14 +369,14 @@ export default function BuildView({ initialCfg, onDeployed, onOpenWizard }) {
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
             {['cfg', 'entry'].map(t => (
               <button key={t} onClick={() => setPreviewTab(t)}
-                style={{ fontSize: 11, padding: '3px 10px', borderRadius: 0, border: `1px solid ${previewTab === t ? C.blue : C.border}`,
+                style={{ fontSize: 11, padding: '3px 10px', borderRadius: 8, border: `1px solid ${previewTab === t ? C.blue : C.border}`,
                   background: previewTab === t ? `${C.blue}18` : 'transparent', color: previewTab === t ? C.blue : C.muted,
                   fontFamily: C.mono }}>
                 {t === 'cfg' ? 'server_cfg.ini' : 'entry_list.ini'}
               </button>
             ))}
           </div>
-          <div style={{ background: C.bg, borderLeft: `2px solid ${C.border}`, borderRadius: 0, padding: 12, fontFamily: C.mono, fontSize: 10,
+          <div style={{ background: C.bg, borderLeft: `2px solid ${C.border}`, borderRadius: 8, padding: 12, fontFamily: C.mono, fontSize: 10,
             lineHeight: 1.8, color: C.mutedHi, maxHeight: 500, overflowY: 'auto' }}>
             {(previewTab === 'cfg' ? iniPreview : entryPreview).split('\n').map((line, i) => {
               if (line.startsWith(';')) return <div key={i} style={{ color: C.muted, fontStyle: 'italic' }}>{line}</div>

@@ -40,7 +40,7 @@ function useLocalAudioLevel(stream) {
 function MicMeter({ stream }) {
   const level = useLocalAudioLevel(stream)
   return (
-    <div style={{ height: 8, background: C.bg, borderRadius: 0, overflow: 'hidden', border: `1px solid ${C.border}` }}>
+    <div style={{ height: 8, background: C.bg, borderRadius: 8, overflow: 'hidden', border: `1px solid ${C.border}` }}>
       <div style={{ height: '100%', width: `${level * 100}%`,
         background: `linear-gradient(90deg, ${C.blueDim}, ${C.blue})`, transition: 'width .05s' }} />
     </div>
@@ -254,7 +254,7 @@ function VoicePanel({ identity, socket, users, selfId }) {
           <Tooltip text="Click to rebind your push-to-talk key">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               background: pttActive ? `${C.green}18` : C.bg, border: `1px solid ${pttActive ? C.green : C.border}`,
-              borderRadius: 0, padding: '8px 12px', marginTop: 4 }}>
+              borderRadius: 8, padding: '8px 12px', marginTop: 4 }}>
               <div style={{ fontSize: 12, color: C.mutedHi }}>
                 Push-to-talk key: <span style={{ fontFamily: C.mono, color: C.blue }}>{keyLabel(pttKey)}</span>
               </div>
@@ -365,7 +365,7 @@ function ChatPanel({ identity, socket, quickPhrases }) {
           {quickPhrases.map(p => (
             <Tooltip key={p} text="Click to instantly send this phrase to chat — edit in Settings">
               <button onClick={() => send(p)}
-                style={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 0, color: C.mutedHi,
+                style={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 8, color: C.mutedHi,
                   fontSize: 11, padding: '6px 8px', textAlign: 'left', fontFamily: C.body }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = C.blue}
                 onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>

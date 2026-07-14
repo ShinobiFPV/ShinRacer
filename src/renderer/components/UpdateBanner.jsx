@@ -38,7 +38,7 @@ export default function UpdateBanner() {
       flexShrink: 0,
     }}>
       <div style={{
-        width: 6, height: 6, borderRadius: 0,
+        width: 6, height: 6, borderRadius: 8,
         background: isDownloaded ? C.green : C.blue,
         flexShrink: 0,
       }} />
@@ -86,7 +86,7 @@ export default function UpdateBanner() {
             background: C.green, color: '#000', border: 'none',
             padding: '4px 14px', fontFamily: C.head, fontWeight: 700,
             fontSize: 12, letterSpacing: 0.5, cursor: 'pointer',
-            borderRadius: 0,
+            borderRadius: 8,
           }}>
           RESTART &amp; INSTALL
         </button>
