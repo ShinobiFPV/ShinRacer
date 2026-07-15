@@ -18,7 +18,7 @@ ShinRacer is the app your AC friend group never knew it needed but won't be able
 
 One app. Everything the crew needs. Server up in 30 seconds, traffic dialed in for a 2am Shutoko run, race night on the calendar, everyone in voice, lap times already logged before you've tabbed back out. No Discord bots stitched to a spreadsheet. No third-party SaaS holding your data hostage. It all runs on a Raspberry Pi in shinobi's setup and a private Tailscale network — nobody outside the crew even knows it exists. One Google sign-in gets you in; there's no password to remember and no account to create.
 
-Hover anything you don't recognize — every control explains what it actually does, not just what its label already told you. And it doesn't look like a spreadsheet with buttons bolted on: pure black, monospace, amber accents, rounded corners — the same terminal-dashboard look as the rest of the ShinTech fleet, built to actually read at a glance instead of just looking sharp in a screenshot.
+Hover anything you don't recognize — every control explains what it actually does, not just what its label already told you. And it doesn't look like a spreadsheet with buttons bolted on: true black, electric blue accents, sharp zero-radius corners, Rubik Mono One/Space Mono — a cold, JDM-instrument-cluster look built to actually read at a glance instead of just looking sharp in a screenshot.
 
 ## What it does
 
@@ -177,6 +177,29 @@ The crew's mod collection, in the app. Click install. Done. No zip files. No dra
 - Everyone connected gets a toast the second a new mod lands
 - The same sign-in gates the whole app now (see Roles, below) — downloads and browsing don't need any *extra* sign-in beyond that, only uploading ever needed Google in the first place
 
+### 🚁 FPV Drone Assistant
+
+Flying [sug44's FPV Drone mod](https://github.com/sug44/FpvDroneForAC) for AC? ShinRacer's got a dedicated page for it.
+
+![FPV Drone Assistant — setup, controller calibration, and crew position map](docs/screenshots/fpv-drone.png)
+
+- Checks your mod install and CSP version for you — the drone mod is picky about which CSP builds actually fly right, and this flags a bad pairing before you find out the hard way mid-flight
+- Detects your controller (DJI FPV Controller 2/3 or a generic gamepad) and shows a live 60fps axis monitor while you calibrate
+- Edit the mod's own flight/rate/camera presets right in the app — a real JSON editor, not a text file you have to hunt down
+- A crew position map shows where everyone's actually flying, relative to each other, live
+- A built-in reference guide for the mod's own settings, so you're not tabbing out to a wiki mid-session
+
+### 🗺️ Forza World Map
+
+Same crew, same Tailscale network, but this time everyone's in Horizon. See where they actually are.
+
+![Forza World Map — live crew positions on FH5/FH6's world map](docs/screenshots/forza-map.png)
+
+- Every signed-in crew member currently playing FH5 or FH6 shows up live, with a direction arrow and a status — IN RACE, OPEN DRIVING, or IDLE
+- Positions are smoothed, not jumpy — real telemetry, lerped between updates so markers glide instead of snapping
+- Pan, zoom, "Follow me," or "Show everyone" — your call
+- Reuses the same Forza telemetry the Live Telemetry tab already reads, so there's no second thing to set up — if telemetry's on, the map works
+
 ### 🔗 Useful Links
 
 Everywhere the crew actually goes for mods, tools, and guides — one tab, not a pinned Discord message from eight months ago.
@@ -333,6 +356,7 @@ Since you asked:
 | Networking | Tailscale (or LAN) |
 | Deployment | Raspberry Pi 5 + systemd |
 | Build | electron-builder (single NSIS installer), GitHub Actions |
+| Auto-update | electron-updater — in-app banner, checks GitHub Releases, restart-to-install |
 
 ## Let's go
 
@@ -381,7 +405,7 @@ William sent you here. Good. Do this:
 5. Run through the setup wizard — **Sign in with Google** first, then handle/color (defaulted from your Google profile), then hit Test Connection on the backend (it's pre-filled)
 6. You're in. Check Events for what's coming up.
 
-The whole thing takes about 5 minutes.
+The whole thing takes about 5 minutes. After that, updates find you — a banner shows up in-app when a new version's out, no need to redownload the installer.
 
 Full step-by-step: **[docs/FRIEND_SETUP.md](docs/FRIEND_SETUP.md)**
 
