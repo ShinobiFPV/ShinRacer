@@ -6,6 +6,7 @@ import { DEFAULT_QUICK_PHRASES, DEFAULT_BACKEND_URL, DEFAULT_AI_ENGINEER } from 
 import { useStore } from '../store/AppStore'
 import httpApi from '../lib/api'
 import AiEngineerSetup from './AiEngineerSetup'
+import { isLite } from '../lib/variant'
 
 const api = window.api
 
@@ -493,7 +494,11 @@ export default function Wizard({ onComplete }) {
   const steps = useMemo(() => {
     const base = ['welcome', 'connecting', 'identity', 'backend']
     if (isHostOrAdmin) base.push('acpath', 'hostcheck')
-    base.push('phrases', 'aiengineer', 'pwa', 'done')
+    base.push('phrases')
+    // AI Engineer has no page to set up on ShinRacer Lite (see App.jsx's
+    // LITE_VISIBLE) — no point onboarding into a feature with no nav entry.
+    if (!isLite) base.push('aiengineer')
+    base.push('pwa', 'done')
     return base
   }, [isHostOrAdmin])
   const stepId = steps[stepIdx] || 'welcome'

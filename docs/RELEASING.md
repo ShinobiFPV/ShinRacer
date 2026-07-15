@@ -128,12 +128,62 @@ npm run release
 Wait for GitHub Actions to build and publish the `.exe` — users will see the
 update banner within 4 hours, or immediately if they restart the app sooner.
 
+## ShinRacer Lite
+
+A second installer, built from this exact same `src/` tree, for crew who
+just want servers/events, mods, comms, and traffic management — none of
+the rest of the app's surface area (Stats, Telemetry, the Cluster Fucker,
+Replays, FPV Drone, Forza Map, Car Stereo, Links, AI Engineer, Admin).
+Which nav items are visible is decided at **build time**, not by a
+role or a runtime toggle — see `src/renderer/lib/variant.js` and
+`App.jsx`'s `LITE_VISIBLE` set.
+
+- `electron-builder-lite.yml` (repo root) is the second electron-builder
+  config — `appId: com.shintech.shinracer.lite`,
+  `productName: ShinRacer Lite`. **It's a full, standalone copy of
+  `package.json`'s `build` block, not a delta.** Confirmed the hard way:
+  `electron-builder --config <file>` does **not** deep-merge with
+  `package.json`'s `build` field in this project's installed
+  electron-builder version (24.13.3) — a first draft that only listed the
+  fields that differ silently produced a Lite build with the default
+  Electron icon and no `backend/` folder at all. If you ever need to
+  change `files`/`extraResources`/`icon`/`nsis.license`/etc., update both
+  `package.json` and `electron-builder-lite.yml` together.
+- `npm run dev:lite` / `pack:lite` / `release:lite` / `release:lite:dry`
+  mirror the Full build's own scripts, each setting
+  `VITE_APP_VARIANT=lite` before building.
+- **Separate update channel.** Full and Lite publish to the same
+  `ShinobiFPV/ShinRacer` GitHub repo. `electron-builder-lite.yml` sets
+  `publish.channel: lite`, and `main.js`'s `configureAutoUpdater()` sets
+  `autoUpdater.channel = 'lite'` when running as the Lite build (detected
+  via `app.getName() === 'ShinRacer Lite'`) — without this, both builds'
+  update metadata (`latest.yml` vs `lite.yml`) would collide, risking one
+  flavor being silently offered the other's installer as an "update."
+  Full's config and code path are untouched (no channel set, defaults to
+  `'latest'`).
+- `resources/installer.nsh` is **shared** by both installers — it
+  references electron-builder's built-in `${APP_EXECUTABLE_FILENAME}` and
+  `${PRODUCT_NAME}` NSIS defines instead of hardcoding "ShinRacer", so the
+  same script correctly closes/uninstalls whichever app is actually
+  installed. Verified by compiling it standalone with a cached
+  `makensis.exe` against both a `ShinRacer` and `ShinRacer Lite`
+  `PRODUCT_NAME`/`PRODUCT_FILENAME` — see this file's own git history for
+  the technique (same one used to verify it in Phase 12).
+- CI (`.github/workflows/release.yml`) builds and publishes **both**
+  installers on every tag push — they always share one version number, so
+  there's no separate Lite versioning to track.
+
 ## Verifying a release worked
 
-- The GitHub Release for the new tag has exactly one asset:
-  `ShinRacer Setup {version}.exe`.
+- The GitHub Release for the new tag has two assets:
+  `ShinRacer Setup {version}.exe` and `ShinRacer Lite Setup {version}.exe`
+  (plus each installer's `.blockmap` and its own `latest.yml`/`lite.yml`
+  update manifest).
 - The release body matches `.github/release-template.md` with the version
   substituted in, not electron-builder's default "vX.Y.Z" placeholder text.
-- Running the installer on a clean machine: SmartScreen warning is expected
-  (the app is unsigned) — "More info" → "Run anyway" — then the app installs,
-  launches, and lands on the Google sign-in wizard.
+- Running either installer on a clean machine: SmartScreen warning is
+  expected (the app is unsigned) — "More info" → "Run anyway" — then the
+  app installs, launches, and lands on the Google sign-in wizard. The Lite
+  install should show only 8 nav items (Live Servers, Build, Garage,
+  Traffic Manager, Events, Comms, Mods, Settings); the Full install shows
+  everything.

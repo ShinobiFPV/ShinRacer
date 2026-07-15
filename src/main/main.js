@@ -100,8 +100,16 @@ function sendKeyViaSendKeys(keyStr) {
 // ── Reminder notifications: event ids we've already notified for this run ────
 const notifiedEventIds = new Set()
 
+// ShinRacer Lite (see electron-builder-lite.yml) is the same main process
+// packaged under a different productName — electron-builder sets the
+// packaged app's name to productName, so this is reliable with no extra
+// build-time plumbing on the main-process side.
+const IS_LITE = app.getName() === 'ShinRacer Lite'
+
 // ── Logging ───────────────────────────────────────────────────────────────────
-const LOG_DIR = path.join(app.getPath('appData'), 'ShinRacer', 'logs')
+// app.getName() (not a hardcoded 'ShinRacer') so Lite's logs land in their
+// own %APPDATA%\ShinRacer Lite\logs instead of colliding with Full's.
+const LOG_DIR = path.join(app.getPath('appData'), app.getName(), 'logs')
 let logStream = null
 
 function initLogging() {
@@ -212,6 +220,11 @@ function configureAutoUpdater() {
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.logger = console
+  // Full and Lite both publish to the same GitHub repo (see
+  // electron-builder-lite.yml) — without separate channels, each would
+  // risk overwriting or being offered the other's release metadata.
+  // Full stays on the default 'latest' channel (unchanged behavior).
+  if (IS_LITE) autoUpdater.channel = 'lite'
 
   autoUpdater.on('checking-for-update', () => {
     console.log('[updater] Checking for update...')
@@ -337,7 +350,7 @@ const OAUTH_CALLBACK_HTML = `<!DOCTYPE html>
 <body>
   <div style="text-align:center">
     <h1>SIGNED IN</h1>
-    <p>You can close this tab and return to ShinRacer.</p>
+    <p>You can close this tab and return to ${app.getName()}.</p>
   </div>
 </body>
 </html>`
@@ -398,7 +411,7 @@ const SPOTIFY_CALLBACK_HTML = `<!DOCTYPE html>
 <body>
   <div style="text-align:center">
     <h1>CONNECTED TO SPOTIFY</h1>
-    <p>You can close this tab and return to ShinRacer.</p>
+    <p>You can close this tab and return to ${app.getName()}.</p>
   </div>
 </body>
 </html>`

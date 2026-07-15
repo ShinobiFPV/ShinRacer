@@ -8,6 +8,7 @@ import Wizard from './components/Wizard'
 import ServerWizard from './components/ServerWizard'
 import { deployConfig, presetFromConfig } from './lib/deploy'
 import { StereoProvider } from './hooks/useStereo'
+import { isLite } from './lib/variant'
 import api from './lib/api'
 import DeployView  from './views/DeployView'
 import BuildView   from './views/BuildView'
@@ -62,10 +63,21 @@ function canAccess(requiredRole, userRole) {
   return requiredRole !== 'admin' || userRole === 'admin'
 }
 
+// ShinRacer Lite (see electron-builder-lite.yml) is a second installer
+// built from this same nav array, limited to server/event access+creation,
+// mods, comms, and traffic management — everything else is hidden
+// outright, independent of role (an admin on the Lite build still only
+// sees this list; canAccess()'s role gate above is a separate, orthogonal
+// check that still applies on top of it).
+const LITE_VISIBLE = new Set(['deploy', 'build', 'garage', 'traffic', 'events', 'comms', 'mods', 'settings'])
+function inVariant(id) {
+  return !isLite || LITE_VISIBLE.has(id)
+}
+
 const ROLE_COLOR = { admin: C.red, host: C.blue, crew: C.muted }
 
 function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backendOnline, user, role }) {
-  const visibleNav = NAV.filter(n => canAccess(n.role, role))
+  const visibleNav = NAV.filter(n => canAccess(n.role, role) && inVariant(n.id))
   return (
     <div style={{ width:180, background:C.bg, borderRight:`1px solid ${C.border}`,
       display:'flex', flexDirection:'column', flexShrink:0, userSelect:'none' }}>
@@ -78,7 +90,7 @@ function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backend
           SHINRACER
         </span>
         <span style={{ fontFamily:C.body, fontWeight:400, fontSize:10, letterSpacing:2, textTransform:'uppercase', color:C.muted, marginTop:2 }}>
-          ShinTech
+          ShinTech{isLite ? ' · Lite' : ''}
         </span>
       </div>
 
@@ -278,7 +290,7 @@ function Inner() {
   }, [profiles])
 
   const currentNavItem = NAV.find(n => n.id === view)
-  const restricted = currentNavItem && !canAccess(currentNavItem.role, role)
+  const restricted = currentNavItem && (!canAccess(currentNavItem.role, role) || !inVariant(currentNavItem.id))
 
   // Wizard shows on first launch (setupComplete: false) OR whenever there's
   // no valid Google sign-in — either condition alone is enough to gate the

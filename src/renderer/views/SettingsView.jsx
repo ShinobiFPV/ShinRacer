@@ -5,6 +5,7 @@ import { C, Card, SectionHead, Label, Btn, TextInput, Select, Toggle } from '../
 import Tooltip from '../components/Tooltip'
 import AiEngineerSetup from '../components/AiEngineerSetup'
 import { useStore, DEFAULT_QUICK_PHRASES } from '../store/AppStore'
+import { isLite } from '../lib/variant'
 
 const api = window.api
 
@@ -518,9 +519,13 @@ export default function SettingsView() {
         </div>
       </Card>
 
-      <TelemetrySection />
-      <ForzaMapSection />
-      <AiEngineerSection />
+      {/* Telemetry/Forza Map/AI Engineer config has no page to use it on
+          ShinRacer Lite (their nav items are hidden — see App.jsx's
+          LITE_VISIBLE) — showing these fields would just be orphaned
+          config with nothing to point at. */}
+      {!isLite && <TelemetrySection />}
+      {!isLite && <ForzaMapSection />}
+      {!isLite && <AiEngineerSection />}
 
       <Card accent={C.borderHi}>
         <SectionHead children="Server defaults" sub="Used as starting values when creating a new server config" />

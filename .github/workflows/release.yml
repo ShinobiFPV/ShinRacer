@@ -34,6 +34,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_BACKEND_URL: http://192.168.1.203:3000
 
+      # ShinRacer Lite (see electron-builder-lite.yml) — same tag, same
+      # version, published as a second installer to the same GitHub
+      # release, on its own update channel so it and Full's auto-updater
+      # never mix up each other's releases.
+      - run: npm run release:lite
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_BACKEND_URL: http://192.168.1.203:3000
+
       # electron-builder --publish always (npm run release) already created
       # and published the GitHub release with the NSIS installer attached —
       # this just replaces electron-builder's auto-generated notes (which are

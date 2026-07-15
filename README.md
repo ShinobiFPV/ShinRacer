@@ -400,7 +400,7 @@ William sent you here. Good. Do this:
 
 1. Get a Tailscale invite from William
 2. Send William the Google account you'll sign in with, so he can add you to the crew list
-3. Grab the latest installer: [GitHub Releases](https://github.com/ShinobiFPV/ShinRacer/releases/latest) — one file, `ShinRacer Setup x.x.x.exe`
+3. Grab the latest installer: [GitHub Releases](https://github.com/ShinobiFPV/ShinRacer/releases/latest) — `ShinRacer Setup x.x.x.exe` for everything, or `ShinRacer Lite Setup x.x.x.exe` if you just want servers/events, mods, comms, and traffic management without the rest of the app (see below)
 4. Run it — Windows might throw a SmartScreen warning since it's unsigned for now. Click "More info" → "Run anyway."
 5. Run through the setup wizard — **Sign in with Google** first, then handle/color (defaulted from your Google profile), then hit Test Connection on the backend (it's pre-filled)
 6. You're in. Check Events for what's coming up.
@@ -408,6 +408,14 @@ William sent you here. Good. Do this:
 The whole thing takes about 5 minutes. After that, updates find you — a banner shows up in-app when a new version's out, no need to redownload the installer.
 
 Full step-by-step: **[docs/FRIEND_SETUP.md](docs/FRIEND_SETUP.md)**
+
+**Not everyone needs the whole app.** ShinRacer Lite is the same install,
+built from the same code, but trimmed to just Live Servers, Build, Garage,
+Traffic Manager, Events, Comms, Mods, and Settings — for crew who just
+want to join races/events, grab mods, and talk, without Stats,
+Telemetry, the Cluster Fucker, Replays, FPV Drone, Forza Map, Car Stereo,
+Links, or AI Engineer cluttering the sidebar. Same backend, same account,
+same updates — just fewer pages. See [docs/RELEASING.md](docs/RELEASING.md#shinracer-lite).
 
 ### Roles
 

@@ -4142,3 +4142,181 @@ verify it (curl checks, standalone unit tests, log inspection) before the
 sign-in is confirmed working end to end as of this pass; if it breaks
 again, it's a new bug, not a regression of anything documented in this
 chain.
+
+## Phase 19: ShinRacer Lite
+
+Phase 19 added a second electron-builder installer target — ShinRacer
+Lite — built from the exact same `src/` tree as the main app, for casual
+crew who just want server/event access + creation, mod management, comms,
+and traffic management, without the rest of the app's now-large surface
+area (Stats, Telemetry, the Cluster Fucker, Replays, FPV Drone, Forza Map,
+Car Stereo, Links, AI Engineer, Admin).
+
+### A real electron-builder assumption that turned out wrong, caught by actually running it
+
+The plan's own working assumption was that `electron-builder --config
+<file>` deep-merges with `package.json`'s `build` block, so
+`electron-builder-lite.yml` would only need to list the fields that
+differ (`appId`, `productName`, `nsis.shortcutName`, `publish.channel`).
+Ran `npm run pack:lite` to verify this before trusting it, per this
+file's own established rule — and it was wrong: the log showed `default
+Electron icon is used  reason=application icon is not set`, and the
+packed output's `resources/` folder had no `backend/` subfolder at all.
+`--config` **replaces** package.json's `build` block in this project's
+installed electron-builder (24.13.3), it doesn't merge with it. Fixed by
+making `electron-builder-lite.yml` a full, standalone copy of
+`package.json`'s entire `build` block (icon, `nsis` license/include,
+`files`, `extraResources`, `asarUnpack` — everything) with just the
+Lite-specific fields changed, and re-verified: re-ran `pack:lite`, the
+icon warning was gone, and `resources/backend/` (config, lib,
+middleware, nginx, node_modules) was present and correct. The two config
+files now have to be kept in sync by hand — documented directly in both
+`electron-builder-lite.yml`'s own header comment and
+`docs/RELEASING.md`'s new Lite section, so a future edit to
+`package.json`'s `build.files`/`extraResources`/etc. doesn't silently
+drift out of sync with Lite the way this first draft did.
+
+### Design
+- **Variant flag**: `vite.config.js` gained `__APP_VARIANT__` (mirrors the
+  existing `__BACKEND_URL__` define exactly), read via new
+  `src/renderer/lib/variant.js` (`APP_VARIANT`/`isLite`). Set at build
+  time via `VITE_APP_VARIANT=lite` in the new `dev:lite`/`pack:lite`/
+  `release:lite`/`release:lite:dry` npm scripts — default (`full`) is
+  completely unaffected, proven by re-running `npx vite build` with no env
+  var set and confirming the same clean output as before this phase.
+- **Nav filtering** (`App.jsx`): `LITE_VISIBLE` is a hidden-independent-of-role
+  allowlist (`deploy, build, garage, traffic, events, comms, mods,
+  settings`) — an admin account on the Lite install still only sees this
+  list; `canAccess()`'s existing role gate is a separate, orthogonal check
+  applied on top of it, not replaced. `restricted` (the existing
+  `AccessRestricted` fallback for deep-link/dispatch navigation to a
+  gated view) got the same additional check, so nothing outside
+  `LITE_VISIBLE` is reachable in a Lite build even via a stray
+  `cluster:invoke`/`accomp://` deep link. Sidebar wordmark subtitle
+  appends `· Lite` when `isLite`.
+- **Settings** (`SettingsView.jsx`): the file had zero pre-existing
+  role/feature gating (confirmed by an Explore agent before writing any
+  code) — `TelemetrySection`, `ForzaMapSection`, and `AiEngineerSection`
+  are now wrapped in `!isLite &&`, since all three are config for pages
+  Lite hides entirely. Everything else (Profile, Host Status, AC paths,
+  Update, Server defaults, Backend connection, Quick-phrases,
+  Diagnostics) is untouched — universal or maps to a feature Lite keeps.
+- **Wizard** (`Wizard.jsx`): the `aiengineer` onboarding step is dropped
+  from the `steps` list when `isLite`, via the same one-line-conditional
+  pattern the file already uses for its `isHostOrAdmin` branch two lines
+  above. The AC-path/host-readiness steps stay role-gated exactly as
+  before — hosting is in scope for Lite, so that gating is orthogonal.
+- **Main process** (`main.js`): `IS_LITE = app.getName() === 'ShinRacer
+  Lite'` (reliable because electron-builder sets the packaged app's
+  `app.getName()` to `productName` — confirmed empirically, see
+  Verified below). Two latent bugs fixed as part of this, both real
+  regardless of Lite ever shipping: `LOG_DIR` was a hardcoded `'ShinRacer'`
+  literal (would have put Lite's logs in Full's folder the moment both
+  existed on one machine) — now `app.getName()`-derived. The two OAuth/
+  Spotify loopback callback pages' "...return to ShinRacer." copy is now
+  `` `return to ${app.getName()}.` ``.
+- **Auto-update channel separation**: confirmed via research (not
+  assumed) that `electron-updater`'s GitHub provider resolves "latest"
+  via a per-channel `<channel>.yml` metadata file, independent of
+  `appId` — so Full and Lite publishing to the same
+  `ShinobiFPV/ShinRacer` repo with no separation would risk one flavor's
+  release metadata colliding with or overwriting the other's.
+  `electron-builder-lite.yml` sets `publish.channel: lite`; `main.js`'s
+  `configureAutoUpdater()` sets `autoUpdater.channel = 'lite'` only when
+  `IS_LITE`. Full's path is completely untouched (no channel set,
+  defaults to `'latest'` exactly as before this phase).
+- **`resources/installer.nsh` made product-name-agnostic**, not
+  duplicated. It previously hardcoded `ShinRacer.exe` (the
+  pre-install-taskkill in `customInit`) and `$APPDATA\ShinRacer` (the
+  uninstall cleanup prompt in `customUnInstall`) as literal strings —
+  correct only because there was one product. Fetched electron-builder's
+  real `common.nsh` template straight from its GitHub repo (via `gh api`,
+  not guessed or taken from memory) to confirm the exact available
+  defines before editing: `${APP_EXECUTABLE_FILENAME}` (`"${PRODUCT_FILENAME}.exe"`)
+  and `${PRODUCT_NAME}`, both defined in the `common.nsh` electron-builder
+  always `!include`s ahead of any custom script. Both hardcoded strings
+  (plus the uninstall prompt's own message-box copy, which also said
+  "ShinRacer" literally) were replaced with these defines — one shared
+  `installer.nsh` now correctly serves both installers instead of only
+  Full's. Verified by actually compiling the edited macros with the
+  cached `makensis.exe` inside a minimal wrapper `.nsi` defining
+  `PRODUCT_NAME`/`PRODUCT_FILENAME` as `"ShinRacer Lite"` (same technique
+  Phase 12 used) — compiled clean, no syntax errors, defines resolved.
+- **CI** (`release.yml`): one more `npm run release:lite` step after the
+  existing `npm run release`, same tag trigger, same env vars — both
+  installers publish together on every version bump, sharing one version
+  number so there's no separate Lite release-numbering to track.
+- **Docs**: `docs/RELEASING.md` gained a full "ShinRacer Lite" section
+  (this phase's own design + the config-merge gotcha above) and the
+  "exactly one asset" verification line was corrected to two.
+  `.github/release-template.md` now lists both installers under
+  "Install." `README.md` gained a short paragraph pointing crew at Lite
+  as an alternative to the full install, plus an updated step 3 in the
+  "If you're joining the crew" section.
+
+### Verified this pass
+`npx vite build` (default/Full) compiles clean, same as before this
+phase (182 modules, +1 for the new `lib/variant.js`). `node --check`
+passes on `main.js`. `npm run pack:lite` produces a correctly-named
+`ShinRacer Lite.exe` with `resources/backend/` present (config, lib,
+middleware, nginx, node_modules all there) and no missing-icon warning —
+re-verified after fixing the config-merge assumption above, not just
+before. `resources/installer.nsh`'s edited macros were compiled
+standalone with a real `makensis.exe` and the real electron-builder
+`${APP_EXECUTABLE_FILENAME}`/`${PRODUCT_NAME}` defines, confirmed via
+`gh api` against electron-builder's actual GitHub source rather than
+recalled from memory. `package.json` re-parses as valid JSON;
+`.github/workflows/release.yml` re-parses as valid YAML (Python's
+`yaml.safe_load`, same technique as Phase 12).
+
+A real, interactive Electron click-through was driven via a throwaway
+Playwright `_electron` script (installed with `--no-save`, deleted after
+use, confirmed absent from `package.json`/`package-lock.json`
+afterward — same technique as Phases 4-9/13/18) against an isolated
+`--user-data-dir` with hand-seeded `googleAuth`/`settings.setupComplete`
+(role: `'admin'`, to specifically test that Lite hides pages regardless
+of role — see the plan's own "audience is casual crew, not a role tier"
+decision). Built and drove **both** variants back to back by re-running
+`vite build` with and without `VITE_APP_VARIANT=lite` between sessions:
+- **Full**: all 18 nav items render including Admin (the seeded admin
+  role); Settings shows the Telemetry, Forza Map, and AI Engineer
+  sections.
+- **Lite**: exactly 8 nav items render, in order — Live Servers, Build,
+  Garage, Traffic Manager, Events, Comms, Mods, Settings — with Admin
+  correctly absent from the DOM despite the seeded `role: 'admin'`
+  (proves the variant filter is independent of role, not layered under
+  it); Settings correctly omits Telemetry/Forza Map/AI Engineer.
+
+Separately, confirmed `app.getName()` really does resolve to `"ShinRacer"`
+(not the lowercase `package.json` `name` field) even in unpackaged
+dev-style `electron .` launches, by checking which real `%APPDATA%`
+folder the (now `app.getName()`-derived) `LOG_DIR` fix actually wrote
+to during the driven session above — a real `ShinRacer` folder appeared
+with a fresh log, confirming the `LOG_DIR` fix is behavior-neutral for
+Full in both dev and (by the same logic, since electron-builder sets the
+packaged app's metadata identically) packaged builds.
+
+### Not independently verified
+The packaged **Lite** exe's `IS_LITE`-gated main-process behavior
+(`LOG_DIR` landing in `%APPDATA%\ShinRacer Lite\logs`, `autoUpdater.channel
+= 'lite'`) was not directly observed running end-to-end — `win.
+requestedExecutionLevel: requireAdministrator` (inherited unchanged from
+Full) means launching the real packaged `ShinRacer Lite.exe` directly
+triggers a UAC elevation prompt, which this non-interactive sandboxed
+session can't approve; the launch attempt produced no log output and left
+no process behind, rather than hanging. This is inferred correct, not
+directly observed, from two facts that *were* independently verified: (1)
+electron-builder genuinely packaged Lite with `productName: "ShinRacer
+Lite"` (proven by the exe's real filename and the correct `resources/`
+contents), and (2) `app.getName()` demonstrably reads `productName` over
+the raw `name` field (proven by the dev-mode `LOG_DIR` check above) — so
+the packaged Lite exe's `app.getName()` has no different a code path to
+take. Also not exercised: a real GitHub tag/release publishing both
+installers to the same release with distinct `latest.yml`/`lite.yml`
+channel files (no tag was pushed this pass — `release:lite`/CI are wired
+and locally dry-run-verified via `pack:lite`, but actually cutting a
+release is a separate, deliberate action for later, same as every
+existing release), and the Wizard's `aiengineer`-step-skip for Lite
+specifically (verified by reading the one-line conditional and by the
+clean build, not by clicking through the Wizard's step sequence — the
+change mirrors an already-proven-working pattern in the same function).

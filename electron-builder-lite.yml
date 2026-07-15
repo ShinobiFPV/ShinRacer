@@ -1,0 +1,63 @@
+# ShinRacer Lite — a second electron-builder target built from the exact
+# same src/ tree as the main package.json "build" config, via
+# `electron-builder --config electron-builder-lite.yml`.
+#
+# IMPORTANT, confirmed by actually running `npm run pack:lite` and
+# inspecting the output (not assumed): passing --config does NOT deep-merge
+# with package.json's own "build" block in this installed electron-builder
+# version (24.13.3) — a first draft of this file that only listed the
+# fields that differ produced a Lite build with the *default* Electron
+# icon and no `backend/` extraResources folder at all, both silently
+# dropped. So this file is a full, standalone copy of package.json's build
+# config, not a delta — keep the two in sync by hand if either changes
+# (icon, files, extraResources, nsis license/include, etc.).
+#
+# Which nav pages are visible in this build is controlled separately, at
+# build time, by VITE_APP_VARIANT=lite (see package.json's "*:lite"
+# scripts and src/renderer/lib/variant.js) — nothing in this file.
+appId: com.shintech.shinracer.lite
+productName: ShinRacer Lite
+copyright: ShinTech Electronics
+
+# Same repo as the Full build, but its own update channel — electron-updater's
+# GitHub provider resolves "latest" via a per-channel <channel>.yml metadata
+# file, so this keeps Lite's release metadata from colliding with (or being
+# offered as an update to/from) Full's. See main.js's configureAutoUpdater(),
+# which sets autoUpdater.channel = 'lite' only when IS_LITE.
+publish:
+  provider: github
+  owner: ShinobiFPV
+  repo: ShinRacer
+  releaseType: release
+  channel: lite
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  requestedExecutionLevel: requireAdministrator
+  icon: resources/icon.ico
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: resources/icon.ico
+  shortcutName: ShinRacer Lite
+  license: resources/license.txt
+  include: resources/installer.nsh
+  deleteAppDataOnUninstall: false
+
+extraResources:
+  - from: backend/
+    to: backend/
+    filter:
+      - "**/*"
+
+files:
+  - dist/**/*
+  - src/main/**/*
+  - resources/**/*
+
+asarUnpack:
+  - node_modules/robotjs/**/*
