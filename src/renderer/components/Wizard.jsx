@@ -9,18 +9,25 @@ import AiEngineerSetup from './AiEngineerSetup'
 
 const api = window.api
 
-// The PWA is served by nginx on the same host as the backend, on port 8080
-// (not 80 — shinobi already runs imq2 on 80, see the PWA's own deploy notes).
+// The PWA is also reachable over plain HTTP on the backend's own host at
+// :8080, but Google sign-in only works over the HTTPS URL below —
+// crypto.subtle (needed for the PKCE code challenge) only exists in a
+// secure context, and Google's OAuth server rejects redirect_uris that are
+// bare IP addresses outright. HTTPS is served via Tailscale Serve on a
+// dedicated port (:8443, not plain :443 — that port on this hostname is
+// already claimed by a different app's Tailscale Funnel). See
+// docs/GOOGLE_OAUTH_SETUP.md's "Where the PWA lives" section. This can no
+// longer be derived by swapping the backend URL's port the way the old
+// :8080 URL was (different scheme AND different host, not just a port),
+// so it's a fixed constant now — `backendUrl` is accepted but unused,
+// kept only so the PwaStep call site below didn't need to change.
 // `qrcode-generator` is already a dependency (used by DeployView's invite QR
 // and ClusterView's share QR) — these two helpers live here rather than in a
 // `lib/qr.js` module so this step stays a self-contained addition to this one file.
-const DEFAULT_PWA_URL = 'http://192.168.1.203:8080'
+const DEFAULT_PWA_URL = 'https://shinobi.tail9249a1.ts.net:8443'
 
-function getPwaUrl(backendUrl) {
-  if (!backendUrl) return DEFAULT_PWA_URL
-  // Backend runs on :3000, the PWA on :8080 — swap the port rather than
-  // stripping it (stripping left the URL portless, defaulting to :80).
-  return backendUrl.replace(':3000', ':8080').replace(/\/$/, '')
+function getPwaUrl(_backendUrl) {
+  return DEFAULT_PWA_URL
 }
 
 function generateQRSvg(text, size = 200) {

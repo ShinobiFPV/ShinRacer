@@ -40,7 +40,10 @@ William if you want to be able to volunteer your PC for that (see
 ## Option B — Mobile / PWA (no install needed)
 If you're on mobile or just want to check events and chat:
 1. Join Tailscale (Step 1 above still required)
-2. Open http://192.168.1.203:8080 in your browser
+2. Open https://shinobi.tail9249a1.ts.net:8443 in your browser — **use this
+   HTTPS URL, not the plain http://192.168.1.203:8080 one.** Google sign-in
+   only works over HTTPS; the plain-HTTP address still loads the app but
+   sign-in will fail there.
 3. Sign in with Google when the onboarding flow asks — same as the desktop
    app, this is required, not optional; there's no guest/browse-only mode
 4. Tap Add to Home Screen

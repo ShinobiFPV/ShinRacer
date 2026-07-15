@@ -10,11 +10,17 @@ const router = express.Router()
 // pwa/src/lib/auth.js), so it needs the client id and redirect URI but must
 // never see the client secret. This is the one config value the Electron app
 // never needed, since accomp://oauth is a fixed scheme, not a per-deployment URL.
+//
+// GOOGLE_OAUTH_CLIENT_ID_PWA, not GOOGLE_OAUTH_CLIENT_ID — the PWA needs its
+// own "Web application" type OAuth client (editable redirect URI list); the
+// original client is "Desktop app" type and can't register an arbitrary
+// HTTPS redirect at all. See lib/oauth.js's createOAuthClient and
+// docs/GOOGLE_OAUTH_SETUP.md's PWA section for the full reasoning.
 router.get('/config', (req, res) => {
   res.json({
     ok: true,
     data: {
-      clientId: process.env.GOOGLE_OAUTH_CLIENT_ID || null,
+      clientId: process.env.GOOGLE_OAUTH_CLIENT_ID_PWA || null,
       redirectUri: process.env.GOOGLE_OAUTH_REDIRECT_URI_PWA || null,
     },
   })

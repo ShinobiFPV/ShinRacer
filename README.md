@@ -258,8 +258,10 @@ chrome once it's installed.
 - Sign in with Google, same as desktop — the same mandatory account, the
   same Admin/Host/Crew role, no separate guest mode to keep straight
 
-**On Tailscale?** Open `http://192.168.1.203:8080`, sign in, tap Share → Add to
-Home Screen, done. No App Store. No Play Store. Just a link.
+**On Tailscale?** Open `https://shinobi.tail9249a1.ts.net:8443`, sign in,
+tap Share → Add to Home Screen, done. No App Store. No Play Store. Just a
+link. (Use the HTTPS URL, not the plain-HTTP `:8080` one — Google sign-in
+needs it.)
 
 Full mobile setup, VAPID push notifications, and the nginx config that
 serves it: **[docs/PWA_SETUP.md](docs/PWA_SETUP.md)**.

@@ -3714,3 +3714,180 @@ digest itself is now the least likely culprit (it's independently
 verified correct) — check the OAuth redirect/callback path instead. The
 proper HTTPS fix (Tailscale cert) remains a real, open follow-up — flagged
 to William, not actioned.
+
+**Update, same day**: the "open follow-up" above was resolved for real, and
+turned into three more real bugs along the way — see the next two
+follow-ups.
+
+## Follow-up: real HTTPS for the PWA via Tailscale Serve (not a manual cert)
+
+2026-07-15, continuing directly from the crypto.subtle fix: William tried
+signing in again and got a NEW error — `Access blocked: device_id and
+device_name needed for private IP`. Real, distinct Google policy, unrelated
+to crypto.subtle: Google's OAuth authorization server outright rejects
+`redirect_uri` values that are bare IP-address literals (private or
+public) as an anti-phishing measure. `GOOGLE_OAUTH_REDIRECT_URI_PWA` was
+`http://192.168.1.203:8080/auth/callback` — exactly that.
+
+**The fix needed a real hostname, which meant real HTTPS, which took two
+attempts to get right — the first one was wrong.**
+
+- **First attempt (reverted): manual `tailscale cert` + a hand-written
+  nginx `443 ssl` server block.** `sudo tailscale cert` initially seemed to
+  need an interactive password this session couldn't supply — but it
+  turned out `tailscale cert` doesn't need root at all on this box (only
+  `tailscale status`/`cert` commands do, most other Tailscale admin
+  actions do) — issuing straight to `~/shinobi.crt`/`.key` worked with no
+  sudo whatsoever, once tried directly instead of assuming the docs'
+  general "needs root" guidance applied here. Cert/key were moved into
+  `/var/www/shinracer-pwa/.ssl/` (same reasoning as the PWA files
+  themselves living outside `/home/shinobi` — nginx's `www-data` worker
+  can't traverse a `0700` home directory) with an explicit `location ^~
+  /.ssl/ { deny all; }` so `try_files` couldn't ever serve the private key
+  back over HTTP. `nginx -t` passed, the deploy succeeded, `curl` even
+  returned a real, publicly-trusted Let's Encrypt cert for `/`. **This was
+  reported as working without checking what was actually being served.**
+  Checking the response *body* (not just the status code) for the first
+  time revealed it was Q2 (imq2's own app) — **Tailscale Funnel already
+  owned port 443 on this exact hostname**, routing to a completely
+  different local service on port 80. The manual nginx 443 block was
+  syntactically valid and nginx would have served it correctly — but
+  Funnel intercepts the socket at the Tailscale-daemon level before nginx
+  ever sees the connection, so it was structurally unreachable the whole
+  time. A `200` status code is not "it works" — this is the second time in
+  this same conversation a status-code-only check produced a false
+  positive (see the asset-permissions follow-up above); the lesson applied
+  going forward was to check response *bodies*, not just codes, for
+  anything server-adjacent.
+- **Second attempt (kept): `tailscale serve --bg --https=8443
+  http://127.0.0.1:8080`.** Once Funnel's existing port-443 mapping was
+  discovered (`tailscale serve status` — should have been checked before
+  writing any nginx TLS config, not after), the actual right tool was
+  obvious: Tailscale Serve terminates TLS itself (cert issuance AND
+  renewal, no manual file management) and just reverse-proxies plain HTTP
+  into the existing `:8080` nginx block — no nginx changes needed at all
+  beyond reverting the dead manual 443 block. `--https=8443` (not `443`,
+  which is already Funnel'd to Q2) is `(tailnet only)` per `tailscale
+  serve status` — not exposed to the public internet, correct for a
+  friends-only app. `backend/nginx/shinracer.conf`'s 443 block and the
+  `.ssl/` cert files were both removed; the file now just documents this
+  decision in a comment instead of containing dead config.
+- **`GOOGLE_OAUTH_REDIRECT_URI_PWA`** updated to
+  `https://shinobi.tail9249a1.ts.net:8443/auth/callback` on shinobi's
+  `.env`, backend restarted, `GET /api/auth/config` confirmed to echo it
+  back correctly.
+- **`src/renderer/components/Wizard.jsx`'s `getPwaUrl()`** (the PWA
+  onboarding QR code) previously derived the PWA URL by swapping the
+  backend URL's port (`:3000` → `:8080`) — that trick doesn't work anymore
+  since the working URL is now a different scheme *and* a different host,
+  not just a different port. Simplified to a fixed constant matching the
+  new HTTPS URL; the function still accepts (and ignores) `backendUrl` so
+  its one call site didn't need touching.
+- **Docs updated to point at the new URL**: `README.md`'s "crew on mobile"
+  section, `docs/FRIEND_SETUP.md`'s Option B, `docs/PWA_SETUP.md`'s
+  install steps and its own "verifying it worked" section — all now say
+  `https://shinobi.tail9249a1.ts.net:8443`, with an explicit note that the
+  old `:8080` URL still loads the app but sign-in fails there.
+
+### Verified this pass
+Real `curl` requests confirmed each step, body content included (not just
+status codes, per the lesson above): the Funnel misroute was caught by
+reading the actual HTML (`<title>Q2</title>`, not ShinRacer's); after
+switching to `tailscale serve`, `https://shinobi.tail9249a1.ts.net:8443/`
+returns real ShinRacer content (`<title>ShinRacer</title>`), `/api/health`
+returns the real backend JSON, and the JS bundle serves `200`. `npx vite
+build` compiles clean after the `Wizard.jsx` change.
+
+### Not independently verified
+No real device completed an actual Google sign-in against this URL in this
+pass — verified by confirming the app itself loads correctly and the
+`redirect_uri`/origin are no longer IP-literal/insecure-context blockers,
+not by watching a real consent-screen round trip finish. (It didn't — see
+the next follow-up.)
+
+## Follow-up: PWA needed its OWN OAuth client (Desktop app ≠ Web application)
+
+2026-07-15, immediately after the HTTPS fix above: William added the new
+redirect URI to Google Cloud Console per the previous instructions and got
+`Error 400: redirect_uri_mismatch` — and separately reported "I was unable
+to find redirect uri menu on the console website, add secret is the only
+thing I can seem to add to this client."
+
+**That second detail was the actual diagnosis.** A client with no editable
+redirect-URI field and a visible "add secret" option is the Google Cloud
+Console UI for a **Desktop app** type OAuth client — which is exactly
+`GOOGLE_OAUTH_CLIENT_ID`, the one client this whole app has used for
+everything, Electron and PWA alike (`docs/GOOGLE_OAUTH_SETUP.md` said so
+explicitly: "there's only one OAuth client for the whole app"). Desktop
+app clients don't have an editable "Authorized redirect URIs" list *at
+all* — Google auto-manages loopback URIs for that type only, which is
+also, not coincidentally, why the original `accomp://oauth` custom-scheme
+redirect was rejected back in the loopback-redirect follow-up further up
+this file. The PWA's web-based flow needing an arbitrary HTTPS host in
+that list was never going to work against this client, full stop — not a
+propagation delay, not a typo, a structural type mismatch that's been
+there since the PWA's OAuth flow was first built (Phase 10) and just never
+got far enough to surface until the two bugs above were fixed.
+
+**Fix: a second, separate "Web application" type OAuth client**, created
+by William in the same Google Cloud project specifically for the PWA
+(Client ID ending `...542p`, distinct from the Electron app's `...5uh9`
+one). Wired into the backend rather than just swapped in:
+
+- **`backend/lib/oauth.js`**: `createOAuthClient(redirectUri)` now checks
+  whether the passed `redirectUri` exactly matches
+  `process.env.GOOGLE_OAUTH_REDIRECT_URI_PWA` and picks
+  `GOOGLE_OAUTH_CLIENT_ID_PWA`/`SECRET_PWA` if so, else the original
+  Desktop client vars — reliable because both callers (Electron's
+  `src/renderer/lib/auth.js`, PWA's `pwa/src/lib/auth.js` via `GET
+  /api/auth/config`) already pass their own `redirectUri` explicitly on
+  every call; nothing had to start passing a new parameter it didn't
+  already have. `refreshIdToken`/`getAuthenticatedClient` were
+  deliberately left calling `createOAuthClient()` with no `redirectUri`
+  (defaulting to the Desktop client) — checked their only real callers
+  first: the PWA never calls the refresh-token path at all (Phase 12's
+  "invalidate and reprompt" pattern, no refresh call exists in
+  `pwa/src/hooks/useAuth.js`), and `getAuthenticatedClient` only ever
+  wraps a bare `access_token` for a Drive API call with no refresh attempt
+  behind it, so a client_id/secret mismatch there can't actually manifest
+  as a bug — not fixed because there was nothing to fix, confirmed by
+  reading the actual call sites rather than assumed.
+- **`backend/routes/auth.js`**: `GET /config` now returns
+  `GOOGLE_OAUTH_CLIENT_ID_PWA` instead of the Desktop client's ID — this
+  is the value the PWA actually builds its Google auth URL from
+  client-side.
+- **`.env.example`**: added `GOOGLE_OAUTH_CLIENT_ID_PWA`/
+  `SECRET_PWA`, documented as a genuinely separate client, not a rename of
+  the existing pair.
+- **`docs/GOOGLE_OAUTH_SETUP.md`**: rewrote the top of the file to state
+  plainly that the PWA needs its own client and why (Desktop app type
+  structural limitation, not a config error), and added a full "PWA (Web
+  application client)" section with the exact Console steps, the
+  `.env` keys, a `curl` smoke test, and a "Where the PWA lives" section
+  cross-referencing the Tailscale Serve/Funnel-port-443-collision details
+  from the previous follow-up so a future reader doesn't have to
+  re-discover both of these the hard way.
+
+### Verified this pass
+Real HTTP requests against the live, redeployed backend confirm both
+clients resolve independently and correctly: `GET /api/mods/auth/url`
+called with Electron's loopback `redirectUri` returns an auth URL with
+`client_id=...5uh9` (the original Desktop client, unchanged); called with
+the PWA's `redirectUri` returns `client_id=...542p` (the new Web
+application client) with the correct `redirect_uri` echoed back.
+`GET /api/auth/config` returns the new PWA client ID. `node --check`
+passes on `backend/lib/oauth.js` and `backend/routes/auth.js`. The backend
+was redeployed for real via `deploy-backend.ps1` (not just edited on disk)
+and restarted cleanly.
+
+### Not independently verified
+No real device has completed an actual Google consent-screen round trip
+against the new Web application client in this pass — every check above
+confirms the backend now presents the *correct* client/redirect pairing
+for Google to accept, not that Google has actually accepted it end to end
+from a real phone. This is the first pass in this whole chain where the
+remaining unknowns are entirely on Google's side (propagation timing,
+whatever the actual consent screen shows) rather than a bug still hiding
+in this codebase — but "should work now" isn't the same as "confirmed
+working," and this file has now been wrong about that exact distinction
+twice in one day.

@@ -6,13 +6,33 @@ const { google } = require('googleapis')
 // custom accomp://oauth scheme, which Google's OAuth 2.0 policy for
 // "Desktop app" clients rejects outright (400: invalid_request) — see
 // docs/GOOGLE_OAUTH_SETUP.md. The PWA passes its own redirectUri
-// (http://<host>/auth/callback), since Google requires the redirect_uri in
-// the token exchange to exactly match the one used when the auth URL was
-// built, and the two apps use different ones.
+// (https://<tailscale-host>/auth/callback), since Google requires the
+// redirect_uri in the token exchange to exactly match the one used when the
+// auth URL was built, and the two apps use different ones.
+//
+// Two separate OAuth clients, not one. The original client
+// (GOOGLE_OAUTH_CLIENT_ID/SECRET) is registered in Google Cloud Console as
+// a "Desktop app" type — that's specifically why accomp://oauth got
+// rejected in the first place (Desktop app policy). Desktop app clients
+// also don't expose an editable "Authorized redirect URIs" list in the
+// console at all (Google auto-manages loopback URIs for that type only) —
+// so the PWA's web-based flow, which needs an arbitrary HTTPS host in that
+// list, can never be registered against this client, full stop. It isn't a
+// propagation delay or a typo; the client type structurally doesn't support
+// it. GOOGLE_OAUTH_CLIENT_ID_PWA/SECRET_PWA is a second, separate "Web
+// application" type client in the same Google Cloud project, which does
+// have that editable list — see docs/GOOGLE_OAUTH_SETUP.md's PWA section.
+// Selected by comparing redirectUri against the PWA's configured one
+// (both callers already pass their redirectUri explicitly — see
+// src/renderer/lib/auth.js's LOOPBACK_REDIRECT_URI vs pwa/src/lib/auth.js's
+// use of GET /api/auth/config's redirectUri), not by any implicit default.
 function createOAuthClient(redirectUri) {
+  const isPwa = !!redirectUri && redirectUri === process.env.GOOGLE_OAUTH_REDIRECT_URI_PWA
+  const clientId = isPwa ? process.env.GOOGLE_OAUTH_CLIENT_ID_PWA : process.env.GOOGLE_OAUTH_CLIENT_ID
+  const clientSecret = isPwa ? process.env.GOOGLE_OAUTH_CLIENT_SECRET_PWA : process.env.GOOGLE_OAUTH_CLIENT_SECRET
   return new google.auth.OAuth2(
-    process.env.GOOGLE_OAUTH_CLIENT_ID,
-    process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+    clientId,
+    clientSecret,
     redirectUri || process.env.GOOGLE_OAUTH_REDIRECT_URI || 'http://127.0.0.1:9721'
   )
 }
