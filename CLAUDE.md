@@ -4128,3 +4128,17 @@ minimal, obviously-correct change to a two-line conditional, but per this
 entire chain's own running theme, "obviously correct" and "confirmed
 working on William's phone" have not yet been the same thing four times
 running.
+
+**Update, same day — confirmed working.** William signed in on his phone
+and it worked cleanly. This closes out the five-bug PWA-sign-in chain that
+started with the `crypto.subtle`-needs-a-secure-context follow-up further
+up this file: private-IP `redirect_uri` → wrong OAuth client type →
+PKCE lost across an iOS storage-partition boundary → API calls blocked as
+mixed content → the new client's tokens rejected by the old audience
+check. Every one of those was root-caused from a real symptom William
+reported, fixed, deployed, and verified as far as this environment could
+verify it (curl checks, standalone unit tests, log inspection) before the
+*next* one surfaced — none were guessed preemptively. The PWA's Google
+sign-in is confirmed working end to end as of this pass; if it breaks
+again, it's a new bug, not a regression of anything documented in this
+chain.
