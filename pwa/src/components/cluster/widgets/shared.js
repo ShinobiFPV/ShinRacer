@@ -32,7 +32,9 @@ export function telemetryIsOn(frame, bind, threshold) {
   return threshold != null ? v > threshold : v > 0
 }
 
-export const FONT_FAMILY = { bebas: C.head, mono: C.mono, barlow: C.body }
+// Keys are neutral role names ('title'/'mono'/'body'), not literal font
+// names — kept in sync with the Electron app's own widgets/shared.js.
+export const FONT_FAMILY = { title: C.head, mono: C.mono, body: C.body }
 
 export function formatTelemetryValue(value, format, decimals = 0) {
   if (value == null) return '--'

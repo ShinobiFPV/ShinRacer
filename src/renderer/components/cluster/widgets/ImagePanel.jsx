@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { C } from '../../primitives'
 
 export const DEFAULT_IMAGEPANEL_CONFIG = {
-  image: null, opacity: 1, fit: 'cover', borderColor: null, borderWidth: 0,
+  image: null, opacity: 1, fit: 'cover', borderColor: null, borderWidth: 0, cornerRadius: 0,
 }
 
 const WARN_BYTES = 500 * 1024
@@ -60,6 +60,7 @@ export default function ImagePanel({ config = {}, mode, onConfigChange, onUpload
       style={{
         width: '100%', height: '100%', position: 'relative',
         border: cfg.borderColor ? `${cfg.borderWidth}px solid ${cfg.borderColor}` : 'none',
+        borderRadius: cfg.cornerRadius, overflow: 'hidden',
         cursor: mode !== 'runtime' ? 'pointer' : 'default',
         backgroundImage: cfg.image ? `url(${cfg.image})` : 'none',
         backgroundPosition: 'center',

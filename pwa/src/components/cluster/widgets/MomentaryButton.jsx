@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react'
 import { C } from '../../../lib/colors'
-import { glowShadow, SHAPE_CLIP, isRuntime } from './shared'
+import { glowShadow, SHAPE_CLIP, FONT_FAMILY, isRuntime } from './shared'
 
 export const DEFAULT_MOMENTARY_CONFIG = {
-  label: 'BUTTON', sublabel: '', fontSize: 14, shape: 'rectangle',
+  label: 'BUTTON', sublabel: '', fontSize: 14, fontFamily: 'title', shape: 'rectangle', cornerRadius: 0,
   fillColor: C.raised, borderColor: C.border, borderWidth: 1, labelColor: C.textPrimary,
   glowColor: null, glowIntensity: 0.6, image: null, imageOpacity: 1,
   pressedFillColor: C.blueDim, pressedGlowColor: C.blue,
@@ -43,6 +43,7 @@ export default function MomentaryButton({ config = {}, mode, onPress, onRelease 
         alignItems: 'center', justifyContent: 'center', background: fill,
         border: `${cfg.borderWidth}px solid ${cfg.borderColor}`,
         clipPath: SHAPE_CLIP[cfg.shape] || 'none',
+        borderRadius: cfg.shape === 'rectangle' ? cfg.cornerRadius : 0,
         boxShadow: glowShadow(glow, cfg.glowIntensity),
         cursor: isRuntime(mode) ? 'pointer' : 'default',
         transition: 'background .05s, box-shadow .1s',
@@ -53,7 +54,7 @@ export default function MomentaryButton({ config = {}, mode, onPress, onRelease 
     >
       {cfg.image && <div style={{ position: 'absolute', inset: 0, background: fill, opacity: 1 - cfg.imageOpacity }} />}
       <span style={{
-        position: 'relative', fontFamily: C.head, fontSize: cfg.fontSize, color: cfg.labelColor,
+        position: 'relative', fontFamily: FONT_FAMILY[cfg.fontFamily] || C.head, fontSize: cfg.fontSize, color: cfg.labelColor,
         letterSpacing: 1, textAlign: 'center', lineHeight: 1.1, padding: '0 4px',
         transform: pressed ? 'translateY(1px)' : 'none', pointerEvents: 'none',
       }}>

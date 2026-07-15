@@ -66,7 +66,7 @@ const FIELD_META = {
   prefix: { section: 'LABEL', control: 'text' },
   suffix: { section: 'LABEL', control: 'text' },
   fontSize: { section: 'LABEL', control: 'number', min: 8, max: 96 },
-  fontFamily: { section: 'LABEL', control: 'select', options: ['bebas', 'mono', 'barlow'] },
+  fontFamily: { section: 'LABEL', control: 'select', options: ['title', 'mono', 'body'] },
   labelColor: { section: 'LABEL', control: 'color' },
   color: { section: 'LABEL', control: 'color' },
   textAlign: { section: 'LABEL', control: 'select', options: ['left', 'center', 'right'] },
@@ -79,6 +79,7 @@ const FIELD_META = {
   fillColor: { section: 'APPEARANCE', control: 'color' },
   borderColor: { section: 'APPEARANCE', control: 'color' },
   borderWidth: { section: 'APPEARANCE', control: 'number', min: 1, max: 8 },
+  cornerRadius: { section: 'APPEARANCE', control: 'number', min: 0, max: 50 },
   glowColor: { section: 'APPEARANCE', control: 'color', allowNull: true },
   glowIntensity: { section: 'APPEARANCE', control: 'number', min: 0, max: 1, step: 0.1 },
   image: { section: 'APPEARANCE', control: 'image' },
@@ -141,8 +142,14 @@ function defaultLayout(author) {
   const now = new Date().toISOString()
   return {
     id: genId('local'), name: 'Untitled Cluster', description: '', author,
-    canvasWidth: 800, canvasHeight: 480, backgroundColor: C.bg, backgroundImage: null, backgroundImageOpacity: 1,
-    gridSize: 20, gridVisible: true, widgets: [], createdAt: now, updatedAt: now, isPublic: false, version: 1,
+    // 'transparent', not C.bg — this canvas is meant to pop out as a
+    // see-through overlay over the desktop/game. An opaque black canvas on
+    // an all-black app theme is what made the overlay window look like it
+    // "wasn't popping out anything" when the preset had few/no widgets on
+    // it yet — the window WAS there, it just visually disappeared into the
+    // rest of the black UI. See ClusterOverlay/main.js notes.
+    canvasWidth: 800, canvasHeight: 480, backgroundColor: 'transparent', backgroundImage: null, backgroundImageOpacity: 1,
+    gridSize: 20, gridVisible: true, snapEnabled: true, widgets: [], createdAt: now, updatedAt: now, isPublic: false, version: 1,
   }
 }
 
@@ -150,6 +157,8 @@ function snap(value, gridSize, bypass) {
   if (bypass) return value
   return Math.round(value / gridSize) * gridSize
 }
+
+function clamp(value, min, max) { return Math.min(Math.max(value, min), max) }
 
 function cloneLayout(layout) { return JSON.parse(JSON.stringify(layout)) }
 
@@ -364,8 +373,16 @@ function Canvas({ layout, selectedIds, setSelectedIds, onCommit, zoom, canvasRef
     const targets = widgetsById(nextSelected).filter(w => !w.locked)
     dragRef.current = {
       mode: 'move', startX: e.clientX, startY: e.clientY,
-      starts: Object.fromEntries(targets.map(w => [w.id, { x: w.x, y: w.y }])),
-      bypassSnap: e.altKey,
+      // anchorId is whichever widget the user actually grabbed — its start
+      // position is what gets snapped to the grid; every other selected
+      // widget just follows by the SAME resulting delta. Snapping each
+      // widget's own absolute position independently (the old behaviour)
+      // made multi-selections drift apart from each other as you dragged,
+      // since two widgets starting at different offsets-from-grid round to
+      // the nearest grid line differently on every mousemove tick.
+      anchorId: widget.id,
+      starts: Object.fromEntries(targets.map(w => [w.id, { x: w.x, y: w.y, width: w.width, height: w.height }])),
+      bypassSnap: e.altKey || !layout.snapEnabled,
     }
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
@@ -376,7 +393,7 @@ function Canvas({ layout, selectedIds, setSelectedIds, onCommit, zoom, canvasRef
     dragRef.current = {
       mode: 'resize', handle, startX: e.clientX, startY: e.clientY,
       start: { x: widget.x, y: widget.y, width: widget.width, height: widget.height }, widgetId: widget.id,
-      bypassSnap: e.altKey,
+      bypassSnap: e.altKey || !layout.snapEnabled,
     }
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
@@ -399,11 +416,36 @@ function Canvas({ layout, selectedIds, setSelectedIds, onCommit, zoom, canvasRef
     if (d.mode === 'move') {
       const dx = (e.clientX - d.startX) / zoom
       const dy = (e.clientY - d.startY) / zoom
+      const anchorStart = d.starts[d.anchorId]
+      // Snap the anchor widget's own resulting position to the grid, then
+      // derive ONE delta from that — every other selected widget is shifted
+      // by that exact same delta rather than being independently re-snapped,
+      // which is what kept multi-selections from staying aligned to each
+      // other while dragging. The anchor still lands cleanly on a grid line
+      // (assuming its start position was already grid-aligned, which every
+      // placement path now guarantees — see addWidget/onDropWidget).
+      const snappedAnchorX = clamp(snap(anchorStart.x + dx, layout.gridSize, d.bypassSnap), 0, layout.canvasWidth - anchorStart.width)
+      const snappedAnchorY = clamp(snap(anchorStart.y + dy, layout.gridSize, d.bypassSnap), 0, layout.canvasHeight - anchorStart.height)
+      const deltaX = snappedAnchorX - anchorStart.x
+      const deltaY = snappedAnchorY - anchorStart.y
       const next = layout.widgets.map(w => {
         const start = d.starts[w.id]
         if (!start) return w
-        return { ...w, x: Math.max(0, snap(start.x + dx, layout.gridSize, d.bypassSnap)), y: Math.max(0, snap(start.y + dy, layout.gridSize, d.bypassSnap)) }
+        return {
+          ...w,
+          x: clamp(start.x + deltaX, 0, layout.canvasWidth - start.width),
+          y: clamp(start.y + deltaY, 0, layout.canvasHeight - start.height),
+        }
       })
+      // Mirrored onto the ref for the same reason the marquee rect is below:
+      // onMouseUp is the one function instance registered at mousedown, so
+      // it forever closes over the `layout` prop as it was AT THAT MOMENT —
+      // before the drag moved anything. Its final onCommit(layout, true)
+      // call was overwriting every just-completed drag with that stale,
+      // pre-drag layout, which is why widgets visibly snapped back to their
+      // starting position the instant the mouse was released — the single
+      // biggest reason dragging "wasn't working."
+      d.finalWidgets = next
       onCommit({ ...layout, widgets: next }, false)
     } else if (d.mode === 'resize') {
       const dx = (e.clientX - d.startX) / zoom
@@ -415,8 +457,18 @@ function Canvas({ layout, selectedIds, setSelectedIds, onCommit, zoom, canvasRef
         if (d.handle.includes('s')) height = Math.max(MIN_WIDGET_SIZE, snap(d.start.height + dy, layout.gridSize, d.bypassSnap))
         if (d.handle.includes('w')) { width = Math.max(MIN_WIDGET_SIZE, snap(d.start.width - dx, layout.gridSize, d.bypassSnap)); x = d.start.x + (d.start.width - width) }
         if (d.handle.includes('n')) { height = Math.max(MIN_WIDGET_SIZE, snap(d.start.height - dy, layout.gridSize, d.bypassSnap)); y = d.start.y + (d.start.height - height) }
+        // Clamp every direction to the canvas bounds — unbounded resize
+        // (especially growing 'e'/'s' handles) could previously push a
+        // widget's edge off the visible/interactive canvas entirely.
+        if (x < 0) { width += x; x = 0 }
+        if (y < 0) { height += y; y = 0 }
+        if (x + width > layout.canvasWidth) width = layout.canvasWidth - x
+        if (y + height > layout.canvasHeight) height = layout.canvasHeight - y
+        width = Math.max(MIN_WIDGET_SIZE, width)
+        height = Math.max(MIN_WIDGET_SIZE, height)
         return { ...w, x, y, width, height }
       })
+      d.finalWidgets = next
       onCommit({ ...layout, widgets: next }, false)
     } else if (d.mode === 'marquee') {
       const rect = canvasRef.current.getBoundingClientRect()
@@ -424,6 +476,16 @@ function Canvas({ layout, selectedIds, setSelectedIds, onCommit, zoom, canvasRef
       const curY = (e.clientY - rect.top) / zoom
       const x = Math.min(d.startX, curX), y = Math.min(d.startY, curY)
       const w = Math.abs(curX - d.startX), h = Math.abs(curY - d.startY)
+      // Mirrored onto the ref (not just React state) so onMouseUp can read
+      // the live rect below — onMouseUp is the SAME function instance
+      // registered once at mousedown, so it forever closes over whatever
+      // `marquee` state was at that moment (null, since setMarquee's update
+      // hadn't landed yet). Reading it back off `dragRef.current` instead
+      // sidesteps that stale closure entirely: this is a plain mutable ref,
+      // always reflects the latest write regardless of which render's
+      // closure is doing the reading. Without this, marquee-select silently
+      // cleared the selection on every drag instead of selecting anything.
+      d.rect = { x, y, w, h }
       setMarquee({ x, y, w, h })
     }
   }
@@ -431,12 +493,17 @@ function Canvas({ layout, selectedIds, setSelectedIds, onCommit, zoom, canvasRef
   function onMouseUp() {
     const d = dragRef.current
     if (d?.mode === 'marquee') {
-      const rect = marquee
+      const rect = d.rect
       const selected = layout.widgets.filter(w => rect && w.x < rect.x + rect.w && w.x + w.width > rect.x && w.y < rect.y + rect.h && w.y + w.height > rect.y)
       setSelectedIds(selected.map(w => w.id))
       setMarquee(null)
     } else if (d) {
-      onCommit(layout, true) // commit final positions to history
+      // d.finalWidgets (set on the ref by every onMouseMove tick above) is
+      // the live drag result — NOT the `layout` closed over at mousedown,
+      // which is stale by the time the drag finishes. Falling back to
+      // layout.widgets only covers the (impossible in practice) case where
+      // mouseup fires before a single mousemove ever ran.
+      onCommit({ ...layout, widgets: d.finalWidgets || layout.widgets }, true)
     }
     dragRef.current = null
     window.removeEventListener('mousemove', onMouseMove)
@@ -445,9 +512,29 @@ function Canvas({ layout, selectedIds, setSelectedIds, onCommit, zoom, canvasRef
 
   useEffect(() => {
     function onKeyDown(e) {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length && document.activeElement === document.body) {
+      if (!selectedIds.length || document.activeElement !== document.body) return
+      if (e.key === 'Delete' || e.key === 'Backspace') {
         onCommit({ ...layout, widgets: layout.widgets.filter(w => !selectedIds.includes(w.id)) }, true)
         setSelectedIds([])
+        return
+      }
+      const arrowDelta = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[e.key]
+      if (arrowDelta) {
+        e.preventDefault()
+        const [dx, dy] = arrowDelta
+        // Plain arrow = 1px nudge for fine adjustment; Shift+arrow jumps a
+        // full grid cell, matching the grid-size the Snap/Grid toolbar
+        // controls already use so nudging stays consistent with dragging.
+        const step = e.shiftKey ? layout.gridSize : 1
+        const next = layout.widgets.map(w => {
+          if (!selectedIds.includes(w.id) || w.locked) return w
+          return {
+            ...w,
+            x: clamp(w.x + dx * step, 0, layout.canvasWidth - w.width),
+            y: clamp(w.y + dy * step, 0, layout.canvasHeight - w.height),
+          }
+        })
+        onCommit({ ...layout, widgets: next }, true)
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -617,8 +704,14 @@ function EditorTab({ layout, setLayout, identity, localPresets, saveLocalPresets
 
   function addWidget(type) {
     const entry = getWidgetEntry(type)
+    // Snapped the same way onDropWidget already snaps a drag-and-dropped
+    // widget — previously a palette *click* landed at an unsnapped center
+    // position, so the very first time you dragged it afterward it would
+    // visibly jump to the nearest grid line instead of moving smoothly.
+    const x = snap(layout.canvasWidth / 2 - entry.defaultSize.width / 2, layout.gridSize, !layout.snapEnabled)
+    const y = snap(layout.canvasHeight / 2 - entry.defaultSize.height / 2, layout.gridSize, !layout.snapEnabled)
     const widget = {
-      id: genId('w'), type, x: layout.canvasWidth / 2 - entry.defaultSize.width / 2, y: layout.canvasHeight / 2 - entry.defaultSize.height / 2,
+      id: genId('w'), type, x: clamp(x, 0, layout.canvasWidth - entry.defaultSize.width), y: clamp(y, 0, layout.canvasHeight - entry.defaultSize.height),
       width: entry.defaultSize.width, height: entry.defaultSize.height, zIndex: layout.widgets.length,
       config: { ...entry.defaultConfig }, locked: false,
     }
@@ -635,7 +728,9 @@ function EditorTab({ layout, setLayout, identity, localPresets, saveLocalPresets
     const x = (e.clientX - rect.left) / zoom - entry.defaultSize.width / 2
     const y = (e.clientY - rect.top) / zoom - entry.defaultSize.height / 2
     const widget = {
-      id: genId('w'), type, x: Math.max(0, snap(x, layout.gridSize)), y: Math.max(0, snap(y, layout.gridSize)),
+      id: genId('w'), type,
+      x: clamp(snap(x, layout.gridSize, !layout.snapEnabled), 0, layout.canvasWidth - entry.defaultSize.width),
+      y: clamp(snap(y, layout.gridSize, !layout.snapEnabled), 0, layout.canvasHeight - entry.defaultSize.height),
       width: entry.defaultSize.width, height: entry.defaultSize.height, zIndex: layout.widgets.length,
       config: { ...entry.defaultConfig }, locked: false,
     }
@@ -645,6 +740,33 @@ function EditorTab({ layout, setLayout, identity, localPresets, saveLocalPresets
 
   function undo() { if (historyIndex > 0) { setHistoryIndex(i => i - 1); setLayout(cloneLayout(history[historyIndex - 1])) } }
   function redo() { if (historyIndex < history.length - 1) { setHistoryIndex(i => i + 1); setLayout(cloneLayout(history[historyIndex + 1])) } }
+
+  // Lines up 2+ selected widgets against each other's shared bounding box —
+  // the fast path for "these three buttons should sit in a neat row" instead
+  // of nudging each one by hand until they look aligned.
+  function alignSelected(edge) {
+    const targets = layout.widgets.filter(w => selectedIds.includes(w.id) && !w.locked)
+    if (targets.length < 2) return
+    const minX = Math.min(...targets.map(w => w.x))
+    const maxX = Math.max(...targets.map(w => w.x + w.width))
+    const minY = Math.min(...targets.map(w => w.y))
+    const maxY = Math.max(...targets.map(w => w.y + w.height))
+    const centerX = (minX + maxX) / 2
+    const centerY = (minY + maxY) / 2
+    const next = layout.widgets.map(w => {
+      if (!selectedIds.includes(w.id) || w.locked) return w
+      switch (edge) {
+        case 'left': return { ...w, x: minX }
+        case 'hcenter': return { ...w, x: Math.round(centerX - w.width / 2) }
+        case 'right': return { ...w, x: maxX - w.width }
+        case 'top': return { ...w, y: minY }
+        case 'vcenter': return { ...w, y: Math.round(centerY - w.height / 2) }
+        case 'bottom': return { ...w, y: maxY - w.height }
+        default: return w
+      }
+    })
+    commit({ ...layout, widgets: next }, true)
+  }
 
   const selectedWidget = selectedIds.length === 1 ? layout.widgets.find(w => w.id === selectedIds[0]) : null
 
@@ -747,6 +869,9 @@ function EditorTab({ layout, setLayout, identity, localPresets, saveLocalPresets
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderBottom: `1px solid ${C.border}`, flexWrap: 'wrap' }}>
           <Btn size="xs" variant={layout.gridVisible ? 'primary' : 'ghost'} onClick={() => setLayout({ ...layout, gridVisible: !layout.gridVisible })}>Grid</Btn>
+          <Btn size="xs" variant={layout.snapEnabled ? 'primary' : 'ghost'}
+            title="Widgets snap to the grid while dragging — hold Alt to bypass for one move, or turn it off here entirely"
+            onClick={() => setLayout({ ...layout, snapEnabled: !layout.snapEnabled })}>Snap</Btn>
           {ZOOM_LEVELS.map(z => (
             <Btn key={z} size="xs" variant={zoom === z ? 'primary' : 'ghost'} onClick={() => setZoom(z)}>{Math.round(z * 100)}%</Btn>
           ))}
@@ -764,6 +889,18 @@ function EditorTab({ layout, setLayout, identity, localPresets, saveLocalPresets
           <Btn size="xs" variant="ghost" onClick={() => setPreview(true)}>Preview</Btn>
           <Btn size="xs" variant="primary" onClick={launchOverlay}>Launch overlay</Btn>
         </div>
+        {selectedIds.length > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: `1px solid ${C.border}`, background: C.raised }}>
+            <span style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginRight: 4 }}>Align {selectedIds.length}:</span>
+            <Btn size="xs" variant="ghost" title="Align left edges" onClick={() => alignSelected('left')}>⊢</Btn>
+            <Btn size="xs" variant="ghost" title="Align horizontal centers" onClick={() => alignSelected('hcenter')}>⊣⊢</Btn>
+            <Btn size="xs" variant="ghost" title="Align right edges" onClick={() => alignSelected('right')}>⊣</Btn>
+            <span style={{ width: 1, height: 16, background: C.border, margin: '0 4px' }} />
+            <Btn size="xs" variant="ghost" title="Align top edges" onClick={() => alignSelected('top')}>⊤</Btn>
+            <Btn size="xs" variant="ghost" title="Align vertical centers" onClick={() => alignSelected('vcenter')}>⊥⊤</Btn>
+            <Btn size="xs" variant="ghost" title="Align bottom edges" onClick={() => alignSelected('bottom')}>⊥</Btn>
+          </div>
+        )}
         <div onDragOver={e => e.preventDefault()} onDrop={onDropWidget} style={{ flex: 1, display: 'flex' }}>
           <Canvas layout={layout} selectedIds={selectedIds} setSelectedIds={setSelectedIds} onCommit={commit} zoom={zoom} canvasRef={canvasRef} />
         </div>

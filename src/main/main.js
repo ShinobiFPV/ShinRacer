@@ -952,12 +952,20 @@ ipcMain.handle('cluster:openOverlay', async (_, config) => {
   }
   try {
     const cw = config.layout.canvasWidth + 16, ch = config.layout.canvasHeight + 16
-    const safePos = clampToVisibleDisplay(config.x ?? 100, config.y ?? 100, cw, ch)
+    // Default to the center of whichever display the main window is
+    // currently on, not a fixed (100,100) — a corner spawn is easy to miss
+    // entirely (especially with a transparent canvas — see the
+    // 'transparent' default backgroundColor note in ClusterView.jsx) and
+    // has no relation to where the user is actually looking.
+    const anchorDisplay = win ? screen.getDisplayMatching(win.getBounds()) : screen.getPrimaryDisplay()
+    const centeredX = anchorDisplay.workArea.x + Math.round((anchorDisplay.workArea.width - cw) / 2)
+    const centeredY = anchorDisplay.workArea.y + Math.round((anchorDisplay.workArea.height - ch) / 2)
+    const safePos = clampToVisibleDisplay(config.x ?? centeredX, config.y ?? centeredY, cw, ch)
     clusterOverlayWindow = new BrowserWindow({
       width: cw,
       height: ch,
-      x: safePos.x ?? 100,
-      y: safePos.y ?? 100,
+      x: safePos.x ?? centeredX,
+      y: safePos.y ?? centeredY,
       alwaysOnTop: config.alwaysOnTop ?? true,
       transparent: true,
       frame: false,
@@ -965,6 +973,7 @@ ipcMain.handle('cluster:openOverlay', async (_, config) => {
       resizable: false,
       hasShadow: false,
       backgroundColor: '#00000000',
+      show: false,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
@@ -977,6 +986,20 @@ ipcMain.handle('cluster:openOverlay', async (_, config) => {
       clusterOverlayWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: 'cluster-overlay' })
     }
     clusterOverlayWindow.setOpacity(config.opacity ?? 1.0)
+    // 'floating' (Electron's default alwaysOnTop level) reliably beats
+    // ordinary windows but not a game running in exclusive fullscreen —
+    // the exact scenario this overlay exists for. 'screen-saver' is the
+    // standard fix (same trick OBS/Discord overlays use) for actually
+    // staying on top of a fullscreen DirectX/OpenGL surface. show() +
+    // focus() + moveTop() are belt-and-braces: a window created with
+    // show:false and raised from a background IPC call (e.g. triggered by
+    // a physical button-box keystroke while AC has focus, not by clicking
+    // inside this app) doesn't always get an implicit stacking boost on
+    // Windows the way a user-clicked show:true window does.
+    clusterOverlayWindow.setAlwaysOnTop(config.alwaysOnTop ?? true, 'screen-saver')
+    clusterOverlayWindow.show()
+    clusterOverlayWindow.focus()
+    clusterOverlayWindow.moveTop()
     // The overlay window loads a fresh renderer instance with no props to pass
     // it directly — electron-store is how it recovers which layout to render.
     store.set('activeClusterOverlay', config.layout)
@@ -1004,7 +1027,7 @@ ipcMain.handle('cluster:showOverlayContextMenu', () => {
   if (!clusterOverlayWindow) return { ok: false }
   const template = [
     { label: 'Close overlay', click: () => { clusterOverlayWindow?.close(); clusterOverlayWindow = null } },
-    { label: 'Toggle always on top', click: () => { clusterOverlayWindow?.setAlwaysOnTop(!clusterOverlayWindow.isAlwaysOnTop()) } },
+    { label: 'Toggle always on top', click: () => { clusterOverlayWindow?.setAlwaysOnTop(!clusterOverlayWindow.isAlwaysOnTop(), 'screen-saver') } },
   ]
   Menu.buildFromTemplate(template).popup({ window: clusterOverlayWindow })
   return { ok: true }

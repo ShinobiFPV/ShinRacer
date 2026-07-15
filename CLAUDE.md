@@ -3382,3 +3382,191 @@ their `'Courier New', monospace` stack (e.g. if the Google Fonts request is
 blocked or slow) — verified by reading the updated `@import`/`<link>` tags
 and the clean builds only, not by rendering the app and inspecting computed
 styles.
+
+## Follow-up: The Cluster Fucker — grid/drag refinement, widget format options, overlay fix
+
+2026-07-15: a refinement pass on Phase 11's Cluster Fucker, requested after
+real-world use reported dragging widgets around "isn't working well" and the
+pop-out overlay "isn't popping anything out." Both were investigated by
+actually driving the running app (a throwaway Playwright `_electron` script,
+installed with `--no-save` and deleted after use — same technique as Phases
+4-9/13/18, confirmed absent from `package.json`/`package-lock.json`
+afterward), not by reading the code and guessing — which is what turned up
+the real root cause below.
+
+### The actual bug: every drag reverted itself on mouseup
+
+`ClusterView.jsx`'s `Canvas` component registers `onMouseMove`/`onMouseUp` as
+`window` listeners once, at the moment a drag starts (`onWidgetMouseDown`/
+`onResizeHandleDown`/`onCanvasMouseDown`). Those two functions are plain
+closures over that render's props — critically, over `layout` as it was
+**before the drag moved anything**. `onMouseMove` correctly recomputed and
+applied the live dragged position on every tick (confirmed live: a widget's
+`left` style genuinely updated to `440px` mid-drag). But `onMouseUp`'s final
+call was `onCommit(layout, true)` — the stale, pre-drag `layout` closure,
+committed with `pushToHistory: true` right as the drag "finished." The
+instant the mouse was released, the widget's position was silently
+overwritten back to where it started. This is almost certainly the entire
+"isn't working well" complaint: not a snapping-feel issue, an actual
+drag-does-nothing-on-release bug, on every single widget move and resize.
+Root-caused only after building a Playwright script that read the DOM's
+`style.left` mid-drag (before mouseup) versus after — `440px` → `440px` on
+DOM mid-drag, then silently `440px` → `360px` the moment `mouseup` fired,
+which is what actually exposed it; reading the source alone did not.
+
+Fixed the same way the marquee rect below is fixed: the live result is now
+also written onto `dragRef.current` (a plain mutable ref, immune to stale
+closures) on every `onMouseMove` tick — `d.finalWidgets` for move/resize,
+`d.rect` for marquee — and `onMouseUp` reads that instead of the stale
+`layout` prop. Verified live, before and after: a single-widget drag by 80
+raw px now stays at its snapped `440px` after mouseup (previously reverted
+to `360px`); a resize handle drag by (47,23) now correctly persists at
+`140×120px` after mouseup.
+
+### A second real bug found the same way: marquee-select did nothing
+
+Same stale-closure class of bug, different field: `onCanvasMouseDown` calls
+`setMarquee(...)` (React state, applied asynchronously) then immediately
+`addEventListener('mouseup', onMouseUp)` — the registered `onMouseUp`
+closure captures `marquee` as it was in that render, i.e. `null`, since the
+`setMarquee` update hadn't landed yet. Every marquee-drag-to-multi-select
+therefore read `rect = null` on release and computed an empty selection,
+silently clearing whatever was selected instead of selecting the dragged-over
+widgets — this checked out as a distinct, real bug via the same probe
+technique (`Align 2:` toolbar never appeared after a marquee drag before the
+fix; appeared reliably after). Fixed with the same ref-mirroring pattern as
+above (`d.rect`).
+
+### Grid/snap redesign (the drag mechanics themselves, once they actually persisted)
+
+- **Multi-select group drags no longer drift apart.** The old code snapped
+  each selected widget's own absolute position to the grid independently on
+  every tick — two widgets starting at different offsets-from-grid would
+  round to the nearest grid line differently as the mouse moved, visibly
+  desyncing a multi-selection while dragging. Now one **anchor** widget (the
+  one actually grabbed) has its position snapped to the grid, a single delta
+  is derived from that, and every other selected widget is shifted by the
+  identical delta — verified live: two widgets deliberately offset by 140px
+  stayed exactly 140px apart through a group drag of (63, 37) raw pixels.
+- **Every placement path snaps consistently.** Clicking a widget in the
+  palette to add it (`addWidget`) previously placed it at an **unsnapped**
+  centered pixel position, while drag-and-drop from the palette
+  (`onDropWidget`) already snapped — so a palette-clicked widget would
+  visibly jump to the nearest grid line the first time you ever dragged it.
+  Both paths now snap identically, and both now clamp to the canvas bounds
+  (previously only the lower bound was clamped; a widget could be placed or
+  dragged/resized fully past the right/bottom edge and become unreachable).
+- **A real "Snap" toggle**, next to the existing "Grid" (visibility) toggle
+  — previously the *only* way to bypass snapping was holding Alt during a
+  specific drag, which isn't discoverable and doesn't help someone who wants
+  free placement by default. `layout.snapEnabled` persists with the preset,
+  same as `gridSize`/`gridVisible`.
+- **Arrow-key nudging**: selected, unlocked widgets move 1px per arrow-key
+  press, or a full grid cell with Shift held — added to the same `Canvas`
+  keydown handler Delete/Backspace already used. Verified live: `360px` →
+  `361px` (plain arrow) → `381px` (Shift+arrow, gridSize=20).
+- **Align toolbar** (left/h-center/right, top/v-center/bottom), shown only
+  when 2+ widgets are selected — lines widgets up against their shared
+  bounding box in one click instead of nudging each one by hand.
+
+### Pop-out overlay: a real bug, verified live, not assumed from the code
+
+Driving the real app showed the overlay window genuinely **was** opening —
+`BrowserWindow.isVisible()` true, correct bounds, correct URL
+(`#cluster-overlay`) — which is not what "isn't popping anything out"
+suggested. The actual defect: `defaultLayout()`'s canvas background
+defaulted to `C.bg` — **opaque, pure black** — inside a
+`transparent:true`/`frame:false` `BrowserWindow`. On this app's own
+true-black (`#000000`) design system, a solid black rectangle with few or no
+widgets on it, popping up in a corner of a black desktop, is functionally
+indistinguishable from nothing happening at all. Confirmed directly:
+`getComputedStyle(canvasDiv).backgroundColor` read `rgb(0, 0, 0)` before the
+fix, `rgba(0, 0, 0, 0)` (genuinely transparent) after. Fixed by defaulting
+new layouts' `backgroundColor` to `'transparent'` — existing saved presets
+keep whatever background they already have; this only changes what a
+*brand-new* cluster starts with.
+
+Two more real-world contributors, fixed alongside it (not verified against
+an actual fullscreen game — see below — but both are the standard, accepted
+fixes for this exact class of problem):
+- **Spawn position** was a hardcoded `(100, 100)` regardless of which
+  monitor the main window is even on — now centers on the display the main
+  window currently occupies (`screen.getDisplayMatching`), confirmed live:
+  centered within the correct display's work area, not the primary display
+  by default.
+- **Always-on-top level.** Electron's default `alwaysOnTop` level
+  (`'floating'`) reliably beats ordinary windows but not a game running in
+  *exclusive* fullscreen — exactly the scenario this overlay exists for
+  (driving AC). Switched to `setAlwaysOnTop(true, 'screen-saver')`, the
+  standard trick overlay tools like OBS/Discord use for this, plus explicit
+  `show()`/`focus()`/`moveTop()` calls — belt-and-braces for the case where
+  the overlay is raised via a physical Cluster Fucker button while AC (not
+  this app) has foreground focus, which is the actual intended use case and
+  behaves differently from a window raised by clicking inside this app's own
+  UI. The "Toggle always on top" context-menu action was updated to specify
+  the same `'screen-saver'` level when re-enabling, so it doesn't quietly
+  fall back to the weaker default.
+
+### Widget format options
+
+Added `fontFamily` and `cornerRadius` as real, configurable fields on
+`MomentaryButton`/`ToggleButton` (previously hardcoded to `C.head`/square
+corners with no config field at all — TextReadout and LabelText already had
+`fontFamily`, so this was a real inconsistency, not a new feature grafted
+on), plus `cornerRadius` on `IndicatorLight` (square variant),
+`TextReadout`, `LabelText`, and `ImagePanel`. `FIELD_META` in
+`ClusterView.jsx` gained `cornerRadius` (0-50, APPEARANCE section) and
+`fontFamily`'s option list changed from `['bebas','mono','barlow']` to
+`['title','mono','body']`.
+
+**The `FONT_FAMILY` map's keys were renamed, not just its values.**
+`widgets/shared.js` exported `{ bebas: C.head, mono: C.mono, barlow: C.body }`
+— literal font names from the Phase 8 redesign that stopped being true the
+moment `C.head`/`C.body` changed fonts again (twice — see the JetBrains Mono
+follow-up and the Rubik Mono One/Space Mono follow-up above). Renamed to
+role-based keys (`title`/`mono`/`body`) so this doesn't go stale a third
+time. Every widget's own default config (`fontFamily: 'bebas'`) was updated
+to `'title'` to match.
+
+**Mirrored into the PWA's ported copies.** `pwa/src/components/cluster/
+widgets/{shared,MomentaryButton,ToggleButton,IndicatorLight,TextReadout,
+LabelText,ImagePanel}.jsx` are mechanical ports of the Electron originals
+(per Phase 11's own notes — the two apps build/deploy independently and
+don't share source across that boundary), but they render the *same*
+preset JSON — a preset built in the Electron editor with `fontFamily:
+'title'` has to mean the same thing when that preset is exported/published
+and opened on the PWA's runtime-only Cluster page. Every field/key change
+above was applied identically to both copies. The PWA has no editor (Phase
+11: "runtime-only per spec"), so nothing there needed a `FIELD_META`
+equivalent.
+
+### Verified this pass
+
+Every fix above was verified against the real, running app via a throwaway
+Playwright `_electron` script (several iterations, all deleted after use,
+none checked in) — not just read. Specifically, with real DOM bounding
+boxes and real synthetic mouse events: single-widget drag persists after
+mouseup; resize persists after mouseup; marquee-select actually selects
+(confirmed via the `Align 2:` toolbar label appearing); group-drag
+preserves relative offsets between two deliberately-offset widgets; arrow
+nudge (1px) and Shift+arrow nudge (grid-size px) both move the widget by
+the correct amount; the overlay window opens centered on the correct
+display, `alwaysOnTop: true`, and with a genuinely transparent
+(`rgba(0,0,0,0)`) canvas background. `npx vite build` compiles clean for
+both the Electron renderer (181 modules, no new errors) and the PWA (152
+modules, no new errors); `node --check` passes on `main.js`.
+
+### Not independently verified
+
+No real Assetto Corsa session running in exclusive fullscreen exists in
+this environment, so the `'screen-saver'` always-on-top level's actual
+effect against a real fullscreen DirectX game — the specific real-world
+scenario "isn't popping anything out" most plausibly described — was not
+exercised end-to-end; it's the standard, well-documented fix for this class
+of problem, not a guess, but it's disclosed as unverified against the real
+target scenario. The align-toolbar buttons' six directions were only
+exercised via the 'left' case in the live probe (the others share the exact
+same code path, computed from the same bounding-box math, so this is a
+low-risk gap, not an unknown). `cornerRadius`'s visual appearance on each of
+the six touched widgets was not screenshotted — verified by reading the
+resulting `borderRadius` style and the clean builds only.

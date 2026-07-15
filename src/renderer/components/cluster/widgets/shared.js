@@ -32,7 +32,11 @@ export function telemetryIsOn(frame, bind, threshold) {
   return threshold != null ? v > threshold : v > 0
 }
 
-export const FONT_FAMILY = { bebas: C.head, mono: C.mono, barlow: C.body }
+// Keys are neutral role names ('title'/'mono'/'body'), not literal font
+// names — the actual typefaces behind C.head/C.mono/C.body have changed
+// more than once (Bebas Neue -> JetBrains Mono -> Rubik Mono One, etc.);
+// tying these keys to a specific font name would go stale every time.
+export const FONT_FAMILY = { title: C.head, mono: C.mono, body: C.body }
 
 export function formatTelemetryValue(value, format, decimals = 0) {
   if (value == null) return '--'

@@ -1,5 +1,5 @@
 import { C } from '../../primitives'
-import { glowShadow, SHAPE_CLIP, telemetryIsOn, isRuntime } from './shared'
+import { glowShadow, SHAPE_CLIP, FONT_FAMILY, telemetryIsOn, isRuntime } from './shared'
 import { DEFAULT_MOMENTARY_CONFIG } from './MomentaryButton'
 
 export const DEFAULT_TOGGLE_CONFIG = {
@@ -41,12 +41,13 @@ export default function ToggleButton({ config = {}, mode, telemetryFrame, value,
         alignItems: 'center', justifyContent: 'center', background: fill,
         border: `${cfg.borderWidth}px solid ${cfg.borderColor}`,
         clipPath: SHAPE_CLIP[cfg.shape] || 'none',
+        borderRadius: cfg.shape === 'rectangle' ? cfg.cornerRadius : 0,
         boxShadow: glowShadow(glow, cfg.glowIntensity),
         cursor: isRuntime(mode) ? 'pointer' : 'default',
         transition: 'background .1s, box-shadow .15s',
       }}
     >
-      <span style={{ fontFamily: C.head, fontSize: cfg.fontSize, color: cfg.labelColor, letterSpacing: 1, textAlign: 'center', padding: '0 4px', pointerEvents: 'none' }}>
+      <span style={{ fontFamily: FONT_FAMILY[cfg.fontFamily] || C.head, fontSize: cfg.fontSize, color: cfg.labelColor, letterSpacing: 1, textAlign: 'center', padding: '0 4px', pointerEvents: 'none' }}>
         {label}
       </span>
       {cfg.sublabel && (

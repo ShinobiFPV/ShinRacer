@@ -1,7 +1,7 @@
 import { C } from '../../../lib/colors'
 
 export const DEFAULT_IMAGEPANEL_CONFIG = {
-  image: null, opacity: 1, fit: 'cover', borderColor: null, borderWidth: 0,
+  image: null, opacity: 1, fit: 'cover', borderColor: null, borderWidth: 0, cornerRadius: 0,
 }
 
 const FIT_STYLE = {
@@ -19,6 +19,7 @@ export default function ImagePanel({ config = {} }) {
     <div style={{
       width: '100%', height: '100%',
       border: cfg.borderColor ? `${cfg.borderWidth}px solid ${cfg.borderColor}` : 'none',
+      borderRadius: cfg.cornerRadius, overflow: 'hidden',
       backgroundImage: cfg.image ? `url(${cfg.image})` : 'none',
       backgroundPosition: 'center',
       ...(FIT_STYLE[cfg.fit] || FIT_STYLE.cover),
