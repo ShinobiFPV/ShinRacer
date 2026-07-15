@@ -74,7 +74,7 @@ function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backend
       <div style={{ height:48, position:'relative', display:'flex', flexDirection:'column', justifyContent:'center',
         padding:'0 16px', borderBottom:`1px solid ${C.border}`, borderLeft:`3px solid ${C.blue}`,
         WebkitAppRegion:'drag', flexShrink:0 }}>
-        <span style={{ fontFamily:C.head, fontSize:22, letterSpacing:3, lineHeight:1, color:C.whiteHot }}>
+        <span style={{ fontFamily:C.head, fontSize:15, letterSpacing:1.5, lineHeight:1, color:C.whiteHot }}>
           SHINRACER
         </span>
         <span style={{ fontFamily:C.body, fontWeight:400, fontSize:10, letterSpacing:2, textTransform:'uppercase', color:C.muted, marginTop:2 }}>
