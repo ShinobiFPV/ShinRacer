@@ -1,9 +1,30 @@
 import axios from 'axios'
 
-export const DEFAULT_BACKEND_URL = 'http://192.168.1.203:3000'
+// The current page's own origin, not a hardcoded absolute URL — nginx
+// already proxies /api/ and /socket.io/ to the backend on both the plain-
+// HTTP (:8080) and HTTPS/Tailscale-Serve (:8443) listeners (see
+// backend/nginx/shinracer.conf), so same-origin always reaches the backend
+// correctly regardless of which one the page was loaded from. A hardcoded
+// 'http://192.168.1.203:3000' here used to work fine when the PWA only
+// ever ran over plain HTTP, but once the page itself loads over HTTPS
+// (needed for Google sign-in — see docs/GOOGLE_OAUTH_SETUP.md), every
+// request to that http:// URL becomes mixed content and gets silently
+// blocked by the browser: no CORS error, no helpful message, just axios's
+// generic "Network Error" with no indication why. Falls back to the old
+// hardcoded value outside a browser context (shouldn't happen for this
+// app in practice, but avoids a crash if it ever does).
+export const DEFAULT_BACKEND_URL = typeof window !== 'undefined' ? window.location.origin : 'http://192.168.1.203:3000'
 const STORAGE_KEY = 'shinracer_backend_url'
 
-const stored = (() => { try { return localStorage.getItem(STORAGE_KEY) } catch { return null } })()
+const rawStored = (() => { try { return localStorage.getItem(STORAGE_KEY) } catch { return null } })()
+// Self-heals a value stored before this fix existed: a phone that onboarded
+// while the PWA only ran over :8080 would have this permanently cached as
+// http://192.168.1.203:3000/8080, which — same mixed-content problem as
+// above — silently breaks every request the moment the page itself loads
+// over HTTPS, with no way for the user to know to go clear it in Settings.
+const stored = (rawStored && typeof window !== 'undefined' && window.location.protocol === 'https:' && rawStored.startsWith('http://'))
+  ? (() => { try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ } return null })()
+  : rawStored
 
 const api = axios.create({ baseURL: stored || DEFAULT_BACKEND_URL, timeout: 10000 })
 

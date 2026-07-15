@@ -3981,3 +3981,69 @@ the first two fixes didn't touch — but per the note directly above, this
 file is now on its third attempt at declaring PWA sign-in "should work,"
 and the only thing that actually closes this out is William confirming a
 real sign-in completes on his phone.
+
+**Update, same day**: closer, not closed. William reported Google's own
+side now completed fast and correctly ("signed me in quickly and
+recognized me") — the state-based fix worked. But back on ShinRacer's own
+callback page: "Sign In failed / Network Error." Fourth bug in this same
+chain, see the next follow-up.
+
+## Follow-up: PWA's own API calls were blocked as mixed content over HTTPS
+
+2026-07-15, immediately after the state-based PKCE fix: `axios`'s own
+generic `"Network Error"` message on the callback page, right after
+Google's redirect succeeded. `pwa/src/lib/api.js` had `DEFAULT_BACKEND_URL
+= 'http://192.168.1.203:3000'` — a hardcoded **plain-HTTP** absolute URL,
+unconditionally used as axios's `baseURL` for every request this app
+makes. That was never a problem while the PWA only ever ran over plain
+HTTP itself. Now that the page loads over `https://shinobi.tail9249a1.ts.net:8443`
+(required for Google sign-in — see the HTTPS follow-up further up this
+file), every request to that `http://` URL is **mixed content**: browsers
+silently block an HTTP sub-resource request from an HTTPS page, with no
+CORS error, no console detail a typical user would notice, and no
+information in axios's error beyond the generic `"Network Error"` string —
+exactly what was reported.
+
+**Two things needed fixing, not one** — a code fix for new page loads, and
+a self-heal for phones that already have the bad value cached:
+
+- **`DEFAULT_BACKEND_URL`** is now `window.location.origin` — the current
+  page's own origin — instead of a hardcoded string. `backend/nginx/
+  shinracer.conf` already proxies `/api/` and `/socket.io/` to the backend
+  identically on both the plain-HTTP (`:8080`) and HTTPS/Tailscale-Serve
+  (`:8443`) listeners, so same-origin requests reach the backend correctly
+  either way, and can never be mixed content by construction (same scheme
+  as the page that made the request, always).
+- **Self-heal for already-onboarded phones**: William's own phone had
+  already gone through onboarding while the PWA only served `:8080`, so
+  `localStorage`'s `shinracer_backend_url` was permanently stuck at the
+  old `http://192.168.1.203:...` value — fixing only the *default* would
+  have done nothing for him, since a stored value always wins over the
+  default. `lib/api.js` now checks, once at module load: if the current
+  page is `https:` and the stored backend URL starts with `http://`, it
+  discards that stored value (falls through to the new
+  `window.location.origin` default) instead of using it. No Settings
+  screen or manual cache-clear instruction needed — this fixes itself on
+  the next page load for anyone in this exact situation.
+- **Not touched**: `setBackendUrl()` (the manual override in
+  Settings/Onboarding) has no equivalent guard — someone could still
+  manually type an `http://` URL while browsing over HTTPS and hit this
+  same failure. Left alone deliberately to keep this fix scoped to the
+  actual reported bug (an auto-detected default silently breaking) rather
+  than hardening a manual, deliberate user action that's a much rarer path
+  and arguably fine to let fail loudly if someone does it on purpose.
+
+### Verified this pass
+`npx vite build` compiles clean (153 modules, same as every PWA build in
+this chain — no new files, only content changes). Deployed for real via
+`deploy-pwa.ps1`; the new bundle hash was confirmed reachable and serving
+`200` from `https://shinobi.tail9249a1.ts.net:8443/`.
+
+### Not independently verified
+No real device has completed sign-in against this version either. This is
+the fourth fix in the same chain (private-IP redirect_uri → OAuth client
+type → PKCE storage-partition isolation → mixed content) and, per the
+pattern every single one of the first three followed, "the code is
+correct and deployed" has not yet once been the same thing as "William
+confirmed it actually works." Whether this is really the last blocker or
+just the next one to surface is unknown until he tries again.
