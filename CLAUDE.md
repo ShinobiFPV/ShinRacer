@@ -3635,3 +3635,82 @@ Step 4) was not executed this pass — the live server was fixed directly
 over SSH instead, since William was waiting on it. The script's new step
 should be exercised for real on the next actual PWA deploy to confirm the
 self-healing behavior works as designed, not just that it parses.
+
+**Update, same day**: the next real PWA deploy (see the `crypto.subtle`
+follow-up immediately below) exercised the new Step 4 for real, not just
+parsed — a brand-new asset file (`index-Dzv65oNJ.js`, not present in any
+earlier deploy) landed with correct `644` permissions and served a real
+`200` immediately, with no manual SSH intervention needed. The self-healing
+behavior works as designed.
+
+## Follow-up: PWA Google sign-in threw "crypto.subtle" undefined on phones
+
+2026-07-15, right after the permissions fix above: with assets now loading,
+William tried signing in on his iPhone and hit
+`undefined is not an object (evaluating 'crypto.subtle.digest')` — Safari's
+own TypeError phrasing, which was itself a clue.
+
+**Root cause**: `pwa/src/lib/auth.js`'s `generatePKCE()` (Phase 10's OAuth
+PKCE flow) calls `crypto.subtle.digest('SHA-256', ...)` to build the S256
+code challenge. `SubtleCrypto` (`crypto.subtle`) is spec'd to exist **only
+in a secure context** — HTTPS or `localhost` — and this app is routinely
+reached over plain `http://192.168.1.203:8080` or a Tailscale IP, neither
+of which qualifies. On Safari specifically, an insecure context doesn't
+just make `crypto.subtle.digest()` throw — `crypto.subtle` itself is
+`undefined`, which is exactly the error text reported.
+`crypto.getRandomValues()` (used earlier in the same function, for the
+verifier) has no such restriction and was never the problem.
+
+Presented two options: a proper fix (serve the PWA over real HTTPS via a
+Tailscale-issued cert for `shinobi.tail9249a1.ts.net` — confirmed
+Tailscale is live on shinobi with an iPhone already on the tailnet,
+explaining the Safari error) versus a quick code-level fix (a pure-JS
+SHA-256 fallback, no infrastructure changes). The proper fix needs two
+things only William can do — enabling "HTTPS Certificates" in the
+Tailscale admin console, and a `sudo` password for the `tailscale cert`
+command that this session doesn't have — so it's flagged as a real,
+open follow-up, not resolved here. William chose the quick fix for
+tonight.
+
+- **`pwa/src/lib/sha256.js`** (new): a from-scratch, dependency-free
+  SHA-256 (FIPS 180-4) implementation — verified against Node's real
+  `crypto.createHash('sha256')` across 11 inputs *before* being wired into
+  the auth flow, specifically including the padding-boundary lengths
+  (55/56/57/63/64/65 bytes) where off-by-one padding bugs in hand-rolled
+  SHA-256 implementations most commonly hide. All 11 passed byte-for-byte.
+- **`pwa/src/lib/auth.js`**: `generatePKCE()` now branches on
+  `window.crypto?.subtle` — uses the real `SubtleCrypto` digest when
+  available (unchanged behavior on HTTPS/localhost), falls back to the new
+  pure-JS `sha256()` otherwise. Nothing else in the PWA touches
+  `crypto.subtle` (grepped to confirm) — Electron's own `useSpotify.js`
+  uses it too, but that renderer always loads from `file://` or
+  `http://localhost:5173`, both genuinely secure contexts, so it was
+  never affected and wasn't touched.
+- **Disclosed, not fixed**: this only unblocks sign-in. The PWA's service
+  worker (offline support, `vite-plugin-pwa`'s `generateSW`) and Web Push
+  notifications *also* require a secure context per spec and were, by the
+  same root cause, almost certainly never actually working on a real phone
+  either — Phase 10's own notes already flagged "no real mobile device"
+  as untested. Fixing those properly needs the same real-HTTPS path
+  described above (or an equivalent); this pass deliberately scoped to
+  "unblock login tonight," not a full secure-context migration.
+
+### Verified this pass
+The SHA-256 implementation's output was verified byte-for-byte against
+Node's built-in `crypto` module for 11 inputs spanning the padding
+boundary, before it was ever wired into the sign-in flow. `npx vite build`
+compiles clean (153 modules, up from 152 for the new file). The fix was
+then deployed for real via `deploy-pwa.ps1` (see the update on the
+permissions follow-up above) — `curl` confirmed the new bundle
+(`index-Dzv65oNJ.js`) serves `200` with correct permissions.
+
+### Not independently verified
+No real iPhone/Safari session exercised the actual sign-in button against
+the deployed fix in this pass — verified by the standalone SHA-256 vector
+tests, the clean build, and confirming the new bundle is reachable, not by
+tapping "Sign in with Google" on a real device and watching the OAuth
+round-trip complete. If sign-in still fails after this fix, the PKCE
+digest itself is now the least likely culprit (it's independently
+verified correct) — check the OAuth redirect/callback path instead. The
+proper HTTPS fix (Tailscale cert) remains a real, open follow-up — flagged
+to William, not actioned.

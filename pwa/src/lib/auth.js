@@ -1,4 +1,5 @@
 import api from './api'
+import { sha256 } from './sha256'
 
 const AUTH_KEY = 'shinracer_auth'
 const IDENTITY_KEY = 'shinracer_identity'
@@ -26,11 +27,22 @@ function base64url(bytes) {
 // Standard PKCE (RFC 7636): a random verifier, and its SHA-256 challenge sent
 // up front so the token exchange can later prove possession of the verifier
 // instead of a client secret (which a browser-based app can't keep secret).
+//
+// crypto.subtle (SubtleCrypto) only exists in a secure context — HTTPS or
+// localhost. This app is commonly reached over plain http://<LAN IP> or a
+// Tailscale IP, where crypto.subtle is undefined outright, not just
+// erroring — which broke sign-in completely rather than just the PKCE
+// step. crypto.getRandomValues has no such restriction, so only the digest
+// needs the pure-JS fallback (./sha256.js, verified against Node's real
+// crypto module across the SHA-256 padding boundary cases before use).
 export async function generatePKCE() {
   const verifierBytes = crypto.getRandomValues(new Uint8Array(32))
   const verifier = base64url(verifierBytes)
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
-  const challenge = base64url(new Uint8Array(digest))
+  const verifierUtf8 = new TextEncoder().encode(verifier)
+  const digestBytes = window.crypto?.subtle
+    ? new Uint8Array(await crypto.subtle.digest('SHA-256', verifierUtf8))
+    : sha256(verifierUtf8)
+  const challenge = base64url(digestBytes)
   return { verifier, challenge }
 }
 
