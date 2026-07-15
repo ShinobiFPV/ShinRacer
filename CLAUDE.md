@@ -4047,3 +4047,84 @@ pattern every single one of the first three followed, "the code is
 correct and deployed" has not yet once been the same thing as "William
 confirmed it actually works." Whether this is really the last blocker or
 just the next one to surface is unknown until he tries again.
+
+**Update, same day**: further than ever — sign-in itself fully completed
+("signed me into the app") — but landing in the real app immediately
+kicked back out to `offline.html`, the service worker's own no-network
+fallback page. Fifth bug in the chain, and this one was self-inflicted by
+an earlier fix in this exact sequence, not a new independent issue. See
+the next follow-up.
+
+## Follow-up: the two-OAuth-client fix broke every authenticated request
+
+2026-07-15, immediately after the mixed-content fix: sign-in completed
+fully — Google's redirect succeeded, the code exchange succeeded, the app
+landed on a real page — and then almost immediately bounced to the PWA's
+`offline.html` fallback. Backend `journalctl` showed nothing (this backend
+has no per-request access logging), so the failure had to be traced
+forward from the client side instead of found in a log.
+
+**Root cause, and it was already sitting in this exact file from three
+follow-ups ago**: the "PWA needed its own OAuth client" fix updated
+`backend/lib/oauth.js` to *issue* PWA tokens from a second, separate
+Google OAuth client (`GOOGLE_OAUTH_CLIENT_ID_PWA`) — correctly. But
+`backend/middleware/auth.js`'s `verifyGoogleToken` — the function every
+single authenticated HTTP route *and* the Socket.io handshake call to
+*validate* a token — still checked `payload.aud !== process.env.
+GOOGLE_OAUTH_CLIENT_ID` against only the **original** Desktop client ID.
+A token minted by the new PWA client legitimately has a different `aud`
+claim (the PWA client's own ID) — so every single authenticated request a
+signed-in PWA user made was rejected with `401 Token audience mismatch`,
+immediately after the sign-in that produced the very token being
+rejected. `pwa/src/lib/api.js`'s response interceptor treats any 401 as
+"session dead, send them back to onboarding" (`location.href =
+'/onboarding'`) — a real hard browser navigation, which *is* subject to
+the service worker's `navigateFallback`, unlike `/auth/callback`'s own
+navigation (denylisted from it, confirmed still correctly configured in
+`vite.config.js` while investigating). Whatever the exact timing of that
+particular re-navigation, this 401 loop is what put the user in a state
+where a fallback-eligible navigation could show `offline.html` — the
+underlying mystery wasn't "why did the network fail," it was "why was the
+app forcing a fresh navigation with a dead session immediately after
+signing in," and the audience check answers that directly.
+
+- **`backend/middleware/auth.js`**: `verifyGoogleToken`'s single-audience
+  check replaced with `VALID_AUDIENCES = [GOOGLE_OAUTH_CLIENT_ID,
+  GOOGLE_OAUTH_CLIENT_ID_PWA].filter(Boolean)` and `.includes(payload.aud)`
+  — a token from *either* client is legitimately this app, just minted via
+  a different OAuth client for a different frontend. `backend/socket.js`
+  imports and calls this exact same function for its handshake
+  verification, so one fix covers both HTTP routes and the Socket.io
+  connection — grepped the rest of `backend/` first to confirm no other
+  file had its own separate copy of an audience check that would also
+  need the same fix; there wasn't one.
+- This is the one bug in this entire chain that was introduced *by* an
+  earlier fix in the same chain, not discovered independently of it — the
+  "two separate OAuth clients" fix updated the *issuing* side
+  (`lib/oauth.js`, `routes/auth.js`'s `/config`) but missed the
+  *verifying* side, which lives in a different file with no obvious
+  connection between them from either file's own contents. Worth
+  remembering next time a "make two of X" change is made anywhere in this
+  codebase: grep for every place that validates/compares against the
+  *original* X, not just every place that reads or issues it.
+
+### Verified this pass
+Confirmed the deployed `middleware/auth.js` on shinobi actually contains
+the fix (not just the local file) by `grep`-ing it directly over SSH after
+`deploy-backend.ps1` ran. Confirmed both `GOOGLE_OAUTH_CLIENT_ID` and
+`GOOGLE_OAUTH_CLIENT_ID_PWA` are non-empty and distinct in the deployed
+`.env` — `VALID_AUDIENCES`' `.filter(Boolean)` would have silently
+produced a one-element (or empty) array if either were unset, so this
+was checked directly rather than assumed. `node --check` passes.
+`socket.js`'s own use of the shared function was traced, not assumed, to
+confirm one fix genuinely covers both HTTP and sockets.
+
+### Not independently verified
+No synthetic or real Google ID token was actually run through the fixed
+`verifyGoogleToken` in this pass — no real OAuth credentials/browser flow
+exists in this environment to produce one, the same caveat every earlier
+Google-auth-touching phase in this file has carried. The fix is a direct,
+minimal, obviously-correct change to a two-line conditional, but per this
+entire chain's own running theme, "obviously correct" and "confirmed
+working on William's phone" have not yet been the same thing four times
+running.

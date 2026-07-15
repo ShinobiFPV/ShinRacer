@@ -6,11 +6,23 @@
 // produced, on every authenticated request and every socket connection.
 const { getRoles } = require('../lib/roles')
 
+// Two valid audiences, not one — GOOGLE_OAUTH_CLIENT_ID (Electron's Desktop
+// app client) and GOOGLE_OAUTH_CLIENT_ID_PWA (the PWA's separate Web
+// application client — see lib/oauth.js's createOAuthClient and
+// docs/GOOGLE_OAUTH_SETUP.md for why the PWA needed its own client type).
+// A token minted by either one is legitimately "this app," just via a
+// different client_id — rejecting the PWA's own tokens here would 401
+// every authenticated request a PWA user makes immediately after a
+// successful sign-in, which is exactly what happened before this fix: the
+// two-client change updated where tokens get *issued* but not this, the
+// one place they get *verified*.
+const VALID_AUDIENCES = [process.env.GOOGLE_OAUTH_CLIENT_ID, process.env.GOOGLE_OAUTH_CLIENT_ID_PWA].filter(Boolean)
+
 async function verifyGoogleToken(idToken) {
   const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`)
   if (!res.ok) throw new Error('Invalid token')
   const payload = await res.json()
-  if (payload.aud !== process.env.GOOGLE_OAUTH_CLIENT_ID) {
+  if (!VALID_AUDIENCES.includes(payload.aud)) {
     throw new Error('Token audience mismatch')
   }
   return {
