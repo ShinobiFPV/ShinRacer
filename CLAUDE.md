@@ -3570,3 +3570,68 @@ same code path, computed from the same bounding-box math, so this is a
 low-risk gap, not an unknown). `cornerRadius`'s visual appearance on each of
 the six touched widgets was not screenshotted — verified by reading the
 resulting `borderRadius` style and the clean builds only.
+
+## Follow-up: PWA deploy was silently 403'ing every asset (white screen on phone)
+
+2026-07-15, right after the Cluster Fucker refinement pass was deployed to
+the PWA: William reported a blank white screen on his phone, on both LAN and
+Tailscale. The deploy script's own step 9 health check (`GET /api/health`)
+had reported success on every prior PWA deploy, which is why this went
+unnoticed for at least two deploys — that check only ever hits the backend
+API through nginx's proxy, never a static asset, so it could never have
+caught this.
+
+**Root cause, found by actually fetching what the server returns, not by
+guessing**: `curl -D - http://192.168.1.203:8080/` returned a real `200`
+with a correct `index.html` body — but the `<script src="/assets/
+index-*.js">` it references came back `403 Forbidden`. `ls -la` on shinobi
+showed why: `/var/www/shinracer-pwa/assets/` and `.../icons/` were
+`drwx------` (owner-only, 0700) — nginx's worker process couldn't even
+`x` (traverse) into those directories to serve anything inside them,
+regardless of the individual files' own permissions (which were a normal
+`rw-rw-r--`). `index.html` itself sat one level up in a `755` directory, so
+it alone loaded fine — which is exactly why the symptom was a blank white
+page (HTML loads, the module script that would render `#root` never does)
+rather than a connection error.
+
+**Cause**: Windows OpenSSH's `scp -r` creates new remote subdirectories with
+a restrictive default mode when it recurses into a source tree — unrelated
+to shinobi's own umask, and apparently unrelated to whatever the *existing*
+top-level `/var/www/shinracer-pwa` directory's permissions already were
+(that one was created explicitly via `sudo mkdir` in step 2, with normal
+`755`). Every PWA deploy that ever created a *new* asset-hash subdirectory
+via `scp -r pwa/dist/*` would have silently reproduced this — it isn't
+specific to this pass's changes.
+
+**Fixed two places:**
+- **Immediately, on the live server**: `find /var/www/shinracer-pwa -type d
+  -exec chmod 755 {} \;` + the equivalent `644` for files, run directly over
+  SSH. Verified with real `curl` requests against every asset type
+  afterward — `index.html`, the JS bundle, the CSS, `manifest.json`, and an
+  icon PNG all came back `200` where the JS/CSS/icon had been `403`
+  moments before.
+- **`scripts/deploy-pwa.ps1`**: new **Step 4**, `find ... -exec chmod 755/644
+  ...` over SSH immediately after the `scp -r` copy step, before the nginx
+  config steps — so every future deploy self-heals this instead of relying
+  on someone noticing a white screen and diagnosing it by hand again. Every
+  step after it was renumbered (4→10, was 9 steps, now 10) to keep the
+  script's own `Write-Host` progress messages accurate. Parse-checked with
+  `[scriptblock]::Create()` per this script's own established convention
+  (see Phase 10/13's notes on `deploy-pwa.ps1`/`deploy-backend.ps1`) — not
+  re-run end-to-end after the edit, since the live-server fix above already
+  confirms the *effect* of the same chmod command works; only the new
+  script step's syntax was checked.
+
+### Verified this pass
+Real `curl -D -` requests against the live shinobi nginx, both before (403
+on `/assets/*.js`, `/assets/*.css`) and after (200 on those plus
+`manifest.json` and an icon) the permissions fix. `[scriptblock]::Create()`
+confirms `deploy-pwa.ps1` still parses as valid PowerShell after the new
+step and renumbering.
+
+### Not independently verified
+The *next* real deploy run of the updated `deploy-pwa.ps1` (with its new
+Step 4) was not executed this pass — the live server was fixed directly
+over SSH instead, since William was waiting on it. The script's new step
+should be exercised for real on the next actual PWA deploy to confirm the
+self-healing behavior works as designed, not just that it parses.
