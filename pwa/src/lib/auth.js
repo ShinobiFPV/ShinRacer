@@ -4,7 +4,6 @@ import { sha256 } from './sha256'
 const AUTH_KEY = 'shinracer_auth'
 const IDENTITY_KEY = 'shinracer_identity'
 const ONBOARDED_KEY = 'shinracer_onboarded'
-const PKCE_KEY = 'shinracer_pkce' // sessionStorage — only needs to survive the redirect round-trip
 
 const GOOGLE_AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
 // 'openid' is required for Google to include an id_token in the token
@@ -22,6 +21,33 @@ const SCOPES = [
 
 function base64url(bytes) {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+// Round-trips { verifier, returnTo } through OAuth's own `state` parameter
+// instead of any browser storage. This replaced a sessionStorage stash, then
+// a localStorage stash, neither of which actually worked: an installed
+// (home-screen) PWA on iOS can run the navigation to accounts.google.com in
+// a genuinely separate WebKit storage partition from the one that receives
+// Google's redirect back — sessionStorage *and* localStorage both go empty
+// across that boundary, which is what "Sign-in session expired" actually
+// was on a phone that never did anything wrong. `state` has no such
+// problem: Google is contractually required to echo it back verbatim on
+// the query string of its own redirect, so the data travels in the URL
+// itself rather than through any storage API. `redirectUri` doesn't need
+// to be part of this — it isn't user-specific, the callback page re-fetches
+// the same server-configured value from GET /api/auth/config.
+function encodeState(payload) {
+  return base64url(new TextEncoder().encode(JSON.stringify(payload)))
+}
+
+function decodeState(state) {
+  try {
+    const binary = atob(state.replace(/-/g, '+').replace(/_/g, '/'))
+    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0))
+    return JSON.parse(new TextDecoder().decode(bytes))
+  } catch {
+    return null
+  }
 }
 
 // Standard PKCE (RFC 7636): a random verifier, and its SHA-256 challenge sent
@@ -46,7 +72,7 @@ export async function generatePKCE() {
   return { verifier, challenge }
 }
 
-export function buildGoogleAuthUrl(clientId, redirectUri, challenge) {
+export function buildGoogleAuthUrl(clientId, redirectUri, challenge, state) {
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
@@ -56,22 +82,23 @@ export function buildGoogleAuthUrl(clientId, redirectUri, challenge) {
     prompt: 'consent',
     code_challenge: challenge,
     code_challenge_method: 'S256',
+    state,
   })
   return `${GOOGLE_AUTH_ENDPOINT}?${params.toString()}`
 }
 
-// Called right before redirecting to Google — stashes the verifier, the
-// redirect_uri actually used, and where to send the user back to once
-// signed in, since the callback page needs all three and has no other way
-// to recover them after the full-page navigation round-trip.
-export function stashPKCE(verifier, redirectUri, returnTo) {
-  sessionStorage.setItem(PKCE_KEY, JSON.stringify({ verifier, redirectUri, returnTo }))
+// Called right before redirecting to Google — encodes the verifier and
+// where to send the user back to once signed in into the `state` string
+// that travels through Google's own redirect (see encodeState above).
+export function buildAuthState(verifier, returnTo) {
+  return encodeState({ verifier, returnTo })
 }
 
-export function consumeStashedPKCE() {
-  const raw = sessionStorage.getItem(PKCE_KEY)
-  sessionStorage.removeItem(PKCE_KEY)
-  return raw ? JSON.parse(raw) : null
+// Called on the callback page — the inverse of buildAuthState. Returns null
+// on a missing/corrupt state rather than throwing, same "never trust
+// external input" posture as every other parse in this file.
+export function parseAuthState(state) {
+  return state ? decodeState(state) : null
 }
 
 export async function exchangeCode(code, verifier, redirectUri) {

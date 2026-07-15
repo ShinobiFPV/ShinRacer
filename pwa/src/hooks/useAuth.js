@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import api from '../lib/api'
 import {
-  generatePKCE, buildGoogleAuthUrl, stashPKCE,
+  generatePKCE, buildGoogleAuthUrl, buildAuthState,
   getStoredAuth, clearAuth, isTokenExpired,
 } from '../lib/auth'
 
@@ -27,8 +27,8 @@ export function useAuth() {
     }
     const { clientId, redirectUri } = data.data
     const { verifier, challenge } = await generatePKCE()
-    stashPKCE(verifier, redirectUri, returnTo)
-    window.location.href = buildGoogleAuthUrl(clientId, redirectUri, challenge)
+    const state = buildAuthState(verifier, returnTo)
+    window.location.href = buildGoogleAuthUrl(clientId, redirectUri, challenge, state)
   }
 
   function logout() {

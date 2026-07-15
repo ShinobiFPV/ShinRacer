@@ -3891,3 +3891,93 @@ whatever the actual consent screen shows) rather than a bug still hiding
 in this codebase — but "should work now" isn't the same as "confirmed
 working," and this file has now been wrong about that exact distinction
 twice in one day.
+
+**Update, same day**: it wasn't Google's side. William got past the
+consent screen (passkey accepted, "Google hasn't verified this app"
+warning clicked through as the project owner/implicit test user, exactly
+as expected for a Testing-status app) and landed back on ShinRacer's own
+callback page — which then failed with "Sign-in session expired." See the
+next follow-up for the real bug and its fix.
+
+## Follow-up: PKCE verifier lost across the OAuth redirect on an installed iOS PWA
+
+2026-07-15, immediately after the two-OAuth-client fix above: "Sign-in
+session expired — please try again" on the callback page, after Google's
+own consent screen had already succeeded. That message is
+`AuthCallbackPage.jsx`'s own copy for "no stashed PKCE state found" — a
+real, reproducible bug in this codebase, not a Google-side issue.
+
+**First fix attempt (insufficient): sessionStorage → localStorage.**
+`pwa/src/lib/auth.js`'s `stashPKCE()`/`consumeStashedPKCE()` stored the
+verifier in `sessionStorage`, scoped to a single top-level browsing
+context. The working theory was that iOS Safari opens the navigation to
+`accounts.google.com` in a different context than the one that receives
+Google's redirect back, dropping `sessionStorage` between the two halves
+of one sign-in attempt. Switched to `localStorage` on that theory,
+deployed, verified the new bundle was live — and William hit the *exact
+same* "session expired" message again on retry.
+
+**Real fix: stop depending on any browser storage at all.** For an
+installed (home-screen) PWA specifically, WebKit can isolate the
+standalone app's storage partition from the one Safari uses when it
+displays an external OAuth redirect page — `localStorage` doesn't bridge
+that gap any better than `sessionStorage` did, because the isolation is
+between *storage partitions*, not between *storage APIs*. The fix that
+actually can't fail this way: encode `{ verifier, returnTo }` into OAuth's
+own `state` parameter, which Google is contractually required (RFC 6749
+§4.1.2) to echo back verbatim on its redirect's query string. The payload
+travels through the URL itself, never through any storage API, so there's
+no partition boundary left to cross.
+
+- **`pwa/src/lib/auth.js`**: `stashPKCE`/`consumeStashedPKCE` (and the now
+  fully-unused `PKCE_KEY` localStorage constant) removed outright, not
+  left as a fallback — a second code path that "sometimes" restores state
+  is worse than one path that always works, and grepping confirmed no
+  other call site depended on the removed exports. Replaced with
+  `encodeState`/`decodeState` (base64url of a JSON payload — same
+  encoding style `sha256.js`'s neighbor `base64url()` in this file already
+  used) and the public `buildAuthState(verifier, returnTo)` /
+  `parseAuthState(state)` pair. `buildGoogleAuthUrl` gained a `state`
+  parameter, threaded straight into Google's own auth URL.
+  `redirectUri` deliberately isn't part of the state payload — it isn't
+  user-specific, so the callback page just re-fetches the same
+  server-configured value from `GET /api/auth/config` instead of
+  round-tripping something that never changes.
+- **`pwa/src/hooks/useAuth.js`**: `login()` now calls `buildAuthState`
+  instead of `stashPKCE`, passing the result straight into
+  `buildGoogleAuthUrl`.
+- **`pwa/src/views/AuthCallbackPage.jsx`**: reads `state` off
+  `window.location.search`, decodes it via `parseAuthState`, and shows
+  "Sign-in state was missing or corrupted" (only reachable now if the
+  `state` param itself was stripped or tampered with somewhere in transit
+  — not the everyday case the old message was actually firing for) if
+  that fails. Fetches `/api/auth/config` for `redirectUri` before calling
+  `exchangeCode`, same call the login button already made.
+
+### Verified this pass
+The encode/decode round-trip was tested standalone in Node *before* being
+wired into the app — three payloads (including one with `+`, `/`, `=`,
+`&`, and `?` characters deliberately chosen to stress URL-safety) pushed
+through `encodeState` → a real `URLSearchParams`/`URL` round-trip
+(replicating exactly what the browser does when Google echoes the
+parameter back) → `decodeState`, all three came back byte-for-byte
+identical to the original object. Malformed/garbage input to `decodeState`
+was confirmed to return `null` rather than throw. `npx vite build`
+compiles clean (153 modules, same as before — file count unchanged, only
+content). Grepped the whole `pwa/src` tree to confirm no leftover
+reference to the removed `stashPKCE`/`consumeStashedPKCE` exports. The fix
+was deployed for real via `deploy-pwa.ps1` and the new bundle hash
+confirmed reachable and serving `200`.
+
+### Not independently verified
+No real device has completed an actual sign-in against this version yet —
+the encode/decode logic is independently verified correct (see above), and
+the *previous* two fixes in this same chain (redirect_uri, OAuth client
+type) were both independently confirmed correct via direct backend checks
+before turning out to still not be enough for the actual end-to-end flow.
+This third fix removes the one remaining piece of the puzzle that could
+still fail silently on a real device (storage-partition isolation) that
+the first two fixes didn't touch — but per the note directly above, this
+file is now on its third attempt at declaring PWA sign-in "should work,"
+and the only thing that actually closes this out is William confirming a
+real sign-in completes on his phone.

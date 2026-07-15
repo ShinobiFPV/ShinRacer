@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { C } from '../lib/colors'
 import { hashToColor } from '../lib/colors'
-import { exchangeCode, consumeStashedPKCE, setIdentity, setOnboarded } from '../lib/auth'
+import { exchangeCode, parseAuthState, setIdentity, setOnboarded } from '../lib/auth'
+import api from '../lib/api'
 import { Btn } from '../components/primitives'
 
 export default function AuthCallbackPage() {
@@ -17,14 +18,25 @@ export default function AuthCallbackPage() {
     if (oauthError) { setError(`Google sign-in was cancelled or denied (${oauthError}).`); return }
     if (!code) { setError('No authorization code came back from Google.'); return }
 
-    const stashed = consumeStashedPKCE()
-    if (!stashed) { setError('Sign-in session expired — please try again.'); return }
+    // The verifier/returnTo travel through OAuth's own `state` param, not
+    // browser storage — see lib/auth.js's encodeState/decodeState for why
+    // (an installed PWA on iOS can run this redirect in a separate storage
+    // partition from the one that receives the callback, which silently
+    // broke both a sessionStorage and a localStorage version of this).
+    const state = parseAuthState(params.get('state'))
+    if (!state?.verifier) { setError('Sign-in state was missing or corrupted — please try again.'); return }
 
-    exchangeCode(code, stashed.verifier, stashed.redirectUri)
+    // redirectUri isn't user-specific, so it isn't part of `state` — just
+    // re-fetch the same server-configured value the login button used.
+    api.get('/api/auth/config')
+      .then(({ data }) => {
+        if (!data.ok || !data.data.redirectUri) throw new Error('Google sign-in is not configured on the backend.')
+        return exchangeCode(code, state.verifier, data.data.redirectUri)
+      })
       .then(({ user }) => {
         setIdentity({ handle: user.name, color: hashToColor(user.name) })
         setOnboarded()
-        const returnTo = stashed.returnTo || '/events'
+        const returnTo = state.returnTo || '/events'
         navigate(returnTo === '/onboarding' ? '/onboarding?step=done' : returnTo, { replace: true })
       })
       .catch(e => setError(e.message))
