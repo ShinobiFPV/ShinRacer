@@ -314,7 +314,7 @@ Since you asked:
 |-------|-----------|
 | Desktop shell | Electron 28 |
 | UI | React 18 + Vite 5 |
-| Styling | Inline styles, custom design system — true black, electric blue, Bebas Neue/Barlow Condensed (no CSS framework) |
+| Styling | Inline styles, custom design system — true black, electric blue, Rubik Mono One/Space Mono (no CSS framework) |
 | Backend | Node.js 24 + Express |
 | Realtime | Socket.io 4 |
 | Database | SQLite via better-sqlite3 |

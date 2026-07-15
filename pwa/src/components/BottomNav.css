@@ -27,7 +27,7 @@
 }
 
 .shr-nav-icon { font-size: 22px; line-height: 1; }
-.shr-nav-label { font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+.shr-nav-label { font-family: 'Space Mono', 'Courier New', monospace; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
 
 .shr-main {
   flex: 1;

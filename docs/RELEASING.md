@@ -90,7 +90,7 @@ Node's built-in `zlib` — no canvas/sharp/image library, since none has a
 prebuilt binary for this environment's Node/win32 combination (the same gap
 documented for `better-sqlite3` and `mmap-io` elsewhere in this repo). It's
 a simple blue "SR" pixel-font mark on the app's near-black background, not
-rendered Bebas Neue glyphs — regenerate it (`node scripts/generate-icon.js`)
+rendered Rubik Mono One glyphs — regenerate it (`node scripts/generate-icon.js`)
 if the mark itself changes, or replace `resources/icon.ico` directly with
 real branded artwork later if that matters.
 

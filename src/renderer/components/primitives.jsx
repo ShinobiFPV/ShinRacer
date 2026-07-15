@@ -35,14 +35,10 @@ export const C = {
   muted:        '#5C5C5C',   // disabled, placeholder
   mutedHi:      '#8C8C8C',   // slightly more visible muted
 
-  // Typography — one monospace family everywhere, Port Manager style.
-  // Bebas Neue/Barlow Condensed's ultra-condensed all-caps look was hard to
-  // read at small sizes; JetBrains Mono (falling back to Courier New) reads
-  // cleanly at any size and matches the terminal-dashboard look of the other
-  // ShinTech tools.
-  head:  "'JetBrains Mono', 'Courier New', monospace",
-  body:  "'JetBrains Mono', 'Courier New', monospace",
-  mono:  "'JetBrains Mono', 'Courier New', monospace",
+  // Typography — Rubik Mono One for titling, Space Mono for everything else.
+  head:  "'Rubik Mono One', 'Courier New', monospace",
+  body:  "'Space Mono', 'Courier New', monospace",
+  mono:  "'Space Mono', 'Courier New', monospace",
 
   // Geometry — rounded, soft (Port Manager uses 6-10px throughout)
   radius:    '10px',         // default border radius
@@ -51,7 +47,7 @@ export const C = {
 }
 
 export const GLOBAL_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Rubik+Mono+One&family=Space+Mono:wght@400;700&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body, #root { height: 100%; background: ${C.bg}; color: ${C.textPrimary}; font-family: ${C.body}; overflow: hidden; }
   ::selection { background: ${C.blue}44; color: ${C.whiteHot}; }

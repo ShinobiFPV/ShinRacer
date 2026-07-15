@@ -327,10 +327,10 @@ const OAUTH_CALLBACK_HTML = `<!DOCTYPE html>
 <head>
   <style>
     body { background: #050507; color: #E8F0FF;
-           font-family: 'Barlow Condensed', sans-serif;
+           font-family: 'Space Mono', 'Courier New', monospace;
            display: flex; align-items: center;
            justify-content: center; height: 100vh; margin: 0; }
-    h1 { font-size: 32px; letter-spacing: 2px; }
+    h1 { font-family: 'Rubik Mono One', 'Courier New', monospace; font-size: 32px; letter-spacing: 2px; }
     p  { color: #5A6475; }
   </style>
 </head>
@@ -388,10 +388,10 @@ const SPOTIFY_CALLBACK_HTML = `<!DOCTYPE html>
 <head>
   <style>
     body { background: #050507; color: #E8F0FF;
-           font-family: 'Barlow Condensed', sans-serif;
+           font-family: 'Space Mono', 'Courier New', monospace;
            display: flex; align-items: center;
            justify-content: center; height: 100vh; margin: 0; }
-    h1 { font-size: 32px; letter-spacing: 2px; color: #1DB954; }
+    h1 { font-family: 'Rubik Mono One', 'Courier New', monospace; font-size: 32px; letter-spacing: 2px; color: #1DB954; }
     p  { color: #5A6475; }
   </style>
 </head>

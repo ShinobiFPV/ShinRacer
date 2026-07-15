@@ -4,7 +4,7 @@
 // environment's Node/win32 combo, the same native-dependency gap documented
 // for better-sqlite3 in Phases 4/6 and mmap-io in Phase 9). Content is a
 // simple pixel-font "SR" mark on the brand background rather than real
-// rendered Bebas Neue glyphs — see CLAUDE.md's Phase 10 notes for why, and
+// rendered Rubik Mono One glyphs — see CLAUDE.md's Phase 10 notes for why, and
 // swap in real artwork before shipping to users if that matters.
 //
 // Run manually: node pwa/scripts/generate-icons.js

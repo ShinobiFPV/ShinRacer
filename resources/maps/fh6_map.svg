@@ -18,10 +18,10 @@
   <path d="M 500,600 Q 850,750 1200,600 T 1750,550" fill="none" stroke="#353D47" stroke-width="6" stroke-linecap="round" />
   <path d="M 800,1750 Q 850,1200 800,750 T 900,300" fill="none" stroke="#353D47" stroke-width="6" stroke-linecap="round" />
 
-  <text x="1000" y="960" text-anchor="middle" font-family="'Bebas Neue', 'Barlow Condensed', sans-serif"
+  <text x="1000" y="960" text-anchor="middle" font-family="'Rubik Mono One', 'Courier New', monospace"
         font-size="120" letter-spacing="6" fill="#7A90B8">FORZA HORIZON 6</text>
-  <text x="1000" y="1040" text-anchor="middle" font-family="'Barlow Condensed', sans-serif"
+  <text x="1000" y="1040" text-anchor="middle" font-family="'Space Mono', 'Courier New', monospace"
         font-size="34" letter-spacing="4" fill="#3A4A66">PLACEHOLDER MAP</text>
-  <text x="1000" y="1110" text-anchor="middle" font-family="'Barlow Condensed', sans-serif"
+  <text x="1000" y="1110" text-anchor="middle" font-family="'Space Mono', 'Courier New', monospace"
         font-size="24" fill="#3A4A66">Replace with fh6_map.jpg for a real map</text>
 </svg>

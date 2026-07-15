@@ -94,4 +94,4 @@ No App Store, no Play Store — just the link, same as any other bookmark.
   notification — proof the whole subscribe → VAPID → push round-trip works.
 - Installing to the home screen shows the ShinRacer icon (blue "SR" mark on
   black — see the note in CLAUDE.md's Phase 10 section on why it's not a
-  fully rendered Bebas Neue wordmark yet) and launches without browser chrome.
+  fully rendered Rubik Mono One wordmark yet) and launches without browser chrome.

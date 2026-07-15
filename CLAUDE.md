@@ -3329,3 +3329,56 @@ UI (Live Servers view, full nav) with no Wizard flash. `npx vite build`
 also compiles clean after the change. Fixed in
 `src/renderer/store/AppStore.jsx`, committed and pushed separately from
 the README screenshots work.
+
+## Follow-up: fonts switched to Rubik Mono One / Space Mono
+
+2026-07-15: swapped the design system's typography (previously JetBrains
+Mono everywhere in the Electron app per its own Phase-8-era comment, and a
+still-stale Bebas Neue/Barlow Condensed/JetBrains Mono trio in the PWA's own
+`lib/colors.js` that had never been brought forward through the later
+redesigns) to **Rubik Mono One** for titling (`C.head`) and **Space Mono**
+for everything else (`C.body`/`C.mono`), both loaded from Google Fonts, in
+both apps.
+
+- `src/renderer/components/primitives.jsx`: `C.head`/`C.body`/`C.mono` and
+  the `GLOBAL_CSS` `@import` updated.
+- `pwa/src/lib/colors.js`: same three token values updated (this file had
+  drifted out of sync with the Electron app's own font choice since at
+  least Phase 8 — fixed as part of this pass since both needed to change
+  anyway).
+- `pwa/index.html`: Google Fonts `<link>` updated to the new family list.
+- `pwa/public/offline.html`, `pwa/src/components/BottomNav.css`: the two
+  PWA spots that hardcode a font-family literal instead of reading `C.head`/
+  `C.body` (a standalone offline page and a plain CSS file, neither of which
+  can import the JS token file) updated to match.
+- `src/main/main.js`: the two standalone OAuth loopback callback HTML pages
+  (Google sign-in port 9721, Spotify port 9722 — see Phase 12/18 notes
+  above) had their own hardcoded `font-family: 'Barlow Condensed'` — updated,
+  and each page's `<h1>` now explicitly uses Rubik Mono One rather than
+  inheriting the body font, since it's the one title-sized element on either
+  page.
+- `resources/maps/fh5_map.svg`, `fh6_map.svg`: the placeholder map art's
+  text labels (Phase 17) referenced the old fonts by name — updated for
+  consistency, though these are SVG `font-family` attributes with no way to
+  actually load a webfont into a standalone SVG, so they always fell back to
+  the browser/OS default anyway.
+- `pwa/scripts/generate-icons.js`: one comment referencing "Bebas Neue
+  glyphs" corrected to name the new titling font.
+- `README.md`'s tech-stack table and `docs/PWA_SETUP.md`/`docs/RELEASING.md`'s
+  icon-generation notes (both describing current-state typography, not a
+  historical phase record) updated to match. The many historical
+  Phase-8/10/11/etc. completion notes elsewhere in this file that describe
+  the *old* fonts as what was shipped *at the time* were deliberately left
+  untouched, per this file's own established convention of treating past
+  phase notes as a historical record rather than live documentation (see
+  the "Rename" section above for the same judgment call made explicitly).
+
+Verified this pass: `npx vite build` compiles clean for both the Electron
+renderer (181 modules, same pre-existing warnings, no new errors) and the
+PWA (152 modules, no new errors). `node --check` passes on `main.js`. Not
+independently verified: no interactive click-through confirming the fonts
+actually render as Rubik Mono One/Space Mono rather than falling back to
+their `'Courier New', monospace` stack (e.g. if the Google Fonts request is
+blocked or slow) — verified by reading the updated `@import`/`<link>` tags
+and the clean builds only, not by rendering the app and inspecting computed
+styles.

@@ -33,9 +33,9 @@ export const C = {
   muted:        '#3A4A66',
   mutedHi:      '#5A70A0',
 
-  head:  "'Bebas Neue', 'Barlow Condensed', sans-serif",
-  body:  "'Barlow Condensed', 'Inter', sans-serif",
-  mono:  "'JetBrains Mono', 'Cascadia Code', monospace",
+  head:  "'Rubik Mono One', 'Courier New', monospace",
+  body:  "'Space Mono', 'Courier New', monospace",
+  mono:  "'Space Mono', 'Cascadia Code', monospace",
 
   radius:   '0px',
   radiusSm: '2px',
