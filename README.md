@@ -318,6 +318,8 @@ It's not a stripped-down fork or a second codebase to keep in sync — Lite is b
 
 Same backend, same Google sign-in, same roles, same auto-updater, same everything under the hood — Lite just hides the sidebar items most casual crew never open. Nav visibility is a fixed allowlist independent of role, so even an Admin account on a Lite install only sees the 8 items above; role gating (Host/Admin/Crew) still applies on top of that exactly as it does in Full.
 
+Don't want a second install just to try it? Flip **App mode → Lite Mode** in Settings on the regular ShinRacer app — it hides the exact same nav items at runtime, on the same install, restorable with the same toggle any time. If you're on a hidden page when you turn it on, you're bounced back to Live Servers rather than left on a page you can no longer see.
+
 Both installers are published together on every release, sharing one version number. Grab whichever one fits from **[GitHub Releases](https://github.com/ShinobiFPV/ShinRacer/releases/latest)**:
 
 - `ShinRacer Setup x.x.x.exe` — everything

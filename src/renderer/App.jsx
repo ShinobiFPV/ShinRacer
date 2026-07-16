@@ -69,15 +69,20 @@ function canAccess(requiredRole, userRole) {
 // outright, independent of role (an admin on the Lite build still only
 // sees this list; canAccess()'s role gate above is a separate, orthogonal
 // check that still applies on top of it).
+//
+// liteModeOn is the runtime counterpart of the same idea for the Full
+// build — a personal Settings toggle (AppStore's liteMode/saveLiteMode)
+// that hides the identical nav items without needing the separate Lite
+// installer at all. Either one narrows the list the same way.
 const LITE_VISIBLE = new Set(['deploy', 'build', 'garage', 'traffic', 'events', 'comms', 'mods', 'settings'])
-function inVariant(id) {
-  return !isLite || LITE_VISIBLE.has(id)
+function inVariant(id, liteModeOn) {
+  return (!isLite && !liteModeOn) || LITE_VISIBLE.has(id)
 }
 
 const ROLE_COLOR = { admin: C.red, host: C.blue, crew: C.muted }
 
-function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backendOnline, user, role }) {
-  const visibleNav = NAV.filter(n => canAccess(n.role, role) && inVariant(n.id))
+function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backendOnline, user, role, liteMode }) {
+  const visibleNav = NAV.filter(n => canAccess(n.role, role) && inVariant(n.id, liteMode))
   return (
     <div style={{ width:180, background:C.bg, borderRight:`1px solid ${C.border}`,
       display:'flex', flexDirection:'column', flexShrink:0, userSelect:'none' }}>
@@ -90,7 +95,7 @@ function Sidebar({ view, onChange, liveCount, setupComplete, backendUrl, backend
           SHINRACER
         </span>
         <span style={{ fontFamily:C.body, fontWeight:400, fontSize:10, letterSpacing:2, textTransform:'uppercase', color:C.muted, marginTop:2 }}>
-          ShinTech{isLite ? ' · Lite' : ''}
+          ShinTech{(isLite || liteMode) ? ' · Lite' : ''}
         </span>
       </div>
 
@@ -182,7 +187,7 @@ function AccessRestricted() {
 // ── Inner app (has store access) ──────────────────────────────────────────────
 function Inner() {
   const { liveServers, settings, profiles, saveProfiles, addLiveServer, toast, backendUrl, backendOnline, hydrated, showToast,
-    saveSettings, saveBackendUrl, saveQuickPhrases, saveAiEngineer,
+    saveSettings, saveBackendUrl, saveQuickPhrases, saveAiEngineer, liteMode,
     user, role, isSignedIn, authLoading } = useStore()
   const [view, setView]   = useState('deploy')
   const [buildCfg, setBuildCfg] = useState(null)
@@ -290,7 +295,16 @@ function Inner() {
   }, [profiles])
 
   const currentNavItem = NAV.find(n => n.id === view)
-  const restricted = currentNavItem && (!canAccess(currentNavItem.role, role) || !inVariant(currentNavItem.id))
+  const restricted = currentNavItem && (!canAccess(currentNavItem.role, role) || !inVariant(currentNavItem.id, liteMode))
+
+  // Turning Lite Mode on can instantly hide whatever view is currently open —
+  // bounce back to Live Servers rather than showing AccessRestricted's
+  // "requires Host or Admin access" copy, which doesn't apply to a
+  // Lite-Mode-hidden view and would just confuse whoever just flipped the toggle.
+  useEffect(() => {
+    if (liteMode && !LITE_VISIBLE.has(view)) setView('deploy')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liteMode])
 
   // Wizard shows on first launch (setupComplete: false) OR whenever there's
   // no valid Google sign-in — either condition alone is enough to gate the
@@ -305,7 +319,7 @@ function Inner() {
       ) : (
         <div style={{ display:'flex', height:'100vh', overflow:'auto' }}>
           <Sidebar view={view} onChange={setView} liveCount={liveServers.length} setupComplete={settings.setupComplete}
-            backendUrl={backendUrl} backendOnline={backendOnline} user={user} role={role} />
+            backendUrl={backendUrl} backendOnline={backendOnline} user={user} role={role} liteMode={liteMode} />
 
           {/* Main area */}
           <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'auto' }}>

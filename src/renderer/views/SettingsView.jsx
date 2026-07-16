@@ -358,6 +358,22 @@ function UpdateSection() {
   )
 }
 
+// Runtime counterpart of the separate ShinRacer Lite installer — hides the
+// same nav items (Stats, Telemetry, Cluster, Replays, FPV Drone, Forza Map,
+// Car Stereo, Links, AI Engineer) without needing a different install.
+// Not shown on an actual Lite build: there's nothing left to hide there.
+function AppModeSection() {
+  const { liteMode, saveLiteMode } = useStore()
+  return (
+    <Card accent={C.borderHi}>
+      <SectionHead children="App mode" sub="Trim the sidebar down to just servers, events, mods, comms, and traffic — same as ShinRacer Lite, without a separate install" />
+      <Tooltip text="Hides Stats, Telemetry, Cluster, Replays, FPV Drone, Forza Map, Car Stereo, Links, and AI Engineer from the sidebar. Flip it back any time — nothing is deleted, it's just out of the way.">
+        <Toggle label="Lite Mode" value={liteMode} onChange={saveLiteMode} />
+      </Tooltip>
+    </Card>
+  )
+}
+
 export default function SettingsView() {
   const { settings, saveSettings, identity, saveIdentity, backendUrl, saveBackendUrl,
     quickPhrases, saveQuickPhrases, acDetected, showToast,
@@ -425,6 +441,8 @@ export default function SettingsView() {
   return (
     <div style={{ padding: 28, maxWidth: 780, display: 'flex', flexDirection: 'column', gap: 20 }}>
       <UpdateSection />
+
+      {!isLite && <AppModeSection />}
 
       <Card accent={ROLE_COLOR[role] || C.borderHi}>
         <SectionHead children="Profile" sub="Google identity — handle and color are your display preferences on top of it" />

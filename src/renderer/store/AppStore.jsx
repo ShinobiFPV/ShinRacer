@@ -61,6 +61,12 @@ export function AppStoreProvider({ children }) {
   const [backendUrl, setBackendUrlState] = useState(DEFAULT_BACKEND_URL)
   const [quickPhrases, setQuickPhrasesState] = useState(DEFAULT_QUICK_PHRASES)
   const [aiEngineer, setAiEngineerState] = useState(DEFAULT_AI_ENGINEER)
+  // Runtime Lite Mode — a personal toggle on the Full build that hides the
+  // same nav items ShinRacer Lite's own build-time variant hides (see
+  // App.jsx's LITE_VISIBLE/inVariant). Independent of the isLite build flag
+  // in lib/variant.js: this is a preference a Full-install user can flip
+  // for themselves, not a separate installer.
+  const [liteMode, setLiteModeState] = useState(false)
   const [liveServers, setLiveServers]  = useState([])   // { id, name, config, startedAt, pid, logPath }
   const [profiles, setProfiles]        = useState([])   // server config presets
   const [trafficProfiles, setTrafficProfiles] = useState([])
@@ -129,6 +135,7 @@ export function AppStoreProvider({ children }) {
       }
       if (saved.quickPhrases?.length) setQuickPhrasesState(saved.quickPhrases)
       if (saved.aiEngineer) setAiEngineerState({ ...DEFAULT_AI_ENGINEER, ...saved.aiEngineer })
+      if (typeof saved.liteMode === 'boolean') setLiteModeState(saved.liteMode)
 
       // Detect AC install
       const detected = await api.ac.detect()
@@ -319,6 +326,11 @@ export function AppStoreProvider({ children }) {
     await api.store.set('aiEngineer', next)
   }, [aiEngineer])
 
+  const saveLiteMode = useCallback(async (next) => {
+    setLiteModeState(next)
+    await api.store.set('liteMode', next)
+  }, [])
+
   const saveProfiles = useCallback(async (next) => {
     setProfiles(next)
     await api.store.set('profiles', next)
@@ -339,6 +351,7 @@ export function AppStoreProvider({ children }) {
       backendUrl, saveBackendUrl,
       quickPhrases, saveQuickPhrases,
       aiEngineer, saveAiEngineer,
+      liteMode, saveLiteMode,
       profiles, saveProfiles,
       trafficProfiles, saveTrafficProfiles,
       liveServers, addLiveServer, removeLiveServer,
