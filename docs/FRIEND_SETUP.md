@@ -14,10 +14,16 @@ required for baseline access, only for the Host/Admin-only stuff.
 
 ## Step 3 — Download ShinRacer
 Go to: https://github.com/ShinobiFPV/ShinRacer/releases/latest
-Download the one file: **ShinRacer Setup x.x.x.exe** (single installer, no
-portable/zip version to choose between).
+Two installers are on that page — pick one:
+- **ShinRacer Setup x.x.x.exe** — everything (servers, traffic, events,
+  comms, mods, stats, telemetry, replays, and more)
+- **ShinRacer Lite Setup x.x.x.exe** — just servers/events, mods, comms,
+  and traffic management, for casual crew who don't need the rest
 Run the installer — Windows may show a SmartScreen warning,
 click "More info" → "Run anyway" (the app is unsigned for now).
+Not sure which one to pick, or want to switch later? Both installs share
+the same account and backend, and Full has a Lite Mode toggle in Settings
+that hides the same items at runtime — no reinstall needed to try it.
 
 ## Step 4 — Sign in
 On first launch, the setup wizard walks you through:

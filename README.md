@@ -10,7 +10,9 @@
 
 ![Platform](https://img.shields.io/badge/platform-Windows-blue) ![Electron](https://img.shields.io/badge/electron-28-47848F) ![Node](https://img.shields.io/badge/node-24-green) ![License](https://img.shields.io/badge/license-MIT-yellow) ![Status](https://img.shields.io/badge/status-active-brightgreen) ![Built with Claude](https://img.shields.io/badge/built%20with-Claude-blueviolet)
 
-One installer. One download link. Sign in with Google and go — there's no portable build, no zip to pick by mistake, and there's even a handy app for your phone.
+One download link, two installers to pick from — full or Lite. Sign in with Google and go — there's no portable build, no zip to pick by mistake, and there's even a handy app for your phone.
+
+📥 **[Download ShinRacer](https://github.com/ShinobiFPV/ShinRacer/releases/latest)** · **[Download ShinRacer Lite](https://github.com/ShinobiFPV/ShinRacer/releases/latest)** — both installers are on the same release page, grab whichever fits (see [🪶 ShinRacer Lite](#-shinracer-lite) below).
 
 ## What is this?
 
