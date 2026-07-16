@@ -289,6 +289,42 @@ needs it.)
 Full mobile setup, VAPID push notifications, and the nginx config that
 serves it: **[docs/PWA_SETUP.md](docs/PWA_SETUP.md)**.
 
+## 🪶 ShinRacer Lite
+
+Not everyone wants the whole toolbox. Some of the crew just want to show up, join a race, grab a mod, and talk to people — that's ShinRacer Lite.
+
+![ShinRacer Lite — the trimmed 8-item sidebar](docs/screenshots/lite-sidebar.png)
+
+It's not a stripped-down fork or a second codebase to keep in sync — Lite is built from the exact same `src/` tree as the full app, packaged by a second electron-builder config (`electron-builder-lite.yml`) that just changes which nav items are visible. Every bug fix and every feature that lands in Full ships in Lite's next release too, automatically, because it's the same source.
+
+| | ShinRacer | ShinRacer Lite |
+|---|---|---|
+| Live Servers, Build, Garage | ✅ | ✅ |
+| Traffic Manager | ✅ | ✅ |
+| Events Calendar | ✅ | ✅ |
+| Comms Hub (voice + chat) | ✅ | ✅ |
+| Mod Manager | ✅ | ✅ |
+| Settings | ✅ | ✅ |
+| Lap Stats | ✅ | — |
+| Live Telemetry (8 games) | ✅ | — |
+| The Cluster Fucker | ✅ | — |
+| Replay Browser | ✅ | — |
+| FPV Drone Assistant | ✅ | — |
+| Forza World Map | ✅ | — |
+| Car Stereo | ✅ | — |
+| Useful Links | ✅ | — |
+| AI Race Engineer | ✅ | — |
+| Admin panel (Admin role only, either build) | ✅ | ✅ |
+
+Same backend, same Google sign-in, same roles, same auto-updater, same everything under the hood — Lite just hides the sidebar items most casual crew never open. Nav visibility is a fixed allowlist independent of role, so even an Admin account on a Lite install only sees the 8 items above; role gating (Host/Admin/Crew) still applies on top of that exactly as it does in Full.
+
+Both installers are published together on every release, sharing one version number. Grab whichever one fits from **[GitHub Releases](https://github.com/ShinobiFPV/ShinRacer/releases/latest)**:
+
+- `ShinRacer Setup x.x.x.exe` — everything
+- `ShinRacer Lite Setup x.x.x.exe` — servers, events, mods, comms, traffic
+
+Build/packaging details for maintainers: **[docs/RELEASING.md#shinracer-lite](docs/RELEASING.md#shinracer-lite)**.
+
 ## How it works
 
 The heavy lifting runs on a Pi 5 in shinobi's setup. Everyone else just runs the app.
@@ -409,13 +445,7 @@ The whole thing takes about 5 minutes. After that, updates find you — a banner
 
 Full step-by-step: **[docs/FRIEND_SETUP.md](docs/FRIEND_SETUP.md)**
 
-**Not everyone needs the whole app.** ShinRacer Lite is the same install,
-built from the same code, but trimmed to just Live Servers, Build, Garage,
-Traffic Manager, Events, Comms, Mods, and Settings — for crew who just
-want to join races/events, grab mods, and talk, without Stats,
-Telemetry, the Cluster Fucker, Replays, FPV Drone, Forza Map, Car Stereo,
-Links, or AI Engineer cluttering the sidebar. Same backend, same account,
-same updates — just fewer pages. See [docs/RELEASING.md](docs/RELEASING.md#shinracer-lite).
+**Not everyone needs the whole app.** See **[🪶 ShinRacer Lite](#-shinracer-lite)** above — same install, same code, same account, just a shorter sidebar.
 
 ### Roles
 
