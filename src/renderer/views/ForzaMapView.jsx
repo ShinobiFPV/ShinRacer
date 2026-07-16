@@ -208,6 +208,26 @@ function MapCanvas({ game, mapImage, isPlaceholder, opacity, rows, followMe, set
   const [selected, setSelected] = useState(null)
   const prevRacing = useRef({})
   const [flashes, setFlashes] = useState({}) // handle -> true briefly
+  // Real natural pixel size of the loaded map image — never assume it matches
+  // the container's aspect ratio (a screenshot the user drops in almost
+  // certainly won't). Probed with a detached Image() whose onload is wired
+  // up BEFORE src is assigned, not the rendered <img>'s own onLoad prop —
+  // these map images are base64 data: URIs, which decode fast enough that
+  // the browser's load event can fire before React finishes attaching the
+  // listener to that specific DOM node on first mount, silently leaving
+  // imgNatural stuck at null forever (confirmed live: the rendered <img>
+  // reported naturalWidth/naturalHeight correctly via a direct DOM check
+  // moments after mount, while the onLoad-driven state never updated).
+  const [imgNatural, setImgNatural] = useState(null)
+  useEffect(() => {
+    setImgNatural(null)
+    if (!mapImage) return
+    let cancelled = false
+    const probe = new Image()
+    probe.onload = () => { if (!cancelled) setImgNatural({ width: probe.naturalWidth, height: probe.naturalHeight }) }
+    probe.src = mapImage
+    return () => { cancelled = true }
+  }, [mapImage])
 
   useEffect(() => {
     const el = containerRef.current
@@ -220,13 +240,30 @@ function MapCanvas({ game, mapImage, isPlaceholder, opacity, rows, followMe, set
     return () => ro.disconnect()
   }, [])
 
-  // Project every row's world position to map pixels.
+  // Letterbox-fit the map image into the container (equivalent to
+  // object-fit: contain, computed by hand) so the whole image is always
+  // visible — never cropped the way object-fit: cover would crop it when
+  // the image's aspect ratio doesn't match the container's. Falls back to a
+  // centered square while the real image's dimensions haven't loaded yet
+  // (true for the 2000x2000 placeholders, a reasonable guess for most real
+  // full-map screenshots too).
+  const mapRect = useMemo(() => {
+    if (!mapImage) return { left: 0, top: 0, width: size.width, height: size.height }
+    const nw = imgNatural?.width || 1, nh = imgNatural?.height || 1
+    const scale = Math.min(size.width / nw, size.height / nh)
+    const w = nw * scale, h = nh * scale
+    return { left: (size.width - w) / 2, top: (size.height - h) / 2, width: w, height: h }
+  }, [mapImage, imgNatural, size])
+
+  // Project every row's world position to map pixels — against the map's
+  // own fitted rect, not the raw container, so markers always land on the
+  // same spot the (now fully visible, un-cropped) image actually renders at.
   const projected = useMemo(() => {
     return rows.map(r => {
-      const { px, py } = worldToMap(r.pos?.x, r.pos?.z, game, size.width, size.height)
-      return { ...r, px, py }
+      const { px, py } = worldToMap(r.pos?.x, r.pos?.z, game, mapRect.width, mapRect.height)
+      return { ...r, px: px + mapRect.left, py: py + mapRect.top }
     })
-  }, [rows, game, size.width, size.height])
+  }, [rows, game, mapRect])
 
   const targets = useMemo(() => {
     const t = {}
@@ -318,7 +355,7 @@ function MapCanvas({ game, mapImage, isPlaceholder, opacity, rows, followMe, set
         }}>
           {mapImage && (
             <img src={mapImage} alt="" draggable={false}
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity, pointerEvents: 'none' }} />
+              style={{ position: 'absolute', left: mapRect.left, top: mapRect.top, width: mapRect.width, height: mapRect.height, opacity, pointerEvents: 'none' }} />
           )}
           <svg width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="xMidYMid meet"
             style={{ position: 'absolute', inset: 0 }}>
