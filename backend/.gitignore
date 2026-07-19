@@ -1,0 +1,5 @@
+node_modules/
+uploads/*
+!uploads/.gitkeep
+ac_companion.db
+ac_companion.db-*

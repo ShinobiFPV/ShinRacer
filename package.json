@@ -1,0 +1,90 @@
+{
+  "name": "shinracer",
+  "version": "1.2.1",
+  "description": "ShinRacer — Race. Drift. Coordinate.",
+  "main": "src/main/main.js",
+  "license": "MIT",
+  "scripts": {
+    "dev": "concurrently -n VITE,ELECTRON -c cyan,yellow \"vite\" \"wait-on http://localhost:5173 && electron . --dev\"",
+    "build": "vite build && electron-builder",
+    "pack": "vite build && electron-builder --dir",
+    "release": "vite build && electron-builder --publish always",
+    "release:dry": "vite build && electron-builder --publish never",
+    "dev:lite": "set VITE_APP_VARIANT=lite&& concurrently -n VITE,ELECTRON -c cyan,yellow \"vite\" \"wait-on http://localhost:5173 && electron . --dev\"",
+    "pack:lite": "set VITE_APP_VARIANT=lite&& vite build && electron-builder --config electron-builder-lite.yml --dir",
+    "release:lite": "set VITE_APP_VARIANT=lite&& vite build && electron-builder --config electron-builder-lite.yml --publish always",
+    "release:lite:dry": "set VITE_APP_VARIANT=lite&& vite build && electron-builder --config electron-builder-lite.yml --publish never",
+    "version:patch": "npm version patch -m \"Release v%s\" && git push && git push --tags",
+    "version:minor": "npm version minor -m \"Release v%s\" && git push && git push --tags",
+    "version:major": "npm version major -m \"Release v%s\" && git push && git push --tags",
+    "lint": "eslint src/renderer"
+  },
+  "build": {
+    "appId": "com.shintech.shinracer",
+    "productName": "ShinRacer",
+    "copyright": "ShinTech Electronics",
+    "publish": {
+      "provider": "github",
+      "owner": "ShinobiFPV",
+      "repo": "ShinRacer",
+      "releaseType": "release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "requestedExecutionLevel": "requireAdministrator",
+      "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "resources/icon.ico",
+      "shortcutName": "ShinRacer",
+      "license": "resources/license.txt",
+      "include": "resources/installer.nsh",
+      "deleteAppDataOnUninstall": false
+    },
+    "extraResources": [
+      {
+        "from": "backend/",
+        "to": "backend/",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "files": [
+      "dist/**/*",
+      "src/main/**/*",
+      "resources/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/robotjs/**/*"
+    ]
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "electron-store": "^8.1.0",
+    "electron-updater": "^6.8.9",
+    "music-metadata": "^10.9.1",
+    "qrcode-generator": "^2.0.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "robotjs": "^0.7.1",
+    "socket.io-client": "^4.7.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.0",
+    "concurrently": "^8.2.0",
+    "electron": "^28.2.0",
+    "electron-builder": "^24.9.0",
+    "vite": "^5.0.0",
+    "wait-on": "^7.2.0"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "packageId": "com.shintech.shinracer.twa",
+  "host": "your-pi.tail9249a1.ts.net:8443",
+  "name": "ShinRacer",
+  "launcherName": "ShinRacer",
+  "display": "standalone",
+  "themeColor": "#0066FF",
+  "themeColorDark": "#000000",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#050507",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://your-pi.tail9249a1.ts.net:8443/icons/icon-512.png",
+  "maskableIconUrl": "https://your-pi.tail9249a1.ts.net:8443/icons/icon-maskable.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "C:\\Users\\billk\\Projects\\ShinTech\\ShinRacer\\android-twa\\android.keystore",
+    "alias": "shinracer"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli (scripted)",
+  "webManifestUrl": "https://your-pi.tail9249a1.ts.net:8443/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://your-pi.tail9249a1.ts.net:8443/",
+  "minSdkVersion": 21,
+  "orientation": "portrait",
+  "fingerprints": [
+    {
+      "value": "E8:7E:68:E5:B3:C2:7D:77:88:EC:7F:2E:7E:9A:40:A0:ED:CA:1B:73:0F:C6:36:51:29:02:78:71:05:8D:38:C0"
+    }
+  ],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "",
+  "displayOverride": [],
+  "appVersion": "1.0.0"
+}

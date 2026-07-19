@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.shintech.shinracer.twa",
+        "sha256_cert_fingerprints": ["E8:7E:68:E5:B3:C2:7D:77:88:EC:7F:2E:7E:9A:40:A0:ED:CA:1B:73:0F:C6:36:51:29:02:78:71:05:8D:38:C0"]
+      }
+    }]

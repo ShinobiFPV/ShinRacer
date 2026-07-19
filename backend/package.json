@@ -1,0 +1,24 @@
+{
+  "name": "shinracer-backend",
+  "version": "1.0.0",
+  "description": "ShinRacer backend — ShinTech Electronics",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.19.2",
+    "googleapis": "^140.0.1",
+    "multer": "^1.4.5-lts.1",
+    "qrcode-generator": "^2.0.4",
+    "socket.io": "^4.7.5",
+    "uuid": "^9.0.1",
+    "web-push": "^3.6.7"
+  }
+}

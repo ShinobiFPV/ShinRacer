@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+# electron-builder's GitHub publisher and `gh release edit` below both need
+# a token with permission to create/edit releases in this repo. Using the
+# auto-provided GITHUB_TOKEN (scoped to just this repo, no manual secret
+# setup required) instead of a custom GH_TOKEN secret — the previous
+# workflow referenced secrets.GH_TOKEN, which was never actually populated
+# in this repo's Actions secrets, causing every publish step to fail with
+# "GitHub Personal Access Token is not set." contents:write is required
+# because the default GITHUB_TOKEN permissions are read-only.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm install
+
+      - run: npm run release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_BACKEND_URL: http://192.168.1.203:3000
+
+      # ShinRacer Lite (see electron-builder-lite.yml) — same tag, same
+      # version, published as a second installer to the same GitHub
+      # release, on its own update channel so it and Full's auto-updater
+      # never mix up each other's releases.
+      - run: npm run release:lite
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_BACKEND_URL: http://192.168.1.203:3000
+
+      # electron-builder --publish always (npm run release) already created
+      # and published the GitHub release with the NSIS installer attached —
+      # this just replaces electron-builder's auto-generated notes (which are
+      # only the tag name) with the crew-facing template.
+      - name: Apply release notes template
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $body = (Get-Content .github/release-template.md -Raw) -replace '\{\{VERSION\}\}', $tag
+          gh release edit $tag --notes "$body"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
